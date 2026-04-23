@@ -1,5 +1,8 @@
 
 
+from tradingagents.agents.utils.agent_utils import get_report_evidence_guardrail_instruction
+
+
 def create_bear_researcher(llm, memory):
     def bear_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
@@ -28,6 +31,9 @@ Key points to focus on:
 - Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
 - Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
 - Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
+- Every concrete claim must be grounded in the supplied analyst reports or debate history.
+- Past reflections are process reminders only, not market evidence.
+- When citing evidence, append source tags such as [Market], [Sentiment], [News], [Fundamentals], [Debate], or [Process].
 
 Resources available:
 
@@ -37,8 +43,9 @@ Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bull argument: {current_response}
-Reflections from similar situations and lessons learned: {past_memory_str}
+Process reminders from similar situations and lessons learned (not market facts): {past_memory_str}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. You must also address reflections and learn from lessons and mistakes you made in the past.
+{get_report_evidence_guardrail_instruction(["Market", "Sentiment", "News", "Fundamentals", "Debate", "Process"])}
 """
 
         response = llm.invoke(prompt)

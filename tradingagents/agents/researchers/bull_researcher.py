@@ -1,5 +1,8 @@
 
 
+from tradingagents.agents.utils.agent_utils import get_report_evidence_guardrail_instruction
+
+
 def create_bull_researcher(llm, memory):
     def bull_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
@@ -19,14 +22,16 @@ def create_bull_researcher(llm, memory):
         for i, rec in enumerate(past_memories, 1):
             past_memory_str += rec["recommendation"] + "\n\n"
 
-        prompt = f"""You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
+        prompt = f"""You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case using only the favorable signals that appear in the supplied analyst reports and debate history. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
 Key points to focus on:
-- Growth Potential: Highlight the company's market opportunities, revenue projections, and scalability.
-- Competitive Advantages: Emphasize factors like unique products, strong branding, or dominant market positioning.
-- Positive Indicators: Use financial health, industry trends, and recent positive news as evidence.
-- Bear Counterpoints: Critically analyze the bear argument with specific data and sound reasoning, addressing concerns thoroughly and showing why the bull perspective holds stronger merit.
+- Positive Indicators: Highlight concrete favorable signals such as stronger price action, supportive technical readings, resilient margins, improving cash generation, or clearly stated positive news.
+- Bull Counterpoints: Critically analyze the bear argument with specific data and sound reasoning, addressing concerns thoroughly and showing why the favorable interpretation is better supported by the supplied materials.
+- Evidence Discipline: Do not introduce product narratives, customer metrics, market-share claims, or recurring price-pattern claims unless they already appear in the supplied materials.
 - Engagement: Present your argument in a conversational style, engaging directly with the bear analyst's points and debating effectively rather than just listing data.
+- Every concrete claim must be grounded in the supplied analyst reports or debate history.
+- Past reflections are process reminders only, not market evidence.
+- When citing evidence, append source tags such as [Market], [Sentiment], [News], [Fundamentals], [Debate], or [Process].
 
 Resources available:
 Market research report: {market_research_report}
@@ -35,8 +40,9 @@ Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
-Reflections from similar situations and lessons learned: {past_memory_str}
+Process reminders from similar situations and lessons learned (not market facts): {past_memory_str}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position. You must also address reflections and learn from lessons and mistakes you made in the past.
+{get_report_evidence_guardrail_instruction(["Market", "Sentiment", "News", "Fundamentals", "Debate", "Process"])}
 """
 
         response = llm.invoke(prompt)

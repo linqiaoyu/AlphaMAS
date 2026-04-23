@@ -15,11 +15,18 @@ def get_YFin_data_online(
     datetime.strptime(start_date, "%Y-%m-%d")
     datetime.strptime(end_date, "%Y-%m-%d")
 
-    # Create ticker object
-    ticker = yf.Ticker(symbol.upper())
-
-    # Fetch historical data for the specified date range
-    data = yf_retry(lambda: ticker.history(start=start_date, end=end_date))
+    # Use the same adjusted OHLCV convention as the backtesting loader so
+    # analysis reports and simulated execution are based on identical prices.
+    data = yf_retry(
+        lambda: yf.download(
+            symbol.upper(),
+            start=start_date,
+            end=end_date,
+            multi_level_index=False,
+            progress=False,
+            auto_adjust=True,
+        )
+    )
 
     # Check if data is empty
     if data.empty:
@@ -27,9 +34,7 @@ def get_YFin_data_online(
             f"No data found for symbol '{symbol}' between {start_date} and {end_date}"
         )
 
-    # Remove timezone info from index for cleaner output
-    if data.index.tz is not None:
-        data.index = data.index.tz_localize(None)
+    data = data.reset_index()
 
     # Round numerical values to 2 decimal places for cleaner display
     numeric_columns = ["Open", "High", "Low", "Close", "Adj Close"]
@@ -38,7 +43,7 @@ def get_YFin_data_online(
             data[col] = data[col].round(2)
 
     # Convert DataFrame to CSV string
-    csv_string = data.to_csv()
+    csv_string = data.to_csv(index=False)
 
     # Add header information
     header = f"# Stock data for {symbol.upper()} from {start_date} to {end_date}\n"
@@ -247,9 +252,15 @@ def get_stockstats_indicator(
 
 def get_fundamentals(
     ticker: Annotated[str, "ticker symbol of the company"],
-    curr_date: Annotated[str, "current date (not used for yfinance)"] = None
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
-    """Get company fundamentals overview from yfinance."""
+    """Get an as-of-safe company profile from yfinance.
+
+    yfinance `info` is a live snapshot and contains many time-varying fields
+    (valuation multiples, prices, forward estimates). To avoid look-ahead bias
+    in backtests, we only expose relatively static profile fields here.
+    Time-varying fundamentals should come from date-filtered statements.
+    """
     try:
         ticker_obj = yf.Ticker(ticker.upper())
         info = yf_retry(lambda: ticker_obj.info)
@@ -261,31 +272,13 @@ def get_fundamentals(
             ("Name", info.get("longName")),
             ("Sector", info.get("sector")),
             ("Industry", info.get("industry")),
-            ("Market Cap", info.get("marketCap")),
-            ("PE Ratio (TTM)", info.get("trailingPE")),
-            ("Forward PE", info.get("forwardPE")),
-            ("PEG Ratio", info.get("pegRatio")),
-            ("Price to Book", info.get("priceToBook")),
-            ("EPS (TTM)", info.get("trailingEps")),
-            ("Forward EPS", info.get("forwardEps")),
-            ("Dividend Yield", info.get("dividendYield")),
-            ("Beta", info.get("beta")),
-            ("52 Week High", info.get("fiftyTwoWeekHigh")),
-            ("52 Week Low", info.get("fiftyTwoWeekLow")),
-            ("50 Day Average", info.get("fiftyDayAverage")),
-            ("200 Day Average", info.get("twoHundredDayAverage")),
-            ("Revenue (TTM)", info.get("totalRevenue")),
-            ("Gross Profit", info.get("grossProfits")),
-            ("EBITDA", info.get("ebitda")),
-            ("Net Income", info.get("netIncomeToCommon")),
-            ("Profit Margin", info.get("profitMargins")),
-            ("Operating Margin", info.get("operatingMargins")),
-            ("Return on Equity", info.get("returnOnEquity")),
-            ("Return on Assets", info.get("returnOnAssets")),
-            ("Debt to Equity", info.get("debtToEquity")),
-            ("Current Ratio", info.get("currentRatio")),
-            ("Book Value", info.get("bookValue")),
-            ("Free Cash Flow", info.get("freeCashflow")),
+            ("Country", info.get("country")),
+            ("Currency", info.get("currency")),
+            ("Exchange", info.get("exchange")),
+            ("Quote Type", info.get("quoteType")),
+            ("Website", info.get("website")),
+            ("Fiscal Year End", info.get("lastFiscalYearEnd")),
+            ("Employees", info.get("fullTimeEmployees")),
         ]
 
         lines = []
@@ -293,7 +286,14 @@ def get_fundamentals(
             if value is not None:
                 lines.append(f"{label}: {value}")
 
+        long_summary = info.get("longBusinessSummary")
+        if long_summary:
+            lines.append(f"Business Summary: {long_summary}")
+
         header = f"# Company Fundamentals for {ticker.upper()}\n"
+        if curr_date:
+            header += f"# As-of date: {curr_date}\n"
+        header += "# Note: dynamic valuation/price metrics are intentionally excluded to avoid look-ahead bias.\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
         return header + "\n".join(lines)
@@ -399,7 +399,8 @@ def get_income_statement(
 
 
 def get_insider_transactions(
-    ticker: Annotated[str, "ticker symbol of the company"]
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get insider transactions data from yfinance."""
     try:
@@ -408,12 +409,37 @@ def get_insider_transactions(
         
         if data is None or data.empty:
             return f"No insider transactions data found for symbol '{ticker}'"
+
+        if curr_date:
+            cutoff = pd.to_datetime(curr_date, errors="coerce")
+            if pd.notna(cutoff):
+                date_candidates = [
+                    "Start Date",
+                    "Transaction Date",
+                    "Filing Date",
+                    "Date",
+                    "date",
+                ]
+                date_col = next((col for col in date_candidates if col in data.columns), None)
+                if date_col is None:
+                    return (
+                        f"No insider transactions data with a parseable date column found for "
+                        f"symbol '{ticker}' as of {curr_date}"
+                    )
+
+                parsed_dates = pd.to_datetime(data[date_col], errors="coerce")
+                data = data.loc[parsed_dates.notna() & (parsed_dates <= cutoff)].copy()
+
+                if data.empty:
+                    return f"No insider transactions data found for symbol '{ticker}' as of {curr_date}"
             
         # Convert to CSV string for consistency with other functions
         csv_string = data.to_csv()
         
         # Add header information
         header = f"# Insider Transactions data for {ticker.upper()}\n"
+        if curr_date:
+            header += f"# As-of date: {curr_date}\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
         return header + csv_string

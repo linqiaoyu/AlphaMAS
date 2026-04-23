@@ -1,4 +1,6 @@
 import os
+import random
+import time
 from typing import Any, Optional
 
 from langchain_openai import ChatOpenAI
@@ -16,7 +18,31 @@ class NormalizedChatOpenAI(ChatOpenAI):
     """
 
     def invoke(self, input, config=None, **kwargs):
-        return normalize_content(super().invoke(input, config, **kwargs))
+        # Extra resilience for transient provider-side gateway failures
+        # (e.g., DeepSeek/OpenRouter upstream 502/503/504 HTML responses).
+        for attempt in range(4):
+            try:
+                return normalize_content(super().invoke(input, config, **kwargs))
+            except Exception as exc:
+                message = str(exc).lower()
+                is_transient = any(
+                    marker in message
+                    for marker in (
+                        " 500 ",
+                        " 502 ",
+                        " 503 ",
+                        " 504 ",
+                        "internalservererror",
+                        "gateway timeout",
+                        "bad gateway",
+                        "service unavailable",
+                    )
+                )
+                if not is_transient or attempt == 3:
+                    raise
+                # Exponential backoff with tiny jitter to avoid synchronized retries.
+                sleep_s = (2 ** attempt) + random.random() * 0.25
+                time.sleep(sleep_s)
 
 # Kwargs forwarded from user config to ChatOpenAI
 _PASSTHROUGH_KWARGS = (
@@ -76,6 +102,12 @@ class OpenAIClient(BaseLLMClient):
         for key in _PASSTHROUGH_KWARGS:
             if key in self.kwargs:
                 llm_kwargs[key] = self.kwargs[key]
+
+        # DeepSeek occasionally returns transient 5xx on long reasoning calls.
+        # Set safer defaults unless caller already specified values.
+        if self.provider == "deepseek":
+            llm_kwargs.setdefault("timeout", 180)
+            llm_kwargs.setdefault("max_retries", 5)
 
         # Native OpenAI: use Responses API for consistent behavior across
         # all model families. Third-party providers use Chat Completions.

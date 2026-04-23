@@ -1,4 +1,8 @@
-from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction
+from tradingagents.agents.utils.agent_utils import (
+    build_instrument_context,
+    get_language_instruction,
+    get_report_evidence_guardrail_instruction,
+)
 
 
 def create_portfolio_manager(llm, memory):
@@ -28,22 +32,34 @@ def create_portfolio_manager(llm, memory):
 
 ---
 
-**Rating Scale** (use exactly one):
-- **Buy**: Strong conviction to enter or add to position
-- **Overweight**: Favorable outlook, gradually increase exposure
-- **Hold**: Maintain current position, no action needed
-- **Underweight**: Reduce exposure, take partial profits
-- **Sell**: Exit position or avoid entry
+**Allowed Ratings** (use exactly one paper-aligned action):
+- **BUY**: Enter or add to a long position, or cover an existing short
+- **HOLD**: Maintain the current stance with no trade
+- **SELL**: Reduce long exposure, exit a long position, or establish/add to a short position
 
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
-- Lessons from past decisions: **{past_memory_str}**
+- Process lessons from past decisions (not market evidence): **{past_memory_str}**
+
+**Source-of-truth analyst reports:**
+[Market]
+{market_research_report}
+
+[Sentiment]
+{sentiment_report}
+
+[News]
+{news_report}
+
+[Fundamentals]
+{fundamentals_report}
 
 **Required Output Structure:**
-1. **Rating**: State one of Buy / Overweight / Hold / Underweight / Sell.
-2. **Executive Summary**: A concise action plan covering entry strategy, position sizing, key risk levels, and time horizon.
-3. **Investment Thesis**: Detailed reasoning anchored in the analysts' debate and past reflections.
+1. `Rating: BUY` or `Rating: HOLD` or `Rating: SELL`
+2. `Key Evidence:` A concise bullet list of the facts you actually used, each with inline source tags.
+3. `Executive Summary:` A concise action plan covering entry strategy, risk levels, and time horizon.
+4. `Investment Thesis:` Detailed reasoning anchored in the analysts' debate and past reflections.
 
 ---
 
@@ -52,7 +68,11 @@ def create_portfolio_manager(llm, memory):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
+Do not use Overweight, Underweight, or any other label outside BUY / HOLD / SELL.
+Be decisive and ground every conclusion in specific evidence from the analysts.
+Do not cite process lessons as proof of a market fact, recurring pattern, or expected return.
+{get_report_evidence_guardrail_instruction(["Market", "Sentiment", "News", "Fundamentals", "ResearchPlan", "Trader", "RiskDebate", "Process"])}
+{get_language_instruction()}"""
 
         response = llm.invoke(prompt)
 

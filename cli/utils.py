@@ -5,6 +5,7 @@ from rich.console import Console
 
 from cli.models import AnalystType
 from tradingagents.llm_clients.model_catalog import get_model_options
+from tradingagents.llm_mode import AGENT_ROLE_LABELS, PAPER_BASELINE_AGENT_LLM_MODES
 
 console = Console()
 
@@ -16,6 +17,15 @@ ANALYST_ORDER = [
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
 ]
+
+
+def ordered_selected_analyst_keys(selected_analysts: List[AnalystType]) -> List[str]:
+    """Return selected analysts in the canonical workflow order."""
+    selected_values = {
+        analyst.value if isinstance(analyst, AnalystType) else str(analyst).strip().lower()
+        for analyst in selected_analysts
+    }
+    return [analyst.value for _, analyst in ANALYST_ORDER if analyst.value in selected_values]
 
 
 def get_ticker() -> str:
@@ -228,15 +238,70 @@ def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
 
+
+def _select_agent_mode(role_name: str, default_mode: str = "deep") -> str:
+    """Select quick/deep mode for one agent role."""
+    default_label = "Thinking (Deep)" if default_mode == "deep" else "Not Thinking (Quick)"
+    return questionary.select(
+        f"Select mode for [{role_name}]",
+        choices=[
+            questionary.Choice("Thinking (Deep)", "deep"),
+            questionary.Choice("Not Thinking (Quick)", "quick"),
+        ],
+        default=default_mode,
+        instruction=f"\n- Current default: {default_label}\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style(
+            [
+                ("selected", "fg:magenta noinherit"),
+                ("highlighted", "fg:magenta noinherit"),
+                ("pointer", "fg:magenta noinherit"),
+            ]
+        ),
+    ).ask()
+
+
+def select_agent_llm_modes() -> Dict[str, str]:
+    """Select agent-level quick/deep routing strategy."""
+    strategy = questionary.select(
+        "Select agent-level thinking configuration:",
+        choices=[
+            questionary.Choice(
+                "Paper Baseline (Recommended): analysis/decision agents use Thinking (Deep)",
+                "paper_baseline",
+            ),
+            questionary.Choice("Custom: choose mode per agent", "custom_per_agent"),
+        ],
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
+    ).ask()
+
+    if strategy != "custom_per_agent":
+        return PAPER_BASELINE_AGENT_LLM_MODES.copy()
+
+    selected_modes = PAPER_BASELINE_AGENT_LLM_MODES.copy()
+    for role_name, role_key in AGENT_ROLE_LABELS:
+        mode = _select_agent_mode(role_name, default_mode=selected_modes.get(role_key, "deep"))
+        if not mode:
+            console.print(f"\n[red]No mode selected for {role_name}. Exiting...[/red]")
+            exit(1)
+        selected_modes[role_key] = mode
+    return selected_modes
+
 def select_llm_provider() -> tuple[str, str | None]:
     """Select the LLM provider and its API endpoint."""
     # (display_name, provider_key, base_url)
     PROVIDERS = [
+        ("DeepSeek", "deepseek", "https://api.deepseek.com"),
         ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
         ("Anthropic", "anthropic", "https://api.anthropic.com/"),
         ("xAI", "xai", "https://api.x.ai/v1"),
-        ("DeepSeek", "deepseek", "https://api.deepseek.com"),
         ("Qwen", "qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
         ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
         ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),

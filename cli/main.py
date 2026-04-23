@@ -1,5 +1,6 @@
 from typing import Optional
 import datetime
+import os
 import typer
 from pathlib import Path
 from functools import wraps
@@ -24,6 +25,7 @@ from rich import box
 from rich.align import Align
 from rich.rule import Rule
 
+from tradingagents.backtesting import format_execution_summary
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from cli.models import AnalystType
@@ -32,6 +34,19 @@ from cli.announcements import fetch_announcements, display_announcements
 from cli.stats_handler import StatsCallbackHandler
 
 console = Console()
+
+_PROVIDER_API_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "xai": "XAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "qwen": "DASHSCOPE_API_KEY",
+    "glm": "ZHIPU_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "azure": "AZURE_OPENAI_API_KEY",
+    "ollama": None,
+}
 
 app = typer.Typer(
     name="TradingAgents",
@@ -556,16 +571,25 @@ def get_user_selections():
     )
     selected_llm_provider, backend_url = select_llm_provider()
 
-    # Step 7: Thinking agents
+    # Step 7: Thinking models
     console.print(
         create_question_box(
-            "Step 7: Thinking Agents", "Select your thinking agents for analysis"
+            "Step 7: Thinking Models", "Select your quick/deep backbone models"
         )
     )
     selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
     selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
 
-    # Step 8: Provider-specific thinking configuration
+    # Step 8: Agent-level thinking routing
+    console.print(
+        create_question_box(
+            "Step 8: Agent Thinking Routing",
+            "Choose paper-baseline mapping or custom per-agent quick/deep routing",
+        )
+    )
+    agent_llm_modes = select_agent_llm_modes()
+
+    # Step 9: Provider-specific thinking configuration
     thinking_level = None
     reasoning_effort = None
     anthropic_effort = None
@@ -574,7 +598,7 @@ def get_user_selections():
     if provider_lower == "google":
         console.print(
             create_question_box(
-                "Step 8: Thinking Mode",
+                "Step 9: Thinking Mode",
                 "Configure Gemini thinking mode"
             )
         )
@@ -582,7 +606,7 @@ def get_user_selections():
     elif provider_lower == "openai":
         console.print(
             create_question_box(
-                "Step 8: Reasoning Effort",
+                "Step 9: Reasoning Effort",
                 "Configure OpenAI reasoning effort level"
             )
         )
@@ -590,7 +614,7 @@ def get_user_selections():
     elif provider_lower == "anthropic":
         console.print(
             create_question_box(
-                "Step 8: Effort Level",
+                "Step 9: Effort Level",
                 "Configure Claude effort level"
             )
         )
@@ -605,6 +629,7 @@ def get_user_selections():
         "backend_url": backend_url,
         "shallow_thinker": selected_shallow_thinker,
         "deep_thinker": selected_deep_thinker,
+        "agent_llm_modes": agent_llm_modes,
         "google_thinking_level": thinking_level,
         "openai_reasoning_effort": reasoning_effort,
         "anthropic_effort": anthropic_effort,
@@ -720,6 +745,16 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path):
             (portfolio_dir / "decision.md").write_text(risk["judge_decision"])
             sections.append(f"## V. Portfolio Manager Decision\n\n### Portfolio Manager\n{risk['judge_decision']}")
 
+    execution_summary = format_execution_summary(
+        final_state.get("simulated_execution"),
+        final_state.get("portfolio_snapshot"),
+    )
+    if execution_summary:
+        execution_dir = save_path / "6_execution"
+        execution_dir.mkdir(exist_ok=True)
+        (execution_dir / "simulation.md").write_text(execution_summary)
+        sections.append(f"## VI. Simulated Execution\n\n{execution_summary}")
+
     # Write consolidated report
     header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
     (save_path / "complete_report.md").write_text(header + "\n\n".join(sections))
@@ -785,6 +820,14 @@ def display_complete_report(final_state):
         if risk.get("judge_decision"):
             console.print(Panel("[bold]V. Portfolio Manager Decision[/bold]", border_style="green"))
             console.print(Panel(Markdown(risk["judge_decision"]), title="Portfolio Manager", border_style="blue", padding=(1, 2)))
+
+    execution_summary = format_execution_summary(
+        final_state.get("simulated_execution"),
+        final_state.get("portfolio_snapshot"),
+    )
+    if execution_summary:
+        console.print(Panel("[bold]VI. Simulated Execution[/bold]", border_style="green"))
+        console.print(Panel(Markdown(execution_summary), title="Simulated Exchange", border_style="blue", padding=(1, 2)))
 
 
 def update_research_team_status(status):
@@ -926,9 +969,45 @@ def format_tool_args(args, max_length=80) -> str:
         return result[:max_length - 3] + "..."
     return result
 
+
+def validate_llm_provider_config(provider: str) -> None:
+    """Fail fast when the selected provider has missing credentials."""
+    provider_lower = provider.lower()
+    api_key_env = _PROVIDER_API_KEY_ENV.get(provider_lower)
+
+    if provider_lower == "ollama":
+        return
+
+    if provider_lower == "azure":
+        required_envs = [
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_DEPLOYMENT_NAME",
+        ]
+        missing = [name for name in required_envs if not os.getenv(name)]
+        if missing:
+            console.print(
+                "[red]Missing Azure OpenAI configuration:[/red] "
+                + ", ".join(missing)
+            )
+            raise typer.Exit(code=1)
+        return
+
+    if not api_key_env:
+        return
+
+    if not os.getenv(api_key_env):
+        console.print(
+            f"[red]Missing API key for {provider_lower}.[/red] "
+            f"Set `{api_key_env}` in `.env` or your shell before running."
+        )
+        raise typer.Exit(code=1)
+
 def run_analysis():
     # First get all user selections
     selections = get_user_selections()
+
+    validate_llm_provider_config(selections["llm_provider"])
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
@@ -936,6 +1015,7 @@ def run_analysis():
     config["max_risk_discuss_rounds"] = selections["research_depth"]
     config["quick_think_llm"] = selections["shallow_thinker"]
     config["deep_think_llm"] = selections["deep_thinker"]
+    config["agent_llm_modes"] = selections.get("agent_llm_modes", {})
     config["backend_url"] = selections["backend_url"]
     config["llm_provider"] = selections["llm_provider"].lower()
     # Provider-specific thinking configuration
@@ -947,9 +1027,8 @@ def run_analysis():
     # Create stats callback handler for tracking LLM/tool calls
     stats_handler = StatsCallbackHandler()
 
-    # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
-    selected_set = {analyst.value for analyst in selections["analysts"]}
-    selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
+    # Normalize analyst selection to the workflow's canonical order.
+    selected_analyst_keys = ordered_selected_analyst_keys(selections["analysts"])
 
     # Initialize the graph with callbacks bound to LLMs
     graph = TradingAgentsGraph(
@@ -1042,9 +1121,13 @@ def run_analysis():
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
+        # Pin tool access to the current analysis date before streaming so
+        # the CLI path gets the same anti-lookahead protection as propagate().
+        analysis_date = graph.pin_backtest_as_of_date(selections["analysis_date"])
+
         # Initialize state and get graph args with callbacks
         init_agent_state = graph.propagator.create_initial_state(
-            selections["ticker"], selections["analysis_date"]
+            selections["ticker"], analysis_date
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
@@ -1154,6 +1237,12 @@ def run_analysis():
         # Get final state and decision
         final_state = trace[-1]
         decision = graph.process_signal(final_state["final_trade_decision"])
+        final_state = graph.attach_execution_state(
+            final_state,
+            selections["ticker"],
+            selections["analysis_date"],
+            decision,
+        )
 
         # Update all agent statuses to completed
         for agent in message_buffer.agent_status:

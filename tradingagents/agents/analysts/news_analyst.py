@@ -2,8 +2,12 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_global_news,
+    get_insider_transactions,
     get_language_instruction,
     get_news,
+    get_news_data_guardrail_instruction,
+    get_report_only_instruction,
+    get_tool_evidence_guardrail_instruction,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -16,10 +20,14 @@ def create_news_analyst(llm):
         tools = [
             get_news,
             get_global_news,
+            get_insider_transactions,
         ]
 
         system_message = (
-            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(ticker, start_date, end_date) for company-specific or targeted news searches, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, and get_insider_transactions(ticker) for dated insider trading activity. Include any relevant insider buying or selling signals when the tool returns usable filings. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + get_tool_evidence_guardrail_instruction()
+            + get_news_data_guardrail_instruction()
+            + get_report_only_instruction()
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
         )
@@ -32,8 +40,6 @@ def create_news_analyst(llm):
                     " Use the provided tools to progress towards answering the question."
                     " If you are unable to fully answer, that's OK; another assistant with different tools"
                     " will help where you left off. Execute what you can to make progress."
-                    " If you or any other assistant has the FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** or deliverable,"
-                    " prefix your response with FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** so the team knows to stop."
                     " You have access to the following tools: {tool_names}.\n{system_message}"
                     "For your reference, the current date is {current_date}. {instrument_context}",
                 ),

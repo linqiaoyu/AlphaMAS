@@ -1,5 +1,6 @@
 # TradingAgents/graph/signal_processing.py
 
+import re
 from typing import Any
 
 
@@ -18,16 +19,20 @@ class SignalProcessor:
             full_signal: Complete trading signal text
 
         Returns:
-            Extracted rating (BUY, OVERWEIGHT, HOLD, UNDERWEIGHT, or SELL)
+            Extracted rating (BUY, HOLD, or SELL)
         """
-        messages = [
-            (
-                "system",
-                "You are an efficient assistant that extracts the trading decision from analyst reports. "
-                "Extract the rating as exactly one of: BUY, OVERWEIGHT, HOLD, UNDERWEIGHT, SELL. "
-                "Output only the single rating word, nothing else.",
-            ),
-            ("human", full_signal),
+        if not full_signal:
+            return "HOLD"
+
+        normalized = str(full_signal).upper()
+        patterns = [
+            r"RATING\s*:\s*\**\s*(BUY|HOLD|SELL)\b",
+            r"FINAL TRANSACTION PROPOSAL:\s*\**\s*(BUY|HOLD|SELL)\b",
         ]
 
-        return self.quick_thinking_llm.invoke(messages).content
+        for pattern in patterns:
+            match = re.search(pattern, normalized)
+            if match:
+                return match.group(1)
+
+        return "HOLD"

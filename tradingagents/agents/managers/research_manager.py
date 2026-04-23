@@ -1,5 +1,8 @@
 
-from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.agent_utils import (
+    build_instrument_context,
+    get_report_evidence_guardrail_instruction,
+)
 
 
 def create_research_manager(llm, memory):
@@ -27,18 +30,34 @@ Summarize the key points from both sides concisely, focusing on the most compell
 Additionally, develop a detailed investment plan for the trader. This should include:
 
 Your Recommendation: A decisive stance supported by the most convincing arguments.
+Key Evidence: A short list of the facts you actually used, each with inline source tags.
 Rationale: An explanation of why these arguments lead to your conclusion.
 Strategic Actions: Concrete steps for implementing the recommendation.
-Take into account your past mistakes on similar situations. Use these insights to refine your decision-making and ensure you are learning and improving. Present your analysis conversationally, as if speaking naturally, without special formatting. 
+Take into account your past mistakes on similar situations only as process guidance. Use these insights to refine your discipline and avoid repeated reasoning errors, but do not treat them as new market evidence. Present your analysis conversationally, as if speaking naturally, without special formatting. 
 
-Here are your past reflections on mistakes:
+Here are your past process reflections on mistakes (not market facts):
 \"{past_memory_str}\"
 
 {instrument_context}
 
+Source-of-truth analyst reports:
+[Market]
+{market_research_report}
+
+[Sentiment]
+{sentiment_report}
+
+[News]
+{news_report}
+
+[Fundamentals]
+{fundamentals_report}
+
 Here is the debate:
 Debate History:
-{history}"""
+{history}
+
+{get_report_evidence_guardrail_instruction(["Market", "Sentiment", "News", "Fundamentals", "Debate", "Process"])}"""
         response = llm.invoke(prompt)
 
         new_investment_debate_state = {

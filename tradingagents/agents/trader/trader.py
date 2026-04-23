@@ -1,6 +1,9 @@
 import functools
 
-from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.agent_utils import (
+    build_instrument_context,
+    get_report_evidence_guardrail_instruction,
+)
 
 
 def create_trader(llm, memory):
@@ -25,13 +28,35 @@ def create_trader(llm, memory):
 
         context = {
             "role": "user",
-            "content": f"Based on a comprehensive analysis by a team of analysts, here is an investment plan tailored for {company_name}. {instrument_context} This plan incorporates insights from current technical market trends, macroeconomic indicators, and social media sentiment. Use this plan as a foundation for evaluating your next trading decision.\n\nProposed Investment Plan: {investment_plan}\n\nLeverage these insights to make an informed and strategic decision.",
+            "content": (
+                f"Based on a comprehensive analysis by a team of analysts, here is an investment plan "
+                f"tailored for {company_name}. {instrument_context} Use it as a foundation for "
+                "evaluating your next trading decision.\n\n"
+                f"[InvestmentPlan]\n{investment_plan}\n\n"
+                f"[Market]\n{market_research_report}\n\n"
+                f"[Sentiment]\n{sentiment_report}\n\n"
+                f"[News]\n{news_report}\n\n"
+                f"[Fundamentals]\n{fundamentals_report}\n"
+            ),
         }
 
         messages = [
             {
                 "role": "system",
-                "content": f"""You are a trading agent analyzing market data to make investment decisions. Based on your analysis, provide a specific recommendation to buy, sell, or hold. End with a firm decision and always conclude your response with 'FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**' to confirm your recommendation. Apply lessons from past decisions to strengthen your analysis. Here are reflections from similar situations you traded in and the lessons learned: {past_memory_str}""",
+                "content": (
+                    "You are a trading agent analyzing market data to make investment decisions. "
+                    "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
+                    "End with a firm decision and always conclude your response with "
+                    "'FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**' to confirm your recommendation. "
+                    "Apply lessons from past decisions only as process discipline, not as market evidence. "
+                    "Include a short 'Key Evidence' section and tag each concrete claim with an inline "
+                    "source label such as [InvestmentPlan], [Market], [Sentiment], [News], "
+                    "[Fundamentals], or [Process]. Do not cite [Process] as proof of a market fact, "
+                    "price pattern, probability, or company attribute. "
+                    f"Here are process reflections from similar situations you traded in and the lessons "
+                    f"learned: {past_memory_str}"
+                    f"{get_report_evidence_guardrail_instruction(['InvestmentPlan', 'Market', 'Sentiment', 'News', 'Fundamentals', 'Process'])}"
+                ),
             },
             context,
         ]

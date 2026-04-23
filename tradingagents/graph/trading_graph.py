@@ -6,8 +6,6 @@ import json
 from datetime import date
 from typing import Dict, Any, Tuple, List, Optional
 
-from langgraph.prebuilt import ToolNode
-
 from tradingagents.llm_clients import create_llm_client
 
 from tradingagents.agents import *
@@ -18,6 +16,7 @@ from tradingagents.agents.utils.agent_states import (
     InvestDebateState,
     RiskDebateState,
 )
+from tradingagents.backtesting import SimulatedExchange
 from tradingagents.dataflows.config import set_config
 
 # Import the new abstract tool methods from agent_utils
@@ -59,7 +58,8 @@ class TradingAgentsGraph:
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
         """
         self.debug = debug
-        self.config = config or DEFAULT_CONFIG
+        # Copy the config so backtest-specific mutations stay local to this instance.
+        self.config = dict(config) if config is not None else DEFAULT_CONFIG.copy()
         self.callbacks = callbacks or []
 
         # Update the interface's config
@@ -117,11 +117,22 @@ class TradingAgentsGraph:
             self.invest_judge_memory,
             self.portfolio_manager_memory,
             self.conditional_logic,
+            self.config.get("agent_llm_modes"),
         )
 
         self.propagator = Propagator()
         self.reflector = Reflector(self.quick_thinking_llm)
         self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.simulated_exchange = SimulatedExchange(
+            starting_cash=self.config.get("simulated_exchange_initial_cash", 100000.0),
+            fill_policy=self.config.get("simulated_exchange_fill_policy", "next_open"),
+            commission_bps=self.config.get("simulated_exchange_commission_bps", 0.0),
+            slippage_bps=self.config.get("simulated_exchange_slippage_bps", 0.0),
+            buy_fraction=self.config.get("simulated_exchange_buy_fraction", 1.0),
+            allow_fractional_shares=self.config.get(
+                "simulated_exchange_allow_fractional_shares", False
+            ),
+        )
 
         # State tracking
         self.curr_state = None
@@ -130,6 +141,31 @@ class TradingAgentsGraph:
 
         # Set up the graph
         self.graph = self.graph_setup.setup_graph(selected_analysts)
+
+    def reset_portfolio(self, starting_cash: Optional[float] = None) -> None:
+        """Reset the simulated exchange to a clean account state."""
+        self.simulated_exchange.reset(starting_cash=starting_cash)
+
+    def load_portfolio_snapshot(self, snapshot: Optional[Dict[str, Any]]) -> None:
+        """Restore the simulated exchange from a saved snapshot."""
+        self.simulated_exchange.load_snapshot(snapshot)
+
+    def get_portfolio_snapshot(self, as_of_date: Optional[str] = None) -> Dict[str, Any]:
+        """Return the current portfolio marked on the requested date."""
+        if as_of_date is None:
+            as_of_date = self.config.get("backtest_as_of_date") or date.today().isoformat()
+        return self.simulated_exchange.snapshot(str(as_of_date)).to_dict()
+
+    def get_trade_log(self) -> List[Dict[str, Any]]:
+        """Return the simulated exchange trade history recorded in this session."""
+        return self.simulated_exchange.get_trade_log()
+
+    def pin_backtest_as_of_date(self, trade_date: str) -> str:
+        """Pin dataflow tool access to one as-of date for the current run."""
+        trade_date_str = str(trade_date)
+        self.config["backtest_as_of_date"] = trade_date_str
+        set_config({"backtest_as_of_date": trade_date_str})
+        return trade_date_str
 
     def _get_provider_kwargs(self) -> Dict[str, Any]:
         """Get provider-specific kwargs for LLM client creation."""
@@ -153,50 +189,43 @@ class TradingAgentsGraph:
 
         return kwargs
 
-    def _create_tool_nodes(self) -> Dict[str, ToolNode]:
-        """Create tool nodes for different data sources using abstract methods."""
+    def _create_tool_nodes(self) -> Dict[str, List[Any]]:
+        """Create tool registries for different analyst roles."""
         return {
-            "market": ToolNode(
-                [
-                    # Core stock data tools
-                    get_stock_data,
-                    # Technical indicators
-                    get_indicators,
-                ]
-            ),
-            "social": ToolNode(
-                [
-                    # News tools for social media analysis
-                    get_news,
-                ]
-            ),
-            "news": ToolNode(
-                [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
-                ]
-            ),
-            "fundamentals": ToolNode(
-                [
-                    # Fundamental analysis tools
-                    get_fundamentals,
-                    get_balance_sheet,
-                    get_cashflow,
-                    get_income_statement,
-                ]
-            ),
+            "market": [
+                # Core stock data tools
+                get_stock_data,
+                # Technical indicators
+                get_indicators,
+            ],
+            "social": [
+                # News tools for social media analysis
+                get_news,
+            ],
+            "news": [
+                # News and insider information
+                get_news,
+                get_global_news,
+                get_insider_transactions,
+            ],
+            "fundamentals": [
+                # Fundamental analysis tools
+                get_fundamentals,
+                get_balance_sheet,
+                get_cashflow,
+                get_income_statement,
+            ],
         }
 
     def propagate(self, company_name, trade_date):
         """Run the trading agents graph for a company on a specific date."""
 
         self.ticker = company_name
+        trade_date_str = self.pin_backtest_as_of_date(trade_date)
 
         # Initialize state
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date
+            company_name, trade_date_str
         )
         args = self.propagator.get_graph_args()
 
@@ -216,13 +245,44 @@ class TradingAgentsGraph:
             final_state = self.graph.invoke(init_agent_state, **args)
 
         # Store current state for reflection
+        signal = self.process_signal(final_state["final_trade_decision"])
+        final_state = self.attach_execution_state(final_state, company_name, trade_date_str, signal)
         self.curr_state = final_state
 
         # Log state
-        self._log_state(trade_date, final_state)
+        self._log_state(trade_date_str, final_state)
 
         # Return decision and processed signal
-        return final_state, self.process_signal(final_state["final_trade_decision"])
+        return final_state, signal
+
+    def attach_execution_state(
+        self,
+        final_state: Dict[str, Any],
+        company_name: str,
+        trade_date: str,
+        signal: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Attach simulated execution and updated portfolio state to a final graph state."""
+        if not self.config.get("simulated_exchange_enabled", True):
+            final_state["simulated_execution"] = {
+                "symbol": company_name,
+                "signal": signal or self.process_signal(final_state.get("final_trade_decision", "")),
+                "requested_trade_date": str(trade_date),
+                "status": "disabled",
+                "reason": "Simulated exchange is disabled in config.",
+            }
+            final_state["portfolio_snapshot"] = self.get_portfolio_snapshot(str(trade_date))
+            return final_state
+
+        resolved_signal = signal or self.process_signal(final_state.get("final_trade_decision", ""))
+        execution_report, portfolio_snapshot = self.simulated_exchange.execute_signal(
+            company_name,
+            resolved_signal,
+            str(trade_date),
+        )
+        final_state["simulated_execution"] = execution_report.to_dict()
+        final_state["portfolio_snapshot"] = portfolio_snapshot.to_dict()
+        return final_state
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
@@ -254,6 +314,8 @@ class TradingAgentsGraph:
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "simulated_execution": final_state.get("simulated_execution", {}),
+            "portfolio_snapshot": final_state.get("portfolio_snapshot", {}),
         }
 
         # Save to file
