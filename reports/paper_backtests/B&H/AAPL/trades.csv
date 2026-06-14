@@ -1,0 +1,2 @@
+symbol,signal,requested_trade_date,status,reason,execution_date,execution_price,execution_price_source,quantity,signed_quantity,gross_notional,fees,cash_before,cash_after,position_quantity_before,position_quantity_after,total_equity_before,total_equity_after
+AAPL,BUY,2024-03-07,filled,BUY order filled using the same_open execution rule.,2024-03-07,167.624471,same_open,596,596,99904.184845,0.0,100000.0,95.815155,0,596,100000.0,100000.0

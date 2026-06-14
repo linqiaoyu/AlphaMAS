@@ -1,0 +1,5 @@
+date,strategy,symbol,signal,decision_metadata,executed_signal_date,execution_status,execution_date,execution_price,position_quantity,cash,market_value,equity,realized_pnl,unrealized_pnl
+2024-03-07,B&H,AAPL,BUY,"{""rule"": ""enter_at_window_start""}",2024-03-07,filled,2024-03-07,167.624471,596,95.815155,99815.594727,99911.409882,0.0,-88.590118
+2024-03-08,B&H,AAPL,HOLD,"{""rule"": ""hold_forever""}",,,,,596,95.815155,100837.35968,100933.174835,0.0,933.174835
+2024-03-11,B&H,AAPL,HOLD,"{""rule"": ""hold_forever""}",,,,,596,95.815155,102030.4328,102126.247955,0.0,2126.247955
+2024-03-12,B&H,AAPL,HOLD,"{""rule"": ""hold_forever""}",,,,,596,95.815155,102313.92749,102409.742645,0.0,2409.742645

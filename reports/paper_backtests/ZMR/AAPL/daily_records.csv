@@ -1,0 +1,5 @@
+date,strategy,symbol,signal,decision_metadata,executed_signal_date,execution_status,execution_date,execution_price,position_quantity,cash,market_value,equity,realized_pnl,unrealized_pnl
+2024-03-07,ZMR,AAPL,HOLD,"{""rule"": ""no_zmr_trigger"", ""zscore"": -2.106694124687295}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-08,ZMR,AAPL,HOLD,"{""rule"": ""no_zmr_trigger"", ""zscore"": -1.6015301356827136}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-11,ZMR,AAPL,HOLD,"{""rule"": ""no_zmr_trigger"", ""zscore"": -1.1487004978134956}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-12,ZMR,AAPL,HOLD,"{""rule"": ""no_zmr_trigger"", ""zscore"": -0.9684470711022467}",,,,,0,100000.0,0.0,100000.0,0.0,0.0

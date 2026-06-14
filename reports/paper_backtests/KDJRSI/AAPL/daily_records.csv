@@ -1,0 +1,5 @@
+date,strategy,symbol,signal,decision_metadata,executed_signal_date,execution_status,execution_date,execution_price,position_quantity,cash,market_value,equity,realized_pnl,unrealized_pnl
+2024-03-07,KDJRSI,AAPL,HOLD,"{""rsi"": 22.223704149014907, ""rule"": ""no_kdj_rsi_trigger""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-08,KDJRSI,AAPL,HOLD,"{""rsi"": 27.979365349949177, ""rule"": ""no_kdj_rsi_trigger""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-11,KDJRSI,AAPL,HOLD,"{""rsi"": 34.11081083725456, ""rule"": ""no_kdj_rsi_trigger""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
+2024-03-12,KDJRSI,AAPL,HOLD,"{""rsi"": 35.51563796738718, ""rule"": ""no_kdj_rsi_trigger""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0

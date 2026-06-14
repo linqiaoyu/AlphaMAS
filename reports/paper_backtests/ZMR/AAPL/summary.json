@@ -1,0 +1,14 @@
+{
+  "strategy": "ZMR",
+  "symbol": "AAPL",
+  "start_date": "2024-03-07",
+  "end_date": "2024-03-12",
+  "trade_count": 0,
+  "CR": 0.0,
+  "AR": 0.0,
+  "SR": 0.0,
+  "MDD": 0.0,
+  "final_equity": 100000.0,
+  "initial_equity": 100000.0,
+  "trading_days": 4
+}
