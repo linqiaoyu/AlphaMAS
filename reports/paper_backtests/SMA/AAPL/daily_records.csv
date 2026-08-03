@@ -1,5 +1,0 @@
-date,strategy,symbol,signal,decision_metadata,executed_signal_date,execution_status,execution_date,execution_price,position_quantity,cash,market_value,equity,realized_pnl,unrealized_pnl
-2024-03-07,SMA,AAPL,HOLD,"{""rule"": ""no_crossover""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
-2024-03-08,SMA,AAPL,HOLD,"{""rule"": ""no_crossover""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
-2024-03-11,SMA,AAPL,HOLD,"{""rule"": ""no_crossover""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
-2024-03-12,SMA,AAPL,HOLD,"{""rule"": ""no_crossover""}",,,,,0,100000.0,0.0,100000.0,0.0,0.0
