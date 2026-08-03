@@ -1,4 +1,5 @@
 import getpass
+
 import requests
 from rich.console import Console
 from rich.panel import Panel
@@ -12,12 +13,6 @@ def fetch_announcements(url: str = None, timeout: float = None) -> dict:
     timeout = timeout or CLI_CONFIG["announcements_timeout"]
     fallback = CLI_CONFIG["announcements_fallback"]
 
-    if not endpoint:
-        return {
-            "announcements": [],
-            "require_attention": False,
-        }
-
     try:
         response = requests.get(endpoint, timeout=timeout)
         response.raise_for_status()
@@ -28,7 +23,7 @@ def fetch_announcements(url: str = None, timeout: float = None) -> dict:
         }
     except Exception:
         return {
-            "announcements": [fallback] if fallback else [],
+            "announcements": [fallback],
             "require_attention": False,
         }
 
