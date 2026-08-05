@@ -8,6 +8,8 @@ import yfinance as yf
 from stockstats import wrap
 from yfinance.exceptions import YFRateLimitError
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .config import get_config
 from .symbol_utils import NoMarketDataError, normalize_symbol
 from .utils import safe_ticker_component
@@ -137,6 +139,11 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
 
     config = get_config()
     curr_date_dt = pd.to_datetime(curr_date)
+    context = current_run_context()
+    if context.mode == "historical":
+        # Direct callers may bypass the ToolNode/router. Clamp defensively so
+        # those calls cannot expose rows after the active historical cutoff.
+        curr_date_dt = min(curr_date_dt, pd.Timestamp(context.as_of.date()))
 
     # Cache uses a fixed window (5y to today) so one file per symbol.
     today_date = pd.Timestamp.today()
@@ -187,7 +194,20 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
 
     # Reject a stale frame (latest row far older than curr_date) rather than
     # feeding year-old prices into indicators (#1021).
-    _assert_ohlcv_not_stale(data, curr_date, symbol, canonical)
+    effective_date = curr_date_dt.strftime("%Y-%m-%d")
+    _assert_ohlcv_not_stale(data, effective_date, symbol, canonical)
+
+    if context.mode == "historical":
+        latest = data["Date"].max() if not data.empty else None
+        audit_source(
+            source_name="yfinance.ohlcv_cache",
+            capability="POINT_IN_TIME",
+            status="used" if latest is not None else "unavailable",
+            requested_end=curr_date,
+            latest_event_time=latest,
+            latest_available_time=latest,
+            reason="Rows were filtered to historical_as_of before indicator calculation.",
+        )
 
     return data
 

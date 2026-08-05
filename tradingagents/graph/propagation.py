@@ -6,6 +6,7 @@ from tradingagents.agents.utils.agent_states import (
     InvestDebateState,
     RiskDebateState,
 )
+from tradingagents.runtime.run_context import RunContext
 
 
 class Propagator:
@@ -22,6 +23,7 @@ class Propagator:
         asset_type: str = "stock",
         past_context: str = "",
         instrument_context: str = "",
+        run_context: RunContext | None = None,
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -37,6 +39,9 @@ class Propagator:
             "asset_type": asset_type,
             "instrument_context": instrument_context,
             "trade_date": str(trade_date),
+            "run_mode": run_context.mode if run_context else "live",
+            "historical_as_of": run_context.historical_as_of if run_context else None,
+            "generated_at": run_context.generated_at.isoformat() if run_context else None,
             "past_context": past_context,
             "investment_debate_state": InvestDebateState(
                 {

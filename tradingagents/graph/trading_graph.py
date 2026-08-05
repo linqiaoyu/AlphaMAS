@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import yfinance as yf
 from langgraph.prebuilt import ToolNode
 
@@ -33,6 +34,14 @@ from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.reporting import write_report_tree
+from tradingagents.runtime.run_context import (
+    AuditTrail,
+    RunContext,
+    activate_run_context,
+    audit_source,
+    create_run_context,
+    current_run_context,
+)
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -115,6 +124,8 @@ class TradingAgentsGraph:
         self.quick_thinking_llm = quick_client.get_llm()
 
         self.memory_log = TradingMemoryLog(self.config)
+        self._memory_namespace_mode = "live"
+        self._run_context: RunContext | None = None
 
         # Create tool nodes
         self.tool_nodes = self._create_tool_nodes()
@@ -263,7 +274,14 @@ class TradingAgentsGraph:
 
         try:
             start = datetime.strptime(trade_date, "%Y-%m-%d")
+            context = current_run_context()
+            if context.mode == "historical" and start.date() > context.as_of.date():
+                return None, None, None
             end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
+            if context.mode == "historical":
+                # yfinance ``end`` is exclusive. Never ask for, or use, a
+                # price after the historical cutoff.
+                end = min(end, datetime.combine(context.as_of.date(), datetime.max.time()) + timedelta(days=1))
             end_str = end.strftime("%Y-%m-%d")
 
             # Normalize so the realized-return lookup hits the same instrument
@@ -272,10 +290,33 @@ class TradingAgentsGraph:
             stock = yf.Ticker(normalize_symbol(ticker)).history(start=trade_date, end=end_str)
             bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
 
+            if context.mode == "historical":
+                cutoff = pd.Timestamp(context.as_of.date())
+                stock = stock.loc[pd.to_datetime(stock.index, errors="coerce") <= cutoff]
+                bench = bench.loc[pd.to_datetime(bench.index, errors="coerce") <= cutoff]
+
             if len(stock) < 2 or len(bench) < 2:
                 return None, None, None
 
-            actual_days = min(holding_days, len(stock) - 1, len(bench) - 1)
+            if context.mode == "historical" and (
+                len(stock) < holding_days + 1 or len(bench) < holding_days + 1
+            ):
+                audit_source(
+                    source_name="decision_memory.outcome_prices",
+                    capability="POINT_IN_TIME",
+                    status="unavailable",
+                    requested_start=trade_date,
+                    requested_end=context.as_of,
+                    reason=(
+                        f"holding horizon of {holding_days} trading days is not mature "
+                        f"by historical_as_of {context.as_of.isoformat()}"
+                    ),
+                )
+                return None, None, None
+
+            actual_days = holding_days if context.mode == "historical" else min(
+                holding_days, len(stock) - 1, len(bench) - 1
+            )
             raw = float(
                 (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
                 / stock["Close"].iloc[0]
@@ -304,6 +345,16 @@ class TradingAgentsGraph:
         other tickers accumulate until that ticker is run again.
         """
         pending = [e for e in self.memory_log.get_pending_entries() if e["ticker"] == ticker]
+        audit_source(
+            source_name="decision_memory",
+            capability="POINT_IN_TIME",
+            status="used" if pending else "unavailable",
+            requested_end=current_run_context().as_of,
+            reason=(
+                f"{len(pending)} pending entries inspected; historical entries are isolated "
+                "and outcomes require a complete trading-day holding horizon."
+            ),
+        )
         if not pending:
             return
 
@@ -352,14 +403,49 @@ class TradingAgentsGraph:
         selection, debate/risk depth, or asset mode starts fresh instead of
         silently continuing the previous graph (#1089).
         """
+        context = current_run_context()
         return "|".join([
             "analysts=" + ",".join(self.selected_analysts),
             f"debate={self.config['max_debate_rounds']}",
             f"risk={self.config['max_risk_discuss_rounds']}",
             f"asset={asset_type}",
+            f"mode={context.mode}",
+            f"as_of={context.historical_as_of or ''}",
         ])
 
-    def propagate(self, company_name, trade_date, asset_type: str = "stock"):
+    def _historical_memory_config(self, ticker: str, context: RunContext) -> dict[str, Any]:
+        """Return an isolated memory namespace for a historical run."""
+        config = dict(self.config)
+        explicit = config.get("historical_memory_log_path")
+        if explicit:
+            path = Path(explicit).expanduser()
+        else:
+            root = Path(config.get("historical_memory_dir") or config["data_cache_dir"]) / "historical_memory"
+            path = root / f"{safe_ticker_component(ticker)}_{context.as_of.date().isoformat()}.md"
+        config["memory_log_path"] = str(path)
+        config["historical_as_of"] = context.as_of.date().isoformat()
+        return config
+
+    def _audit_path(self, ticker: str, context: RunContext) -> Path:
+        configured = self.config.get("historical_audit_path")
+        if configured:
+            return Path(configured).expanduser()
+        return (
+            Path(self.config["results_dir"])
+            / safe_ticker_component(ticker)
+            / f"historical_data_audit_{context.as_of.date().isoformat()}.json"
+        )
+
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        *,
+        mode: str = "live",
+        historical_as_of=None,
+        run_context: RunContext | None = None,
+    ):
         """Run the trading agents graph for a company on a specific date.
 
         ``asset_type`` selects between the stock pipeline (default) and the
@@ -370,36 +456,81 @@ class TradingAgentsGraph:
         successful node on a subsequent invocation with the same ticker+date.
         """
         self.ticker = company_name
+        if run_context is None:
+            # Supplying an as-of is itself an explicit historical request; the
+            # mode keyword remains available for callers that prefer it.
+            if historical_as_of is not None and mode == "live":
+                mode = "historical"
+            run_context = create_run_context(mode, as_of=historical_as_of)
+        elif historical_as_of is not None:
+            raise ValueError("pass either run_context or historical_as_of, not both")
 
-        # Resolve any pending memory-log entries for this ticker before the pipeline runs.
-        self._resolve_pending_entries(company_name)
-
-        # Recompile with a checkpointer if the user opted in.
-        if self.config.get("checkpoint_enabled"):
-            self._checkpointer_ctx = get_checkpointer(
-                self.config["data_cache_dir"], company_name
-            )
-            saver = self._checkpointer_ctx.__enter__()
-            self.graph = self.workflow.compile(checkpointer=saver)
-
-            step = checkpoint_step(
-                self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
-            )
-            if step is not None:
-                logger.info(
-                    "Resuming from step %d for %s on %s", step, company_name, trade_date
+        audit = AuditTrail(run_context)
+        with activate_run_context(run_context, audit):
+            self._run_context = run_context
+            if run_context.mode == "historical":
+                # Make the fail-closed policy visible even when an LLM does
+                # not happen to request an optional source in this run.
+                for source_name, capability, reason in (
+                    ("stocktwits", "LIVE_ONLY", "StockTwits live stream disabled in historical mode."),
+                    ("reddit", "LIVE_ONLY", "Reddit live search disabled in historical mode."),
+                    ("polymarket", "LIVE_ONLY", "Polymarket current market snapshot disabled in historical mode."),
+                    ("fred", "LIVE_ONLY", "FRED current revisions lack an as-of vintage."),
+                    ("yfinance.ticker_info", "LIVE_ONLY", "Ticker.info is a current snapshot."),
+                    ("yfinance.financial_statements", "LIVE_ONLY", "No filing/publication timestamp is available."),
+                    ("yfinance.insider_transactions", "LIVE_ONLY", "No verifiable public filing timestamp is available."),
+                ):
+                    audit_source(
+                        source_name=source_name,
+                        capability=capability,
+                        status="blocked",
+                        requested_end=run_context.as_of,
+                        reason=reason,
+                    )
+                self.memory_log = TradingMemoryLog(
+                    self._historical_memory_config(company_name, run_context)
                 )
+                self._memory_namespace_mode = "historical"
             else:
-                logger.info("Starting fresh for %s on %s", company_name, trade_date)
+                # A historical run must not leave its isolated log attached to
+                # the graph object when the same instance is reused live.
+                if getattr(self, "_memory_namespace_mode", "live") == "historical":
+                    self.memory_log = TradingMemoryLog(self.config)
+                self._memory_namespace_mode = "live"
+            try:
+                # Resolve pending entries before the pipeline runs. Historical
+                # mode only sees its isolated namespace and mature outcomes.
+                self._resolve_pending_entries(company_name)
 
-        try:
-            return self._run_graph(company_name, trade_date, asset_type=asset_type)
-        finally:
-            if self._checkpointer_ctx is not None:
-                self._checkpointer_ctx.__exit__(None, None, None)
-                self._checkpointer_ctx = None
-                self.graph = self.workflow.compile()
+                if self.config.get("checkpoint_enabled"):
+                    self._checkpointer_ctx = get_checkpointer(
+                        self.config["data_cache_dir"], company_name
+                    )
+                    saver = self._checkpointer_ctx.__enter__()
+                    self.graph = self.workflow.compile(checkpointer=saver)
+
+                    step = checkpoint_step(
+                        self.config["data_cache_dir"], company_name, str(trade_date),
+                        self._run_signature(asset_type),
+                    )
+                    if step is not None:
+                        logger.info(
+                            "Resuming from step %d for %s on %s", step, company_name, trade_date
+                        )
+                    else:
+                        logger.info("Starting fresh for %s on %s", company_name, trade_date)
+
+                try:
+                    return self._run_graph(company_name, trade_date, asset_type=asset_type)
+                finally:
+                    if self._checkpointer_ctx is not None:
+                        self._checkpointer_ctx.__exit__(None, None, None)
+                        self._checkpointer_ctx = None
+                        self.graph = self.workflow.compile()
+            finally:
+                self._run_context = None
+                if run_context.mode == "historical":
+                    audit.write(self._audit_path(company_name, run_context))
 
     def save_reports(self, final_state, ticker, save_path=None) -> Path:
         """Write the markdown report tree for a completed run, like the CLI does.
@@ -428,6 +559,7 @@ class TradingAgentsGraph:
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            run_context=current_run_context(),
         )
         args = self.propagator.get_graph_args()
 

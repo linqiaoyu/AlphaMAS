@@ -77,6 +77,13 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # the oldest resolved entries are pruned once this limit is exceeded.
     # Pending entries are never pruned. None disables rotation entirely.
     "memory_log_max_entries": None,
+    # Historical runs never reuse this live memory path. If unset, an isolated
+    # per-ticker/per-date namespace is created under data_cache_dir.
+    "historical_memory_log_path": None,
+    "historical_memory_dir": None,
+    # Optional exact path for the machine-readable historical source audit.
+    # When unset it is written under results_dir/<ticker>/ per as-of date.
+    "historical_audit_path": None,
     # LLM settings
     "llm_provider": "openai",
     "deep_think_llm": "gpt-5.5",

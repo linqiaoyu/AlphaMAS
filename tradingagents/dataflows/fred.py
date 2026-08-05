@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 
 import requests
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .errors import VendorNotConfiguredError
 
 logger = logging.getLogger(__name__)
@@ -151,6 +153,21 @@ def get_macro_data(
         A markdown report with the series title, units, frequency, the latest
         value, the change over the window, and a recent observation table.
     """
+    context = current_run_context()
+    if context.mode == "historical":
+        reason = (
+            "FRED observations are returned with current revisions; no ALFRED "
+            "vintage/real-time period is configured for strict historical analysis."
+        )
+        audit_source(
+            source_name="fred",
+            capability="LIVE_ONLY",
+            status="blocked",
+            requested_end=curr_date,
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
+
     if look_back_days is None:
         look_back_days = DEFAULT_LOOKBACK_DAYS
 

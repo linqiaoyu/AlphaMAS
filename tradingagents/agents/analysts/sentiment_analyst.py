@@ -34,6 +34,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
     get_news,
+    get_temporal_prompt_instruction,
 )
 from tradingagents.agents.utils.structured import (
     bind_structured,
@@ -62,6 +63,7 @@ def create_sentiment_analyst(llm):
         end_date = state["trade_date"]
         start_date = _seven_days_back(end_date)
         instrument_context = get_instrument_context_from_state(state)
+        temporal_instruction = get_temporal_prompt_instruction(state)
 
         # Pre-fetch all three sources. Each fetcher degrades gracefully and
         # returns a string (no exceptions surface from here), so the LLM
@@ -86,7 +88,7 @@ def create_sentiment_analyst(llm):
                     "You are a helpful AI assistant, collaborating with other assistants."
                     " If you or any other assistant has the FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** or deliverable,"
                     " prefix your response with FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** so the team knows to stop."
-                    " Today's date is {current_date}; treat it as 'now' for all analysis and tool-call date ranges. {instrument_context}"
+                    " {temporal_instruction} {instrument_context}"
                     "\n{system_message}",
                 ),
                 MessagesPlaceholder(variable_name="messages"),
@@ -95,6 +97,7 @@ def create_sentiment_analyst(llm):
 
         prompt = prompt.partial(system_message=system_message)
         prompt = prompt.partial(current_date=end_date)
+        prompt = prompt.partial(temporal_instruction=temporal_instruction)
         prompt = prompt.partial(instrument_context=instrument_context)
 
         # Format the template into a concrete message list so the structured

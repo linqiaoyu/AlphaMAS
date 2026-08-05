@@ -14,6 +14,7 @@ from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
     get_instrument_context_from_state,
     get_language_instruction,
+    get_temporal_prompt_instruction,
 )
 from tradingagents.agents.utils.structured import (
     bind_structured,
@@ -38,8 +39,11 @@ def create_portfolio_manager(llm):
             if past_context
             else ""
         )
+        temporal_instruction = get_temporal_prompt_instruction(state)
 
-        prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
+        prompt = f"""{temporal_instruction}
+
+As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
 

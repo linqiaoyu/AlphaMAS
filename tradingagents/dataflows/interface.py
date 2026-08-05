@@ -1,5 +1,13 @@
 import logging
 
+from tradingagents.runtime.capabilities import (
+    DataCapability,
+    capability_for,
+    request_exceeds_as_of,
+    requested_dates,
+)
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .alpha_vantage import (
     get_balance_sheet as get_alpha_vantage_balance_sheet,
     get_cashflow as get_alpha_vantage_cashflow,
@@ -194,28 +202,100 @@ def route_to_vendor(method: str, *args, **kwargs):
 
     last_no_data: NoMarketDataError | None = None
     first_error: Exception | None = None
+    blocked_reasons: list[str] = []
+    requested_start, requested_end = requested_dates(method, args, kwargs)
+
+    # A tool call with a future request boundary is unsafe for every vendor.
+    # Return before entering the vendor loop so a fallback cannot accidentally
+    # satisfy it with a current snapshot.
+    request_reason = request_exceeds_as_of(method, args, kwargs)
+    if request_reason:
+        audit_source(
+            source_name=f"configured.{method}",
+            capability=DataCapability.LIVE_ONLY.value,
+            status="blocked",
+            requested_start=requested_start,
+            requested_end=requested_end,
+            reason=request_reason,
+        )
+        return (
+            "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: "
+            f"{request_reason}; no vendor was called."
+        )
+
     for vendor in vendor_chain:
         vendor_impl = VENDOR_METHODS[method][vendor]
         impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
+        capability = capability_for(vendor, method)
+
+        if current_run_context().mode == "historical" and capability == DataCapability.LIVE_ONLY:
+            reason = (
+                f"{vendor} is a LIVE_ONLY source and was disabled before its network "
+                "request; historical publication availability cannot be proven."
+            )
+            blocked_reasons.append(reason)
+            audit_source(
+                source_name=f"{vendor}.{method}",
+                capability=capability.value,
+                status="blocked",
+                requested_start=requested_start,
+                requested_end=requested_end,
+                reason=reason,
+            )
+            continue
 
         try:
-            return impl_func(*args, **kwargs)
+            result = impl_func(*args, **kwargs)
+            result_text = result.lower() if isinstance(result, str) else ""
+            status = "unavailable" if any(
+                marker in result_text
+                for marker in ("data_unavailable", "no_data_available", "error fetching", "error retrieving")
+            ) else "used"
+            reason = ""
+            if capability == DataCapability.APPROXIMATE:
+                reason = "Timestamp-filtered historical approximation; archive completeness is not guaranteed."
+            audit_source(
+                source_name=f"{vendor}.{method}",
+                capability=capability.value,
+                status=status,
+                requested_start=requested_start,
+                requested_end=requested_end,
+                reason=reason,
+            )
+            return result
         except VendorRateLimitError:
             logger.warning("Vendor %r rate-limited for %s; trying next vendor.", vendor, method)
+            audit_source(
+                source_name=f"{vendor}.{method}", capability=capability.value, status="error",
+                requested_start=requested_start, requested_end=requested_end,
+                reason="vendor rate limit",
+            )
             continue
         except VendorNotConfiguredError as e:
             logger.warning("Vendor %r not configured for %s; trying next vendor.", vendor, method)
+            audit_source(
+                source_name=f"{vendor}.{method}", capability=capability.value, status="error",
+                requested_start=requested_start, requested_end=requested_end, reason=str(e),
+            )
             if first_error is None:
                 first_error = e  # Surface it if no other vendor can serve the call.
             continue
         except NoMarketDataError as e:
             last_no_data = e  # No data here; another configured vendor may have it
+            audit_source(
+                source_name=f"{vendor}.{method}", capability=capability.value, status="unavailable",
+                requested_start=requested_start, requested_end=requested_end, reason=str(e),
+            )
             continue
         except Exception as e:
             # Don't let one vendor's failure crash the call when another can
             # serve it, but never swallow silently: a broken primary must be
             # visible in the logs (#989), not hidden behind a fallback's verdict.
             logger.warning("Vendor %r failed for %s: %s", vendor, method, e)
+            audit_source(
+                source_name=f"{vendor}.{method}", capability=capability.value, status="error",
+                requested_start=requested_start, requested_end=requested_end, reason=str(e),
+            )
             if first_error is None:
                 first_error = e
             continue
@@ -244,6 +324,13 @@ def route_to_vendor(method: str, *args, **kwargs):
             f"any configured vendor{reason}. The symbol may be invalid, delisted, "
             f"not covered, or the vendor returned stale data. Do not estimate or "
             f"fabricate values — report that data is unavailable for this symbol."
+        )
+
+    if blocked_reasons and not first_error and last_no_data is None:
+        reason = " ".join(dict.fromkeys(blocked_reasons))
+        return (
+            "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: "
+            f"{method} was unavailable because {reason}"
         )
 
     # No vendor returned data and none reported clean "no data" — surface the

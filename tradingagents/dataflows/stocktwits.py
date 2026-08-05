@@ -19,6 +19,8 @@ import json
 import logging
 from urllib.request import Request, urlopen
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .symbol_utils import crypto_base
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,17 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
     symbol has no messages, or the response shape is unexpected — the
     caller never has to special-case None or exceptions.
     """
+    context = current_run_context()
+    if context.mode == "historical":
+        reason = "StockTwits is a live-only source and was disabled for historical analysis."
+        audit_source(
+            source_name="stocktwits",
+            capability="LIVE_ONLY",
+            status="blocked",
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
+
     url = _API.format(ticker=_stocktwits_symbol(ticker))
     req = Request(url, headers={"User-Agent": _UA, "Accept": "application/json"})
     try:
@@ -55,10 +68,20 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
         # OSError covers URLError/TimeoutError/connection resets; HTTPException
         # covers chunked-transfer errors (IncompleteRead/BadStatusLine, #1024).
         logger.warning("StockTwits fetch failed for %s: %s", ticker, exc)
+        audit_source(
+            source_name="stocktwits",
+            capability="LIVE_ONLY",
+            status="error",
+            reason=str(exc),
+        )
         return f"<stocktwits unavailable: {type(exc).__name__}>"
 
     messages = data.get("messages", []) if isinstance(data, dict) else []
     if not messages:
+        audit_source(
+            source_name="stocktwits", capability="LIVE_ONLY", status="unavailable",
+            reason="no messages returned",
+        )
         return f"<no StockTwits messages found for ${ticker.upper()}>"
 
     lines = []
@@ -92,5 +115,10 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
         f"Bearish: {bearish} ({bear_pct}%) · "
         f"Unlabeled: {unlabeled} · "
         f"Total: {total} most-recent messages"
+    )
+    audit_source(
+        source_name="stocktwits", capability="LIVE_ONLY", status="used",
+        latest_event_time=max((m.get("created_at") for m in messages[:limit]), default=None),
+        reason="Live stream used for live analysis.",
     )
     return summary + "\n\n" + "\n".join(lines)

@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 logger = logging.getLogger(__name__)
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
@@ -79,6 +81,17 @@ def get_prediction_markets(topic: str, limit: int | None = None) -> str:
         each with its implied probability, traded volume, resolution date, and
         recent (1-week) move.
     """
+    context = current_run_context()
+    if context.mode == "historical":
+        reason = "Polymarket is a live-only source; current open-market probabilities are not historical snapshots."
+        audit_source(
+            source_name="polymarket",
+            capability="LIVE_ONLY",
+            status="blocked",
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
+
     if limit is None:
         limit = DEFAULT_LIMIT
 
@@ -86,6 +99,9 @@ def get_prediction_markets(topic: str, limit: int | None = None) -> str:
         data = _request("public-search", {"q": topic, "limit_per_type": 20})
     except requests.RequestException as e:
         logger.warning("Polymarket search failed for %r: %s", topic, e)
+        audit_source(
+            source_name="polymarket", capability="LIVE_ONLY", status="error", reason=str(e)
+        )
         return (
             f"Polymarket data is currently unavailable (network error: {e}). "
             f"Proceed without prediction-market signal for '{topic}'."
@@ -108,6 +124,10 @@ def get_prediction_markets(topic: str, limit: int | None = None) -> str:
     )
 
     if not candidates:
+        audit_source(
+            source_name="polymarket", capability="LIVE_ONLY", status="unavailable",
+            reason="no open prediction markets matched topic",
+        )
         return header + (
             f"No open prediction markets matched '{topic}'. Polymarket coverage "
             f"is concentrated in macro, political, geopolitical, and crypto "
@@ -136,4 +156,8 @@ def get_prediction_markets(topic: str, limit: int | None = None) -> str:
             f"(${volume:,.0f} volume, resolves {end_date}{wk_str})"
         )
 
+    audit_source(
+        source_name="polymarket", capability="LIVE_ONLY", status="used",
+        reason="Live open-market probabilities used for live analysis.",
+    )
     return header + "\n".join(lines) + "\n"

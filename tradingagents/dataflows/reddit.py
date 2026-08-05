@@ -30,6 +30,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .symbol_utils import crypto_base
 
 logger = logging.getLogger(__name__)
@@ -202,15 +204,28 @@ def fetch_reddit_posts(
     stay under Reddit's public per-IP rate limit; combined with the RSS-first
     path it makes 429s rare even when several analyses run back-to-back.
     """
+    context = current_run_context()
+    if context.mode == "historical":
+        reason = "Reddit is a live-only source and was disabled for historical analysis."
+        audit_source(
+            source_name="reddit",
+            capability="LIVE_ONLY",
+            status="blocked",
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
+
     # Crypto reaches us as a Yahoo pair (BTC-USD); search Reddit for the base
     # ("BTC") so the query actually matches discussion instead of near-nothing.
     ticker = crypto_base(ticker) or ticker
     blocks = []
     total_posts = 0
+    all_posts = []
     for i, sub in enumerate(subreddits):
         if i > 0:
             time.sleep(inter_request_delay)
         posts = _fetch_subreddit(ticker, sub, limit_per_sub, timeout)
+        all_posts.extend(posts)
         total_posts += len(posts)
         if not posts:
             blocks.append(f"r/{sub}: <no posts found mentioning {ticker.upper()} in the past 7 days>")
@@ -243,8 +258,17 @@ def fetch_reddit_posts(
         blocks.append("\n".join(lines))
 
     if total_posts == 0:
+        audit_source(
+            source_name="reddit", capability="LIVE_ONLY", status="unavailable",
+            reason="no posts returned",
+        )
         return (
             f"<no Reddit posts found mentioning {ticker.upper()} across "
             f"{', '.join(f'r/{s}' for s in subreddits)} in the past 7 days>"
         )
+    audit_source(
+        source_name="reddit", capability="LIVE_ONLY", status="used",
+        latest_event_time=max((p.get("created_utc") for p in all_posts), default=None),
+        reason="Live Reddit search used for live analysis.",
+    )
     return "\n\n".join(blocks)

@@ -5,6 +5,8 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
+from tradingagents.runtime.run_context import audit_source, current_run_context
+
 from .stockstats_utils import (
     StockstatsUtils,
     _assert_ohlcv_not_stale,
@@ -15,6 +17,10 @@ from .stockstats_utils import (
 from .symbol_utils import NoMarketDataError, normalize_symbol
 
 
+def _generated_at_text() -> str:
+    return current_run_context().generated_at.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def get_YFin_data_online(
     symbol: Annotated[str, "ticker symbol of the company"],
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
@@ -23,6 +29,10 @@ def get_YFin_data_online(
 
     datetime.strptime(start_date, "%Y-%m-%d")
     end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+    context = current_run_context()
+    if context.mode == "historical":
+        end_dt = min(end_dt, datetime.combine(context.as_of.date(), datetime.max.time()))
+        end_date = end_dt.strftime("%Y-%m-%d")
 
     # Resolve broker/forex symbols to Yahoo's convention (XAUUSD+ -> GC=F).
     canonical = normalize_symbol(symbol)
@@ -43,8 +53,23 @@ def get_YFin_data_online(
         )
 
     # Remove timezone info from index for cleaner output
-    if data.index.tz is not None:
+    if isinstance(data.index, pd.DatetimeIndex) and data.index.tz is not None:
         data.index = data.index.tz_localize(None)
+
+    if context.mode == "historical":
+        # The evidence itself must be filtered; a vendor/mock can return more
+        # rows than the request window or a cached file can contain future rows.
+        row_dates = (
+            pd.to_datetime(data["Date"], errors="coerce")
+            if "Date" in data.columns
+            else pd.to_datetime(data.index, errors="coerce")
+        )
+        data = data.loc[row_dates <= pd.Timestamp(context.as_of.date())]
+        if data.empty:
+            raise NoMarketDataError(
+                symbol, canonical,
+                f"no rows on or before historical_as_of {context.as_of.isoformat()}",
+            )
 
     # Reject a stale frame (e.g. a year-old partial response) before it is
     # formatted into the report. Raises NoMarketDataError, which the router
@@ -65,7 +90,7 @@ def get_YFin_data_online(
     label = canonical if canonical == symbol.upper() else f"{canonical} (from {symbol})"
     header = f"# Stock data for {label} from {start_date} to {end_date}\n"
     header += f"# Total records: {len(data)}\n"
-    header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
     return header + csv_string
 
@@ -222,6 +247,17 @@ def _get_stock_stats_bulk(
     from stockstats import wrap
 
     data = load_ohlcv(symbol, curr_date)
+    context = current_run_context()
+    if context.mode == "historical" and not data.empty:
+        data = data.copy()
+        data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
+        data = data[data["Date"] <= pd.Timestamp(context.as_of.date())]
+        if data.empty:
+            raise NoMarketDataError(
+                symbol,
+                normalize_symbol(symbol),
+                f"no OHLCV rows on or before historical_as_of {context.as_of.isoformat()}",
+            )
     df = wrap(data)
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
 
@@ -276,7 +312,22 @@ def get_fundamentals(
     curr_date: Annotated[str, "current date (not used for yfinance)"] = None
 ):
     """Get company fundamentals overview from yfinance."""
+    context = current_run_context()
     canonical = normalize_symbol(ticker)
+    if context.mode == "historical":
+        reason = (
+            "yfinance Ticker.info is a current snapshot; market cap, valuation, "
+            "averages, profitability and other fields cannot be proven available "
+            "at historical_as_of."
+        )
+        audit_source(
+            source_name="yfinance.ticker_info",
+            capability="LIVE_ONLY",
+            status="blocked",
+            requested_end=curr_date,
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
     try:
         ticker_obj = yf.Ticker(canonical)
         info = yf_retry(lambda: ticker_obj.info)
@@ -328,7 +379,7 @@ def get_fundamentals(
             raise NoMarketDataError(ticker, canonical, "no fundamental fields returned")
 
         header = f"# Company Fundamentals for {canonical}\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
         return header + "\n".join(lines)
 
@@ -344,7 +395,18 @@ def get_balance_sheet(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get balance sheet data from yfinance."""
+    context = current_run_context()
     canonical = normalize_symbol(ticker)
+    if context.mode == "historical":
+        reason = "yfinance financial statements expose fiscal period ends but no reliable filing/publication timestamp."
+        audit_source(
+            source_name="yfinance.balance_sheet",
+            capability="LIVE_ONLY",
+            status="blocked",
+            requested_end=curr_date,
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
     try:
         ticker_obj = yf.Ticker(canonical)
 
@@ -363,7 +425,7 @@ def get_balance_sheet(
 
         # Add header information
         header = f"# Balance Sheet data for {canonical} ({freq})\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
         return header + csv_string
 
@@ -379,7 +441,18 @@ def get_cashflow(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get cash flow data from yfinance."""
+    context = current_run_context()
     canonical = normalize_symbol(ticker)
+    if context.mode == "historical":
+        reason = "yfinance financial statements expose fiscal period ends but no reliable filing/publication timestamp."
+        audit_source(
+            source_name="yfinance.cashflow",
+            capability="LIVE_ONLY",
+            status="blocked",
+            requested_end=curr_date,
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
     try:
         ticker_obj = yf.Ticker(canonical)
 
@@ -398,7 +471,7 @@ def get_cashflow(
 
         # Add header information
         header = f"# Cash Flow data for {canonical} ({freq})\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
         return header + csv_string
 
@@ -414,7 +487,18 @@ def get_income_statement(
     curr_date: Annotated[str, "current date in YYYY-MM-DD format"] = None
 ):
     """Get income statement data from yfinance."""
+    context = current_run_context()
     canonical = normalize_symbol(ticker)
+    if context.mode == "historical":
+        reason = "yfinance financial statements expose fiscal period ends but no reliable filing/publication timestamp."
+        audit_source(
+            source_name="yfinance.income_statement",
+            capability="LIVE_ONLY",
+            status="blocked",
+            requested_end=curr_date,
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
     try:
         ticker_obj = yf.Ticker(canonical)
 
@@ -433,7 +517,7 @@ def get_income_statement(
 
         # Add header information
         header = f"# Income Statement data for {canonical} ({freq})\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
         return header + csv_string
 
@@ -447,7 +531,17 @@ def get_insider_transactions(
     ticker: Annotated[str, "ticker symbol of the company"]
 ):
     """Get insider transactions data from yfinance."""
+    context = current_run_context()
     canonical = normalize_symbol(ticker)
+    if context.mode == "historical":
+        reason = "yfinance insider transactions expose transaction dates but not a verifiable public filing timestamp."
+        audit_source(
+            source_name="yfinance.insider_transactions",
+            capability="LIVE_ONLY",
+            status="blocked",
+            reason=reason,
+        )
+        return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
     try:
         ticker_obj = yf.Ticker(canonical)
         data = yf_retry(lambda: ticker_obj.insider_transactions)
@@ -462,7 +556,7 @@ def get_insider_transactions(
 
         # Add header information
         header = f"# Insider Transactions data for {canonical}\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        header += f"# Data retrieved on: {_generated_at_text()}\n\n"
 
         return header + csv_string
 
