@@ -23,6 +23,7 @@ from tradingagents.agents.utils.news_data_tools import (
 )
 from tradingagents.agents.utils.prediction_markets_tools import get_prediction_markets
 from tradingagents.agents.utils.technical_indicators_tools import get_indicators
+from tradingagents.runtime.run_context import audit_source, current_run_context
 
 # Public surface: the data tools are imported here so agents and the graph
 # import them from one place, plus the instrument/language helpers defined below.
@@ -43,6 +44,7 @@ __all__ = [
     "resolve_instrument_identity",
     "get_instrument_context_from_state",
     "get_language_instruction",
+    "get_temporal_prompt_instruction",
     "create_msg_delete",
 ]
 
@@ -76,7 +78,7 @@ def _clean_identity_value(value: Any) -> str | None:
 
 
 @functools.lru_cache(maxsize=256)
-def resolve_instrument_identity(ticker: str) -> dict:
+def _resolve_instrument_identity_live(ticker: str) -> dict:
     """Resolve deterministic identity metadata (company name, sector, …) for a ticker.
 
     This exists to stop the pipeline from hallucinating a *different* company
@@ -117,6 +119,44 @@ def resolve_instrument_identity(ticker: str) -> dict:
         if value:
             identity[target_key] = value
     return identity
+
+
+def resolve_instrument_identity(ticker: str) -> dict:
+    """Resolve identity in live mode; never use ``Ticker.info`` historically.
+
+    The cache is deliberately kept on the live-only helper. Otherwise a
+    historical ``{}`` result could suppress a later live lookup in-process.
+    """
+    context = current_run_context()
+    if context.mode == "historical":
+        reason = "Ticker.info is LIVE_ONLY and cannot prove historical company metadata availability."
+        audit_source(
+            source_name="yfinance.ticker_info.identity",
+            capability="LIVE_ONLY",
+            status="blocked",
+            reason=reason,
+        )
+        return {}
+    return _resolve_instrument_identity_live(ticker)
+
+
+# Preserve the public cache-control hook used by callers and existing tests.
+resolve_instrument_identity.cache_clear = _resolve_instrument_identity_live.cache_clear
+resolve_instrument_identity.cache_info = _resolve_instrument_identity_live.cache_info
+
+
+def get_temporal_prompt_instruction(state: Mapping[str, Any] | None = None) -> str:
+    """Return the explicit temporal guardrail injected into agent prompts."""
+    context = current_run_context()
+    if state and state.get("run_mode") == "historical":
+        as_of = state.get("historical_as_of") or context.as_of.isoformat()
+        return (
+            f"Historical run: Treat historical_as_of={as_of} as the current decision time. "
+            "Use only supplied evidence. Do not rely on events or facts occurring after "
+            "historical_as_of. If evidence is unavailable, state that it is unavailable "
+            "rather than filling the gap."
+        )
+    return "Use only supplied evidence and treat the requested analysis date as the decision time."
 
 
 def build_instrument_context(
@@ -203,15 +243,14 @@ def create_msg_delete():
 
         instrument_context = get_instrument_context_from_state(state)
         trade_date = state.get("trade_date", "the requested date")
+        temporal_instruction = get_temporal_prompt_instruction(state)
         placeholder = HumanMessage(
             content=(
                 f"Proceed with your assigned analysis for this workflow. "
-                f"{instrument_context} The analysis date is {trade_date}."
+                f"{instrument_context} The analysis date is {trade_date}. "
+                f"{temporal_instruction}"
             )
         )
         return {"messages": removal_operations + [placeholder]}
 
     return delete_messages
-
-
-

@@ -1,10 +1,12 @@
 """yfinance-based news data fetching functions."""
 
 import contextlib
-from datetime import datetime
+from datetime import datetime, timezone
 
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
+
+from tradingagents.runtime.run_context import audit_source, current_run_context
 
 from .config import get_config
 from .stockstats_utils import yf_retry
@@ -47,6 +49,9 @@ def _extract_article_data(article: dict) -> dict:
         ts = article.get("providerPublishTime")
         if ts:
             with contextlib.suppress(ValueError, OSError, TypeError):
+                # Preserve the existing local calendar rendering for flat
+                # yfinance articles; _in_news_window normalizes aware nested
+                # timestamps and historical bounds before comparison.
                 pub_date = datetime.fromtimestamp(ts)
         return {
             "title": article.get("title", "No title"),
@@ -65,9 +70,18 @@ def _in_news_window(pub_date, start_dt, end_dt) -> bool:
     historical/backtest window it's excluded, since we can't prove it isn't
     future news (look-ahead safety, #992/#1007).
     """
+    context = current_run_context()
     if pub_date is not None:
-        naive = pub_date.replace(tzinfo=None) if hasattr(pub_date, "replace") else pub_date
+        if hasattr(pub_date, "tzinfo") and pub_date.tzinfo is not None:
+            naive = pub_date.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            naive = pub_date
+        if context.mode == "historical":
+            cutoff = context.as_of.replace(tzinfo=None)
+            return start_dt <= naive <= min(end_dt + relativedelta(days=1), cutoff)
         return start_dt <= naive <= end_dt + relativedelta(days=1)
+    if context.mode == "historical":
+        return False
     return end_dt >= datetime.now() - relativedelta(days=1)
 
 
@@ -88,6 +102,7 @@ def get_news_yfinance(
         Formatted string containing news articles
     """
     article_limit = get_config()["news_article_limit"]
+    context = current_run_context()
     # Query Yahoo with the canonical symbol, like every other yfinance path —
     # a raw broker/forex/crypto alias (XAUUSD, BTCUSD) otherwise silently
     # returns no news. Keep the user's ticker in the report header.
@@ -98,7 +113,18 @@ def get_news_yfinance(
         news = yf_retry(lambda: stock.get_news(count=article_limit))
 
         if not news:
-            return f"No news found for {ticker}{resolved}"
+            reason = f"No timestamped articles returned in requested window {start_date} to {end_date}."
+            audit_source(
+                source_name="yfinance.get_news",
+                capability="APPROXIMATE",
+                status="unavailable",
+                requested_start=start_date,
+                requested_end=end_date,
+                reason=reason,
+            )
+            if context.mode == "historical":
+                return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
+            return f"No news found for {ticker}{resolved} between {start_date} and {end_date}"
 
         # Parse date range for filtering
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -106,6 +132,7 @@ def get_news_yfinance(
 
         news_str = ""
         filtered_count = 0
+        kept_dates = []
 
         for article in news:
             data = _extract_article_data(article)
@@ -121,13 +148,55 @@ def get_news_yfinance(
                 news_str += f"Link: {data['link']}\n"
             news_str += "\n"
             filtered_count += 1
+            if data["pub_date"] is not None:
+                kept_dates.append(data["pub_date"])
 
         if filtered_count == 0:
+            if context.mode == "historical":
+                reason = (
+                    "No timestamped Yahoo Finance articles remained after the strict "
+                    "historical window/as_of filter; archive completeness is not guaranteed."
+                )
+                audit_source(
+                    source_name="yfinance.get_news",
+                    capability="APPROXIMATE",
+                    status="unavailable",
+                    requested_start=start_date,
+                    requested_end=end_date,
+                    reason=reason,
+                )
+                return (
+                    "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: Yahoo Finance news is an "
+                    f"incomplete archive for requested window {start_date} to {end_date}; {reason}"
+                )
             return f"No news found for {ticker}{resolved} between {start_date} and {end_date}"
+
+        audit_source(
+            source_name="yfinance.get_news",
+            capability="APPROXIMATE",
+            status="used",
+            requested_start=start_date,
+            requested_end=end_date,
+            latest_event_time=max(kept_dates, default=None),
+            reason="Timestamp-filtered historical approximation; archive completeness is not guaranteed.",
+        )
 
         return f"## {ticker}{resolved} News, from {start_date} to {end_date}:\n\n{news_str}"
 
     except Exception as e:
+        audit_source(
+            source_name="yfinance.get_news",
+            capability="APPROXIMATE",
+            status="error",
+            requested_start=start_date,
+            requested_end=end_date,
+            reason=str(e),
+        )
+        if context.mode == "historical":
+            return (
+                "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: Yahoo Finance news request "
+                f"failed for window {start_date} to {end_date}: {e}"
+            )
         return f"Error fetching news for {ticker}: {str(e)}"
 
 
@@ -150,6 +219,7 @@ def get_global_news_yfinance(
         Formatted string containing global news articles
     """
     config = get_config()
+    context = current_run_context()
     if look_back_days is None:
         look_back_days = config["global_news_lookback_days"]
     if limit is None:
@@ -185,6 +255,16 @@ def get_global_news_yfinance(
                 break
 
         if not all_news:
+            if context.mode == "historical":
+                reason = f"No timestamped global news returned for requested window ending {curr_date}."
+                audit_source(
+                    source_name="yfinance.get_global_news",
+                    capability="APPROXIMATE",
+                    status="unavailable",
+                    requested_end=curr_date,
+                    reason=reason,
+                )
+                return "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: " + reason
             return f"No global news found for {curr_date}"
 
         # Calculate date range
@@ -194,6 +274,7 @@ def get_global_news_yfinance(
 
         news_str = ""
         kept = 0
+        kept_dates = []
         for article in all_news[:limit]:
             # Extract uniformly (flat + nested) and apply the same look-ahead-safe
             # window filter, so flat articles can't leak future news (#1007).
@@ -207,13 +288,54 @@ def get_global_news_yfinance(
                 news_str += f"Link: {data['link']}\n"
             news_str += "\n"
             kept += 1
+            if data["pub_date"] is not None:
+                kept_dates.append(data["pub_date"])
 
         # All candidates fell outside the window -> say so rather than return an
         # empty-bodied report (#993).
         if kept == 0:
+            if context.mode == "historical":
+                reason = (
+                    "No timestamped Yahoo Finance articles remained after the strict "
+                    "historical window/as_of filter; archive completeness is not guaranteed."
+                )
+                audit_source(
+                    source_name="yfinance.get_global_news",
+                    capability="APPROXIMATE",
+                    status="unavailable",
+                    requested_start=start_date,
+                    requested_end=curr_date,
+                    reason=reason,
+                )
+                return (
+                    "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: Yahoo Finance global news "
+                    f"was unavailable for requested window {start_date} to {curr_date}; {reason}"
+                )
             return f"No global news found between {start_date} and {curr_date}"
+
+        audit_source(
+            source_name="yfinance.get_global_news",
+            capability="APPROXIMATE",
+            status="used",
+            requested_start=start_date,
+            requested_end=curr_date,
+            latest_event_time=max(kept_dates, default=None),
+            reason="Timestamp-filtered historical approximation; archive completeness is not guaranteed.",
+        )
 
         return f"## Global Market News, from {start_date} to {curr_date}:\n\n{news_str}"
 
     except Exception as e:
+        audit_source(
+            source_name="yfinance.get_global_news",
+            capability="APPROXIMATE",
+            status="error",
+            requested_end=curr_date,
+            reason=str(e),
+        )
+        if context.mode == "historical":
+            return (
+                "DATA_UNAVAILABLE_IN_HISTORICAL_MODE: Yahoo Finance global news "
+                f"request failed for {curr_date}: {e}"
+            )
         return f"Error fetching global news: {str(e)}"

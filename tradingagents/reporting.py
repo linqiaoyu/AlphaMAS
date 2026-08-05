@@ -6,8 +6,9 @@ CLI and ``TradingAgentsGraph.save_reports`` both call this, so a headless / API
 run produces the same on-disk report tree a CLI run does.
 """
 
-from datetime import datetime
 from pathlib import Path
+
+from tradingagents.runtime.run_context import current_run_context
 
 
 def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
@@ -96,6 +97,12 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
             sections.append(f"## V. Portfolio Manager Decision\n\n### Portfolio Manager\n{risk['judge_decision']}")
 
     # Write consolidated report
-    header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+    context = current_run_context()
+    generated_at = final_state.get("generated_at") or context.generated_at.isoformat()
+    historical_as_of = final_state.get("historical_as_of")
+    temporal_lines = f"Generated: {generated_at}\n"
+    if historical_as_of:
+        temporal_lines += f"Historical as-of: {historical_as_of}\n"
+    header = f"# Trading Analysis Report: {ticker}\n\n{temporal_lines}\n"
     (save_path / "complete_report.md").write_text(header + "\n\n".join(sections), encoding="utf-8")
     return save_path / "complete_report.md"

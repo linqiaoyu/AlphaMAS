@@ -1,6 +1,7 @@
 """Append-only markdown decision log for TradingAgents."""
 
 import re
+from datetime import date
 from pathlib import Path
 
 from tradingagents.agents.utils.rating import parse_rating
@@ -24,6 +25,11 @@ class TradingMemoryLog:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
         # Optional cap on resolved entries. None disables rotation.
         self._max_entries = cfg.get("memory_log_max_entries")
+        cutoff = cfg.get("historical_as_of")
+        try:
+            self._historical_cutoff = date.fromisoformat(str(cutoff)[:10]) if cutoff else None
+        except ValueError as exc:
+            raise ValueError(f"invalid historical_as_of for memory log: {cutoff!r}") from exc
 
     # --- Write path (Phase A) ---
 
@@ -60,6 +66,13 @@ class TradingMemoryLog:
         for raw in raw_entries:
             parsed = self._parse_entry(raw)
             if parsed:
+                if self._historical_cutoff:
+                    try:
+                        entry_date = date.fromisoformat(parsed["date"][:10])
+                    except ValueError:
+                        continue
+                    if entry_date > self._historical_cutoff:
+                        continue
                 entries.append(parsed)
         return entries
 
