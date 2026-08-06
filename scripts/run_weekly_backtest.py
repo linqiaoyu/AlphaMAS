@@ -75,11 +75,15 @@ def main() -> int:
     if config.get("decision_weeks") != len(events):
         raise ValueError("configured decision week count does not match XNYS schedule")
     output = Path(args.output_root) / args.experiment_id
+    total_cases = len(events) * len(config["symbols"])
+    planned_cases = min(total_cases, args.max_cases) if args.max_cases is not None else total_cases
+    if planned_cases < 0:
+        raise ValueError("--max-cases must be non-negative")
     dry = {
         "experiment_id": args.experiment_id,
         "symbols": config["symbols"],
         "decision_sessions": len(events),
-        "estimated_cases": len(events) * len(config["symbols"]),
+        "estimated_cases": planned_cases,
         "requires_llm": strategy_name == "tradingagents",
         "output_path": str(output),
         "schedule": [event.to_dict() for event in events],
@@ -97,6 +101,7 @@ def main() -> int:
         if args.synthetic_data else YFinanceDataProvider()
     )
     results = {}
+    remaining_cases = planned_cases
     for symbol in config["symbols"]:
         if strategy_name == "scripted":
             strategy = ScriptedStrategy({events[0].decision_session: "BUY"})
@@ -143,7 +148,9 @@ def main() -> int:
             final_week=config["final_calendar_week"],
             final_valuation_session=config["final_valuation_session"], strategy=strategy,
             experiment_id=args.experiment_id, warmup_start=data_start,
+            max_decisions=min(len(events), remaining_cases),
         )
+        remaining_cases = max(0, remaining_cases - len(events))
         results[symbol] = result
     benchmark_engine = WeeklyBacktestEngine(
         data_provider=provider, schedule=schedule, initial_cash=config["initial_cash"],

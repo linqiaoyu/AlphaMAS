@@ -45,7 +45,7 @@ class WeeklyBacktestEngine:
     def run(
         self, *, symbol: str, first_week: str, final_week: str,
         final_valuation_session: str, strategy: Strategy, experiment_id: str,
-        warmup_start: str | None = None,
+        warmup_start: str | None = None, max_decisions: int | None = None,
     ) -> BacktestResult:
         events = self.schedule.weekly_events(first_week, final_week)
         valuation_sessions = self.schedule.sessions(
@@ -93,6 +93,8 @@ class WeeklyBacktestEngine:
             # 3. Weekly decision at the actual close; data is sliced point-in-time.
             event: WeeklyEvent | None = event_by_decision.get(session)
             if event:
+                if max_decisions is not None and len(decision_rows) >= max_decisions:
+                    continue
                 visible = data.loc[:session_ts.tz_localize(None)].copy()
                 decision = strategy.decide(
                     symbol=symbol, decision_session=session,

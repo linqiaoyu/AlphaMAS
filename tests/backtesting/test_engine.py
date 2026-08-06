@@ -58,3 +58,13 @@ def test_final_valuation_does_not_force_liquidation(synthetic_provider, xnys):
         result.daily_equity.iloc[-1]["cash"]
         + result.daily_equity.iloc[-1]["quantity"] * result.daily_equity.iloc[-1]["close_price"]
     )
+
+
+def test_max_decisions_caps_strategy_cases_but_keeps_daily_valuation(synthetic_provider, xnys):
+    result = WeeklyBacktestEngine(data_provider=synthetic_provider, schedule=xnys).run(
+        symbol="TEST", first_week="2024-01-01", final_week="2024-01-15",
+        final_valuation_session="2024-01-26", strategy=ScriptedStrategy(),
+        experiment_id="pilot", max_decisions=1,
+    )
+    assert len(result.decisions) == 1
+    assert result.daily_equity.iloc[-1]["session"] == "2024-01-26"
