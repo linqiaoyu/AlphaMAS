@@ -1,7 +1,7 @@
 """yfinance-based news data fetching functions."""
 
 import contextlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
@@ -11,6 +11,30 @@ from tradingagents.runtime.run_context import audit_source, current_run_context
 from .config import get_config
 from .stockstats_utils import yf_retry
 from .symbol_utils import normalize_symbol
+
+
+def _as_utc_datetime(value) -> datetime | None:
+    """Normalize provider and window timestamps to aware UTC datetimes."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _utc_day_start(value: str) -> datetime:
+    return datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+
+def _utc_day_end(value: str) -> datetime:
+    return _utc_day_start(value) + timedelta(days=1, microseconds=-1)
 
 
 def _extract_article_data(article: dict) -> dict:
@@ -29,10 +53,7 @@ def _extract_article_data(article: dict) -> dict:
 
         # Get publish date
         pub_date_str = content.get("pubDate", "")
-        pub_date = None
-        if pub_date_str:
-            with contextlib.suppress(ValueError, AttributeError):
-                pub_date = datetime.fromisoformat(pub_date_str.replace("Z", "+00:00"))
+        pub_date = _as_utc_datetime(pub_date_str)
 
         return {
             "title": title,
@@ -47,12 +68,9 @@ def _extract_article_data(article: dict) -> dict:
         # historical window and leak future news, #992/#1007).
         pub_date = None
         ts = article.get("providerPublishTime")
-        if ts:
+        if ts is not None:
             with contextlib.suppress(ValueError, OSError, TypeError):
-                # Preserve the existing local calendar rendering for flat
-                # yfinance articles; _in_news_window normalizes aware nested
-                # timestamps and historical bounds before comparison.
-                pub_date = datetime.fromtimestamp(ts)
+                pub_date = datetime.fromtimestamp(ts, tz=timezone.utc)
         return {
             "title": article.get("title", "No title"),
             "summary": article.get("summary", ""),
@@ -71,18 +89,17 @@ def _in_news_window(pub_date, start_dt, end_dt) -> bool:
     future news (look-ahead safety, #992/#1007).
     """
     context = current_run_context()
-    if pub_date is not None:
-        if hasattr(pub_date, "tzinfo") and pub_date.tzinfo is not None:
-            naive = pub_date.astimezone(timezone.utc).replace(tzinfo=None)
-        else:
-            naive = pub_date
+    published = _as_utc_datetime(pub_date)
+    start = _as_utc_datetime(start_dt)
+    end = _as_utc_datetime(end_dt)
+    if published is not None and start is not None and end is not None:
         if context.mode == "historical":
-            cutoff = context.as_of.replace(tzinfo=None)
-            return start_dt <= naive <= min(end_dt + relativedelta(days=1), cutoff)
-        return start_dt <= naive <= end_dt + relativedelta(days=1)
+            cutoff = _as_utc_datetime(context.as_of)
+            return start <= published <= min(end, cutoff)
+        return start <= published <= end
     if context.mode == "historical":
         return False
-    return end_dt >= datetime.now() - relativedelta(days=1)
+    return end is not None and end >= datetime.now(timezone.utc) - relativedelta(days=1)
 
 
 def get_news_yfinance(
@@ -127,8 +144,8 @@ def get_news_yfinance(
             return f"No news found for {ticker}{resolved} between {start_date} and {end_date}"
 
         # Parse date range for filtering
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        start_dt = _utc_day_start(start_date)
+        end_dt = _utc_day_end(end_date)
 
         news_str = ""
         filtered_count = 0
@@ -268,8 +285,9 @@ def get_global_news_yfinance(
             return f"No global news found for {curr_date}"
 
         # Calculate date range
-        curr_dt = datetime.strptime(curr_date, "%Y-%m-%d")
+        curr_dt = _utc_day_start(curr_date)
         start_dt = curr_dt - relativedelta(days=look_back_days)
+        end_dt = _utc_day_end(curr_date)
         start_date = start_dt.strftime("%Y-%m-%d")
 
         news_str = ""
@@ -279,7 +297,7 @@ def get_global_news_yfinance(
             # Extract uniformly (flat + nested) and apply the same look-ahead-safe
             # window filter, so flat articles can't leak future news (#1007).
             data = _extract_article_data(article)
-            if not _in_news_window(data["pub_date"], start_dt, curr_dt):
+            if not _in_news_window(data["pub_date"], start_dt, end_dt):
                 continue
             news_str += f"### {data['title']} (source: {data['publisher']})\n"
             if data["summary"]:

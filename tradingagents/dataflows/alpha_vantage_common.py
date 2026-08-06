@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 from datetime import datetime
 from io import StringIO
 
 import pandas as pd
 import requests
+
+from tradingagents.runtime.run_context import audit_source, current_run_context
 
 from .errors import VendorNotConfiguredError, VendorRateLimitError
 
@@ -13,6 +16,9 @@ API_BASE_URL = "https://www.alphavantage.co/query"
 # Network timeout (seconds) so a stalled Alpha Vantage request can't hang the
 # CLI/agents indefinitely (#990).
 REQUEST_TIMEOUT = 30
+HISTORICAL_UNAVAILABLE = "DATA_UNAVAILABLE_IN_HISTORICAL_MODE"
+_DATE_COLUMN_NAMES = {"date", "datetime", "time", "timestamp"}
+logger = logging.getLogger(__name__)
 
 
 class AlphaVantageNotConfiguredError(VendorNotConfiguredError):
@@ -113,6 +119,44 @@ def _make_api_request(function_name: str, params: dict) -> dict | str:
 
 
 
+def _filter_failure_result(
+    csv_data: str,
+    start_date: str,
+    end_date: str,
+    error: Exception | str,
+) -> str:
+    """Return a safe result for CSV filtering failures.
+
+    Historical runs must not treat an unverifiable vendor response as usable
+    evidence. Live runs retain the previous raw-response compatibility path.
+    """
+    reason = (
+        "Alpha Vantage CSV date filtering failed; cannot prove the historical "
+        f"time boundary: {error}"
+    )
+    if current_run_context().mode == "historical":
+        audit_source(
+            source_name="alpha_vantage.get_stock_data",
+            capability="POINT_IN_TIME",
+            status="unavailable",
+            requested_start=start_date,
+            requested_end=end_date,
+            reason=reason,
+        )
+        return f"{HISTORICAL_UNAVAILABLE}: {reason}"
+
+    logger.warning("%s", reason)
+    return csv_data
+
+
+def _parse_csv_bound(value: str, *, end: bool) -> pd.Timestamp:
+    """Parse a date bound as an aware UTC timestamp."""
+    bound = pd.Timestamp(pd.to_datetime(value, errors="raise", utc=True))
+    if end and isinstance(value, str) and len(value.strip()) == 10:
+        bound += pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)
+    return bound
+
+
 def _filter_csv_by_date_range(csv_data: str, start_date: str, end_date: str) -> str:
     """
     Filter CSV data to include only rows within the specified date range.
@@ -125,27 +169,38 @@ def _filter_csv_by_date_range(csv_data: str, start_date: str, end_date: str) -> 
     Returns:
         Filtered CSV string
     """
-    if not csv_data or csv_data.strip() == "":
-        return csv_data
+    if not isinstance(csv_data, str) or not csv_data.strip():
+        return _filter_failure_result(csv_data, start_date, end_date, "empty CSV response")
 
     try:
         # Parse CSV data
         df = pd.read_csv(StringIO(csv_data))
 
-        # Assume the first column is the date column (timestamp)
-        date_col = df.columns[0]
-        df[date_col] = pd.to_datetime(df[date_col])
+        date_columns = [
+            column
+            for column in df.columns
+            if str(column).strip().lower() in _DATE_COLUMN_NAMES
+        ]
+        if len(date_columns) != 1:
+            raise ValueError("CSV must contain exactly one recognized date column")
+
+        date_col = date_columns[0]
+        parsed_dates = pd.to_datetime(df[date_col], errors="raise", utc=True)
 
         # Filter by date range
-        start_dt = pd.to_datetime(start_date)
-        end_dt = pd.to_datetime(end_date)
+        start_dt = _parse_csv_bound(start_date, end=False)
+        end_dt = _parse_csv_bound(end_date, end=True)
+        if start_dt > end_dt:
+            raise ValueError(f"start date {start_date!r} is after end date {end_date!r}")
 
-        filtered_df = df[(df[date_col] >= start_dt) & (df[date_col] <= end_dt)]
+        context = current_run_context()
+        if context.mode == "historical":
+            end_dt = min(end_dt, pd.Timestamp(context.as_of))
+
+        filtered_df = df[(parsed_dates >= start_dt) & (parsed_dates <= end_dt)]
 
         # Convert back to CSV string
         return filtered_df.to_csv(index=False)
 
-    except Exception as e:
-        # If filtering fails, return original data with a warning
-        print(f"Warning: Failed to filter CSV data by date range: {e}")
-        return csv_data
+    except Exception as exc:
+        return _filter_failure_result(csv_data, start_date, end_date, exc)
