@@ -4,8 +4,7 @@ into a historical window.
 Regressions for #992 (flat articles bypassed the date filter), #1007 (global
 news injected future articles), #993 (empty-after-filter returned a blank body).
 """
-import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -13,7 +12,11 @@ import tradingagents.dataflows.yfinance_news as ynews
 
 
 def _epoch(date_str):
-    return int(time.mktime(datetime.strptime(date_str, "%Y-%m-%d").timetuple()))
+    return int(
+        datetime.strptime(date_str, "%Y-%m-%d")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
 
 
 @pytest.mark.unit

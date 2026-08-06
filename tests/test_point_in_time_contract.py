@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
+from tradingagents.agents.analysts.news_analyst import build_news_analyst_system_message
 from tradingagents.agents.utils.agent_utils import resolve_instrument_identity
 from tradingagents.agents.utils.core_stock_tools import get_stock_data
 from tradingagents.agents.utils.fundamental_data_tools import get_balance_sheet, get_fundamentals
@@ -24,7 +26,9 @@ from tradingagents.agents.utils.news_data_tools import (
 from tradingagents.agents.utils.prediction_markets_tools import get_prediction_markets
 from tradingagents.agents.utils.technical_indicators_tools import get_indicators
 from tradingagents.dataflows import (
+    alpha_vantage_common as av_common,
     alpha_vantage_fundamentals as avf,
+    alpha_vantage_stock as av_stock,
     polymarket,
     reddit,
     stocktwits,
@@ -131,6 +135,117 @@ def test_news_excludes_future_and_undated_articles_and_keeps_window(monkeypatch)
     assert "UNDATED EVENT" not in output
     assert "2024-03-08 to 2024-03-15" in output
     assert any(r["status"] == "used" and r["capability"] == DataCapability.APPROXIMATE.value for r in audit.records)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "csv_data",
+    [
+        'Date,Close\n"unterminated,1.0\n',
+        "Open,Close\n2024-03-15,1.0\n",
+        "Date,Close\nnot-a-date,1.0\n",
+    ],
+    ids=["malformed", "missing-date-column", "unparseable-date"],
+)
+def test_alpha_vantage_csv_filter_failure_is_fail_closed(csv_data):
+    context, audit = _historical_audit()
+    with activate_run_context(context, audit):
+        output = av_common._filter_csv_by_date_range(
+            csv_data, "2024-03-14", "2024-03-15"
+        )
+
+    assert output.startswith("DATA_UNAVAILABLE_IN_HISTORICAL_MODE:")
+    assert "1.0" not in output
+    record = audit.records[-1]
+    assert record["source_name"] == "alpha_vantage.get_stock_data"
+    assert record["mode"] == "historical"
+    assert record["historical_as_of"].startswith("2024-03-15")
+    assert record["status"] == "unavailable"
+    assert record["requested_start"] == "2024-03-14"
+    assert record["requested_end"] == "2024-03-15"
+    assert "cannot prove" in record["reason"]
+    assert record["generated_at"]
+
+
+@pytest.mark.unit
+def test_alpha_vantage_future_rows_are_filtered_at_historical_as_of(monkeypatch):
+    response = (
+        "timestamp,open,high,low,close,volume\n"
+        "2024-03-15,100,101,99,100.5,100\n"
+        "2024-03-16,999,1000,998,999.5,999\n"
+    )
+    monkeypatch.setattr(av_stock, "_make_api_request", lambda *_: response)
+    context, audit = _historical_audit()
+
+    with activate_run_context(context, audit):
+        output = av_stock.get_stock("SPY", "2024-03-14", "2024-03-16")
+
+    assert "2024-03-15" in output
+    assert "2024-03-16" not in output
+    assert "999.5" not in output
+
+
+@pytest.mark.unit
+def test_alpha_vantage_live_filter_keeps_compatibility_on_failure():
+    csv_data = "Open,Close\n2024-03-15,1.0\n"
+    with activate_run_context(
+        RunContext.live(generated_at=datetime(2026, 8, 5, 12, tzinfo=timezone.utc))
+    ):
+        output = av_common._filter_csv_by_date_range(
+            csv_data, "2024-03-14", "2024-03-15"
+        )
+
+    assert output == csv_data
+
+
+@pytest.mark.unit
+def test_yfinance_flat_news_timestamp_is_utc_safe(monkeypatch):
+    context = RunContext.historical(
+        "2025-07-18", generated_at=datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    )
+    articles = [
+        {
+            "title": "IN WINDOW",
+            "publisher": "P",
+            "providerPublishTime": int(
+                datetime(2025, 7, 18, 23, 30, tzinfo=timezone.utc).timestamp()
+            ),
+        },
+        {
+            "title": "AFTER CUTOFF",
+            "publisher": "P",
+            "providerPublishTime": int(
+                datetime(2025, 7, 19, 0, 30, tzinfo=timezone.utc).timestamp()
+            ),
+        },
+    ]
+
+    class DummyTicker:
+        def get_news(self, count):
+            return articles
+
+    monkeypatch.setattr(ynews.yf, "Ticker", lambda _: DummyTicker())
+    parsed = ynews._extract_article_data(articles[0])["pub_date"]
+    nested = ynews._extract_article_data(
+        {"content": {"title": "NESTED", "pubDate": "2025-07-18T23:30:00Z"}}
+    )["pub_date"]
+    assert parsed == datetime(2025, 7, 18, 23, 30, tzinfo=timezone.utc)
+    assert nested == parsed
+    assert parsed.tzinfo is timezone.utc
+
+    with activate_run_context(context):
+        output = ynews.get_news_yfinance("SPY", "2025-07-18", "2025-07-18")
+
+    assert "IN WINDOW" in output
+    assert "AFTER CUTOFF" not in output
+
+
+@pytest.mark.unit
+def test_news_analyst_prompt_uses_relative_time_language():
+    prompt = build_news_analyst_system_message("company").lower()
+    assert "recession 2026" not in prompt
+    assert not re.search(r"\b20\d{2}\b", prompt)
+    assert "next 12 months" in prompt
 
 
 @pytest.mark.unit

@@ -252,7 +252,9 @@ def route_to_vendor(method: str, *args, **kwargs):
                 for marker in ("data_unavailable", "no_data_available", "error fetching", "error retrieving")
             ) else "used"
             reason = ""
-            if capability == DataCapability.APPROXIMATE:
+            if result_text.startswith("data_unavailable_in_historical_mode:"):
+                reason = result.split(":", 1)[1].strip()
+            elif capability == DataCapability.APPROXIMATE:
                 reason = "Timestamp-filtered historical approximation; archive completeness is not guaranteed."
             audit_source(
                 source_name=f"{vendor}.{method}",
