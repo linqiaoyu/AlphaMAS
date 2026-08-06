@@ -40,6 +40,8 @@ from cli.utils import (
     select_research_depth,
     select_shallow_thinking_agent,
 )
+from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.analyst_execution import (
     AnalystWallTimeTracker,
@@ -49,6 +51,12 @@ from tradingagents.graph.analyst_execution import (
 )
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.reporting import write_report_tree
+from tradingagents.runtime.run_context import (
+    AuditTrail,
+    activate_run_context,
+    audit_source,
+    create_run_context,
+)
 
 console = Console()
 
@@ -994,6 +1002,40 @@ def run_analysis(checkpoint: bool | None = None):
 
     config = _build_run_config(selections, checkpoint)
 
+    analysis_date = datetime.datetime.strptime(
+        selections["analysis_date"], "%Y-%m-%d"
+    ).date()
+    historical = analysis_date < datetime.datetime.now().date()
+    run_context = create_run_context(
+        "historical" if historical else "live",
+        as_of=selections["analysis_date"] if historical else None,
+    )
+    audit = AuditTrail(run_context)
+
+    try:
+        with activate_run_context(run_context, audit):
+            return _run_analysis_with_context(
+                selections, config, checkpoint, run_context
+            )
+    finally:
+        if historical:
+            audit_path = config.get("historical_audit_path")
+            if audit_path is None:
+                audit_path = (
+                    Path(config["results_dir"])
+                    / safe_ticker_component(selections["ticker"])
+                    / f"historical_data_audit_{analysis_date.isoformat()}.json"
+                )
+            audit.write(audit_path)
+
+
+def _run_analysis_with_context(
+    selections: dict,
+    config: dict,
+    checkpoint: bool | None,
+    run_context,
+):
+
     # Create stats callback handler for tracking LLM/tool calls
     stats_handler = StatsCallbackHandler()
 
@@ -1010,6 +1052,28 @@ def run_analysis(checkpoint: bool | None = None):
         debug=True,
         callbacks=[stats_handler],
     )
+
+    if run_context.mode == "historical":
+        for source_name, reason in (
+            ("stocktwits", "StockTwits live stream disabled in historical mode."),
+            ("reddit", "Reddit live search disabled in historical mode."),
+            ("polymarket", "Polymarket current market snapshot disabled in historical mode."),
+            ("fred", "FRED current revisions lack an as-of vintage."),
+            ("yfinance.ticker_info", "Ticker.info is a current snapshot."),
+            ("yfinance.financial_statements", "No filing/publication timestamp is available."),
+            ("yfinance.insider_transactions", "No verifiable public filing timestamp is available."),
+        ):
+            audit_source(
+                source_name=source_name,
+                capability="LIVE_ONLY",
+                status="blocked",
+                requested_end=run_context.as_of,
+                reason=reason,
+            )
+        graph.memory_log = TradingMemoryLog(
+            graph._historical_memory_config(selections["ticker"], run_context)
+        )
+        graph._memory_namespace_mode = "historical"
 
     # Initialize message buffer with selected analysts
     message_buffer.init_for_analysis(selected_analyst_keys)
@@ -1109,6 +1173,7 @@ def run_analysis(checkpoint: bool | None = None):
             selections["analysis_date"],
             asset_type=selections["asset_type"],
             instrument_context=instrument_context,
+            run_context=run_context,
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
