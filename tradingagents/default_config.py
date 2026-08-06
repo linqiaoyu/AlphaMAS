@@ -81,6 +81,9 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # per-ticker/per-date namespace is created under data_cache_dir.
     "historical_memory_log_path": None,
     "historical_memory_dir": None,
+    # Historical walk-forward runs may opt into a symbol-scoped experiment
+    # namespace. The default preserves the existing per-date isolation.
+    "memory_mode": "isolated_date",
     # Optional exact path for the machine-readable historical source audit.
     # When unset it is written under results_dir/<ticker>/ per as-of date.
     "historical_audit_path": None,

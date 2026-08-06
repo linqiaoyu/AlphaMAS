@@ -414,14 +414,28 @@ class TradingAgentsGraph:
         ])
 
     def _historical_memory_config(self, ticker: str, context: RunContext) -> dict[str, Any]:
-        """Return an isolated memory namespace for a historical run."""
+        """Return a safe disabled/date/experiment historical memory namespace."""
         config = dict(self.config)
+        memory_mode = config.get("memory_mode", "isolated_date")
+        if memory_mode not in {"disabled", "isolated_date", "experiment"}:
+            raise ValueError(f"unsupported memory_mode: {memory_mode!r}")
+        if memory_mode == "disabled":
+            config["memory_log_path"] = None
+            config["historical_as_of"] = context.as_of.date().isoformat()
+            return config
         explicit = config.get("historical_memory_log_path")
         if explicit:
             path = Path(explicit).expanduser()
         else:
             root = Path(config.get("historical_memory_dir") or config["data_cache_dir"]) / "historical_memory"
-            path = root / f"{safe_ticker_component(ticker)}_{context.as_of.date().isoformat()}.md"
+            safe_symbol = safe_ticker_component(ticker)
+            if memory_mode == "experiment":
+                if not context.experiment_id:
+                    raise ValueError("experiment memory requires RunContext.experiment_id")
+                experiment = safe_ticker_component(context.experiment_id, max_len=128)
+                path = root / experiment / f"{safe_symbol}.md"
+            else:
+                path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"
         config["memory_log_path"] = str(path)
         config["historical_as_of"] = context.as_of.date().isoformat()
         return config
