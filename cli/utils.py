@@ -6,6 +6,7 @@ from dotenv import find_dotenv, set_key
 from rich.console import Console
 
 from cli.models import AnalystType, AssetType
+from tradingagents.backtesting.config import RESEARCH_DEPTH_ROUNDS
 from tradingagents.llm_clients.api_key_env import get_api_key_env
 from tradingagents.llm_clients.model_catalog import get_model_options
 
@@ -169,9 +170,12 @@ def select_research_depth() -> int:
 
     # Define research depth options with their corresponding values
     DEPTH_OPTIONS = [
-        ("Shallow - Quick research, few debate and strategy discussion rounds", 1),
-        ("Medium - Middle ground, moderate debate rounds and strategy discussion", 3),
-        ("Deep - Comprehensive research, in depth debate and strategy discussion", 5),
+        ("Shallow - Quick research, few debate and strategy discussion rounds",
+         RESEARCH_DEPTH_ROUNDS["shallow"]),
+        ("Medium - Middle ground, moderate debate rounds and strategy discussion",
+         RESEARCH_DEPTH_ROUNDS["medium"]),
+        ("Deep - Comprehensive research, in depth debate and strategy discussion",
+         RESEARCH_DEPTH_ROUNDS["deep"]),
     ]
 
     choice = questionary.select(
