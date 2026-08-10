@@ -69,7 +69,14 @@ class Broker:
         if portfolio.cash < -Portfolio.tolerance:
             raise AssertionError("execution produced negative cash")
         portfolio.cash = max(0.0, portfolio.cash)
-        portfolio.cumulative_cost += commission
+        # Slippage is already reflected in cash and P&L through ``fill_price``.
+        # These counters are informational reporting only and must never be
+        # deducted from portfolio equity a second time.
+        slippage_cost = quantity * (fill_price - float(raw_open))
+        total_transaction_cost = commission + slippage_cost
+        portfolio.cumulative_commission_cost += commission
+        portfolio.cumulative_slippage_cost += slippage_cost
+        portfolio.cumulative_transaction_cost += total_transaction_cost
         order.status = "filled"
         self.filled_order_ids.add(order.order_id)
         return Fill(
@@ -78,5 +85,6 @@ class Broker:
             execution_time=execution_time, raw_open_price=float(raw_open),
             slippage_bps=self.slippage_bps, fill_price=fill_price, quantity=quantity,
             notional=notional, commission=commission, cash_after=portfolio.cash,
-            position_after=portfolio.quantity,
+            position_after=portfolio.quantity, slippage_cost=slippage_cost,
+            total_transaction_cost=total_transaction_cost,
         )

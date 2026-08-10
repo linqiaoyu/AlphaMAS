@@ -55,15 +55,20 @@ from tradingagents.backtesting.engine import (  # noqa: E402
     market_history_visibility_errors,
 )
 from tradingagents.backtesting.llm_usage import LLMUsageCallback  # noqa: E402
+from tradingagents.backtesting.memory_archive import (  # noqa: E402
+    archive_final_experiment_memory,
+)
 from tradingagents.backtesting.memory_lineage import (  # noqa: E402
     backtest_protocol_sha256,
     select_memory_lineage,
     snapshot_input_identity,
     validate_resume_data_source,
 )
+from tradingagents.backtesting.metrics import transaction_cost_components  # noqa: E402
 from tradingagents.backtesting.recorder import write_json  # noqa: E402
 from tradingagents.backtesting.strategies import (  # noqa: E402
     BuyAndHoldStrategy,
+    DecisionChronology,
     ScriptedStrategy,
     SMAStrategy,
     TradingAgentsStrategy,
@@ -141,6 +146,7 @@ def synthetic_provider(
 def strategy_factory(
     name: str, *, first_decision: str, config: dict[str, Any], experiment_root: Path,
     run_dir: Path, git_sha: str, force: bool, graph_config: dict[str, Any],
+    chronology: DecisionChronology | None = None,
 ) -> Any:
     if name == "scripted":
         return ScriptedStrategy({first_decision: "BUY"})
@@ -170,6 +176,7 @@ def strategy_factory(
             "memory_namespace_version": "experiment-v3-run-lineage",
         },
         usage_callback=usage_callback, run_root=run_dir, force=force,
+        chronology=chronology,
     )
 
 
@@ -263,11 +270,15 @@ def run_accounts(
 ) -> dict[str, Any]:
     results = {}
     remaining = planned_cases
+    # One rolling prefix spans every symbol in this attempt. This binds an
+    # AMZN/JPM cache entry to all preceding AAPL Agent decisions, so a repaired
+    # earlier failure invalidates stale downstream decisions across accounts.
+    chronology = DecisionChronology() if strategy_name == "tradingagents" else None
     for symbol in symbols:
         strategy = strategy_factory(
             strategy_name, first_decision=events[0].decision_session, config=config,
             experiment_root=experiment_root, run_dir=run_dir, git_sha=git_sha, force=force,
-            graph_config=graph_config,
+            graph_config=graph_config, chronology=chronology,
         )
         result = engine(provider, schedule, config).run(
             symbol=symbol, first_week=config["first_calendar_week"],
@@ -288,7 +299,7 @@ def portfolio_pnl_identity_errors(
     *, results: dict[str, Any], stock_benchmarks: dict[str, Any], spy: Any,
     initial_cash: float, atol: float = PORTFOLIO_PNL_IDENTITY_ATOL,
 ) -> list[str]:
-    """Validate net P&L identities and commission totals for every account."""
+    """Validate net P&L and recomputable cost reporting for every account."""
     accounts = [
         *((f"strategy/{symbol}", result) for symbol, result in results.items()),
         *((f"benchmark/{symbol}", result) for symbol, result in stock_benchmarks.items()),
@@ -301,6 +312,9 @@ def portfolio_pnl_identity_errors(
         "unrealized_pnl",
         "cumulative_dividends",
         "cumulative_cost",
+        "cumulative_commission_cost",
+        "cumulative_slippage_cost",
+        "cumulative_transaction_cost",
     }
     errors: list[str] = []
     for account_name, result in accounts:
@@ -343,22 +357,77 @@ def portfolio_pnl_identity_errors(
                     f"cumulative_dividends ({expected_equity}); "
                     f"difference={float(row['equity']) - expected_equity}"
                 )
-        costs = daily["cumulative_cost"].astype(float).to_numpy()
-        if (np.diff(costs) < -atol).any():
-            errors.append(f"{account_name}: cumulative_cost decreases")
-        if result.fills.empty:
-            fill_commissions = 0.0
-        elif "commission" not in result.fills:
-            errors.append(f"{account_name}: fills lacks commission")
-            continue
-        else:
-            fill_commissions = float(result.fills["commission"].sum())
-        final_cost = float(costs[-1])
-        if not np.isclose(final_cost, fill_commissions, rtol=0.0, atol=atol):
+        cost_columns = (
+            "cumulative_commission_cost",
+            "cumulative_slippage_cost",
+            "cumulative_transaction_cost",
+        )
+        for column in cost_columns:
+            costs = daily[column].astype(float).to_numpy()
+            if (np.diff(costs) < -atol).any():
+                errors.append(f"{account_name}: {column} decreases")
+        reported_total = daily["cumulative_transaction_cost"].astype(float).to_numpy()
+        component_total = (
+            daily["cumulative_commission_cost"].astype(float).to_numpy()
+            + daily["cumulative_slippage_cost"].astype(float).to_numpy()
+        )
+        if not np.allclose(reported_total, component_total, rtol=0.0, atol=atol):
             errors.append(
-                f"{account_name}: final cumulative_cost {final_cost} != fills commissions "
-                f"{fill_commissions}; difference={final_cost - fill_commissions}"
+                f"{account_name}: cumulative transaction cost != commission + slippage"
             )
+        compatibility_total = daily["cumulative_cost"].astype(float).to_numpy()
+        if not np.allclose(
+            compatibility_total, reported_total, rtol=0.0, atol=atol
+        ):
+            errors.append(
+                f"{account_name}: cumulative_cost alias != cumulative_transaction_cost"
+            )
+        try:
+            fill_costs = transaction_cost_components(result.fills)
+        except ValueError as exc:
+            errors.append(f"{account_name}: fills transaction costs invalid ({exc})")
+            continue
+        fill_totals = {
+            "cumulative_commission_cost": float(fill_costs["commission_cost"].sum()),
+            "cumulative_slippage_cost": float(fill_costs["slippage_cost"].sum()),
+            "cumulative_transaction_cost": float(
+                fill_costs["total_transaction_cost"].sum()
+            ),
+        }
+        for column, fill_total in fill_totals.items():
+            final_cost = float(daily.iloc[-1][column])
+            if not np.isclose(final_cost, fill_total, rtol=0.0, atol=atol):
+                errors.append(
+                    f"{account_name}: final {column} {final_cost} != recomputed fills "
+                    f"{fill_total}; difference={final_cost - fill_total}"
+                )
+        metric_costs = {
+            "total_commission_cost": fill_totals["cumulative_commission_cost"],
+            "total_slippage_cost": fill_totals["cumulative_slippage_cost"],
+            "total_transaction_cost": fill_totals["cumulative_transaction_cost"],
+        }
+        for metric, fill_total in metric_costs.items():
+            value = result.metrics.get(metric)
+            if not isinstance(value, (int, float, np.integer, np.floating)) or not np.isclose(
+                float(value), fill_total, rtol=0.0, atol=atol
+            ):
+                errors.append(
+                    f"{account_name}: metric {metric} {value!r} != recomputed fills "
+                    f"{fill_total}"
+                )
+        expected_rates = {
+            "commission_cost_rate": metric_costs["total_commission_cost"] / initial_cash,
+            "slippage_cost_rate": metric_costs["total_slippage_cost"] / initial_cash,
+            "transaction_cost_rate": metric_costs["total_transaction_cost"] / initial_cash,
+        }
+        for metric, expected_rate in expected_rates.items():
+            value = result.metrics.get(metric)
+            if not isinstance(value, (int, float, np.integer, np.floating)) or not np.isclose(
+                float(value), expected_rate, rtol=0.0, atol=atol
+            ):
+                errors.append(
+                    f"{account_name}: metric {metric} {value!r} != {expected_rate}"
+                )
     return errors
 
 
@@ -809,6 +878,32 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         write_json(validation_root / "validation_report.json", validation)
         if validation["status"] != "passed":
             raise RuntimeError("artifact validation failed; see validation_report.json")
+        if strategy_name == "tradingagents":
+            if graph_config.get("memory_mode") != "experiment":
+                raise ValueError(
+                    "successful TradingAgents artifact publication requires "
+                    "experiment Memory"
+                )
+            archived_symbols = [
+                symbol for symbol, result in results.items()
+                if not result.decisions.empty
+            ]
+            if not archived_symbols:
+                raise ValueError(
+                    "successful TradingAgents artifact publication requires "
+                    "at least one completed Agent decision"
+                )
+            manifest["memory_archive"] = archive_final_experiment_memory(
+                run_dir=run_dir,
+                runtime_memory_dir=graph_config["historical_memory_dir"],
+                experiment_id=args.experiment_id,
+                run_id=run_id,
+                memory_lineage_id=memory_lineage.lineage_id,
+                memory_lifecycle=memory_lineage.lifecycle,
+                memory_resumed_from_run_id=memory_lineage.resumed_from_run_id,
+                graph_config_sha256=graph_config_sha256,
+                symbols=archived_symbols,
+            )
         completed = datetime.now(timezone.utc).isoformat()
         manifest["run_completed_at"] = completed
         write_json(run_dir / "manifest.json", manifest)

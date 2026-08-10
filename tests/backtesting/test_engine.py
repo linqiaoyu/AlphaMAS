@@ -235,13 +235,13 @@ def test_portfolio_pnl_identity_validates_all_rows_costs_and_benchmarks(
         initial_cash=100_000,
     )
     assert any(
-        "benchmark/TEST" in error and "fills commissions" in error
+        "benchmark/TEST" in error and "cumulative_cost alias" in error
         for error in cost_errors
     )
 
     decreasing_cost = copy.deepcopy(valid)
     decreasing_cost.daily_equity.loc[
-        decreasing_cost.daily_equity.index[-1], "cumulative_cost"
+        decreasing_cost.daily_equity.index[-1], "cumulative_slippage_cost"
     ] = 0.0
     monotonic_errors = portfolio_pnl_identity_errors(
         results={"TEST": valid},
@@ -250,6 +250,32 @@ def test_portfolio_pnl_identity_validates_all_rows_costs_and_benchmarks(
         initial_cash=100_000,
     )
     assert any(
-        "benchmark/SPY" in error and "cumulative_cost decreases" in error
+        "benchmark/SPY" in error and "cumulative_slippage_cost decreases" in error
         for error in monotonic_errors
+    )
+
+    broken_fill = copy.deepcopy(valid)
+    broken_fill.fills.loc[0, "slippage_cost"] += 1.0
+    fill_errors = portfolio_pnl_identity_errors(
+        results={"TEST": broken_fill},
+        stock_benchmarks={"TEST": valid},
+        spy=valid,
+        initial_cash=100_000,
+    )
+    assert any(
+        "strategy/TEST" in error and "recorded fill slippage_cost" in error
+        for error in fill_errors
+    )
+
+    broken_metric = copy.deepcopy(valid)
+    broken_metric.metrics["total_transaction_cost"] += 1.0
+    metric_errors = portfolio_pnl_identity_errors(
+        results={"TEST": valid},
+        stock_benchmarks={"TEST": broken_metric},
+        spy=valid,
+        initial_cash=100_000,
+    )
+    assert any(
+        "benchmark/TEST" in error and "metric total_transaction_cost" in error
+        for error in metric_errors
     )

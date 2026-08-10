@@ -20,9 +20,16 @@ class Portfolio:
         self.average_entry_price = 0.0
         self.open_position_commission = 0.0
         self.realized_pnl = 0.0
-        self.cumulative_cost = 0.0
+        self.cumulative_commission_cost = 0.0
+        self.cumulative_slippage_cost = 0.0
+        self.cumulative_transaction_cost = 0.0
         self.cumulative_dividends = 0.0
         self.peak_equity = float(initial_cash)
+
+    @property
+    def cumulative_cost(self) -> float:
+        """Compatibility alias for total reported transaction cost."""
+        return self.cumulative_transaction_cost
 
     def apply_dividend(self, dividend_per_share: float) -> float:
         cash_effect = self.quantity * float(dividend_per_share)
@@ -66,7 +73,10 @@ class Portfolio:
             current_weight=0.0 if equity <= 0 else market_value / equity,
             average_entry_price=self.average_entry_price,
             unrealized_pnl=unrealized, realized_pnl=self.realized_pnl,
-            cumulative_cost=self.cumulative_cost,
+            cumulative_cost=self.cumulative_transaction_cost,
             cumulative_dividends=self.cumulative_dividends, current_drawdown=drawdown,
             peak_equity=self.peak_equity,
+            cumulative_commission_cost=self.cumulative_commission_cost,
+            cumulative_slippage_cost=self.cumulative_slippage_cost,
+            cumulative_transaction_cost=self.cumulative_transaction_cost,
         )

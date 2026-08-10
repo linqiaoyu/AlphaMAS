@@ -22,6 +22,10 @@ from tradingagents.backtesting.artifacts import (
     write_agent_analysis_tables,
 )
 from tradingagents.backtesting.cache import cache_key
+from tradingagents.backtesting.memory_archive import (
+    archive_final_experiment_memory,
+    runtime_experiment_memory_path,
+)
 
 
 def _write_json(path: Path, value) -> None:
@@ -229,6 +233,36 @@ def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
             columns=ANALYSIS_READY_SCHEMAS["decision_timeline.csv"]
         ).to_csv(analysis_root / "decision_timeline.csv", index=False)
 
+        runtime_memory = root.parent / f".{root.name}-runtime-memory"
+        runtime_path = runtime_experiment_memory_path(
+            runtime_memory,
+            experiment_id=run_identity["experiment_id"],
+            graph_config_sha256=graph_hash,
+            memory_lineage_id=lineage["memory_lineage_id"],
+            symbol="AAPL",
+        )
+        runtime_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_path.write_text(
+            "[2024-01-05 | AAPL | Buy | pending]\n\n"
+            "DECISION:\nRating: Buy\n\n<!-- ENTRY_END -->\n\n",
+            encoding="utf-8",
+        )
+        descriptor = archive_final_experiment_memory(
+            run_dir=root,
+            runtime_memory_dir=runtime_memory,
+            experiment_id=run_identity["experiment_id"],
+            run_id=run_identity["run_id"],
+            memory_lineage_id=lineage["memory_lineage_id"],
+            memory_lifecycle=lineage["memory_lifecycle"],
+            memory_resumed_from_run_id=lineage["memory_resumed_from_run_id"],
+            graph_config_sha256=graph_hash,
+            symbols=["AAPL"],
+        )
+        top_manifest_path = root / "manifest.json"
+        top_manifest = json.loads(top_manifest_path.read_text(encoding="utf-8"))
+        top_manifest["memory_archive"] = descriptor
+        _write_json(top_manifest_path, top_manifest)
+
 
 def test_fixed_agent_tables_are_header_only_for_synthetic_runs(tmp_path):
     paths = write_agent_analysis_tables(tmp_path)
@@ -268,12 +302,21 @@ def test_source_audit_flattening_preserves_provider_fields_and_order():
     assert rows[1]["experiment_id"] == "M0"
 
 
-def test_artifact_schema_1_2_declares_agent_analysis_tables():
+def test_artifact_schema_1_3_declares_agent_and_cost_analysis_tables():
     schema = artifact_schema()
 
-    assert ARTIFACT_SCHEMA_VERSION == "1.2"
-    assert schema["schema_version"] == "1.2"
+    assert ARTIFACT_SCHEMA_VERSION == "1.3"
+    assert schema["schema_version"] == "1.3"
     assert schema["analysis_ready_schemas"]["case_index.csv"] == list(CASE_INDEX_COLUMNS)
+    assert "slippage_cost" in schema["analysis_ready_schemas"]["decision_timeline.csv"]
+    assert (
+        "slippage_cost_in_period"
+        in schema["analysis_ready_schemas"]["weekly_performance.csv"]
+    )
+    assert "total_slippage_cost" in schema["definitions"]
+    assert "final_memory_archive" in schema["definitions"]
+    assert "memory/manifest.json" in schema["memory_artifacts"]
+    assert "memory/symbols/<symbol>.md" in schema["memory_artifacts"]
     assert "analysis_ready/data_availability.csv" in schema["csv_files"]
     assert "analysis_ready/llm_usage.csv" in schema["csv_files"]
 
@@ -424,6 +467,27 @@ def test_validate_artifact_bundle_checks_agent_cases_and_snapshot_hashes(tmp_pat
     assert report["status"] == "failed"
     assert report["checks"]["market_snapshot_sha256_valid"] is False
     assert report["checks"]["agent_case_artifacts_complete"] is False
+
+
+@pytest.mark.parametrize("tamper", ("missing", "corrupted"))
+def test_artifact_validator_rejects_incomplete_or_tampered_final_memory(
+    tmp_path, tamper,
+):
+    _complete_bundle(tmp_path, strategy="tradingagents")
+    memory_path = tmp_path / "memory/symbols/AAPL.md"
+    if tamper == "missing":
+        memory_path.unlink()
+    else:
+        memory_path.write_text("tampered final Memory", encoding="utf-8")
+
+    report = validate_artifact_bundle(tmp_path)
+
+    assert report["status"] == "failed"
+    assert report["checks"]["final_memory_archive_complete_and_valid"] is False
+    if tamper == "missing":
+        assert "memory/symbols/AAPL.md" in report["missing_files"]
+    else:
+        assert report["memory_archive_checksum_errors"]
 
 
 @pytest.mark.parametrize(
@@ -636,6 +700,17 @@ def test_cache_origin_usage_keeps_real_request_provenance(tmp_path):
         document["memory_lifecycle"] = "resume"
         document["memory_resumed_from_run_id"] = "origin-run"
         _write_json(path, document)
+    archive_manifest_path = tmp_path / "memory/manifest.json"
+    archive_manifest = json.loads(archive_manifest_path.read_text())
+    archive_manifest["memory_lifecycle"] = "resume"
+    archive_manifest["memory_resumed_from_run_id"] = "origin-run"
+    _write_json(archive_manifest_path, archive_manifest)
+    top_manifest_path = tmp_path / "manifest.json"
+    top_manifest = json.loads(top_manifest_path.read_text())
+    top_manifest["memory_archive"]["manifest_sha256"] = hashlib.sha256(
+        archive_manifest_path.read_bytes()
+    ).hexdigest()
+    _write_json(top_manifest_path, top_manifest)
     case_dir = tmp_path / "strategy/cases/AAPL/2024-01-05"
     live_usage_path = case_dir / "llm_usage.json"
     origin_usage = json.loads(live_usage_path.read_text())

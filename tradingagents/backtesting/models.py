@@ -74,6 +74,8 @@ class Fill:
     commission: float
     cash_after: float
     position_after: float
+    slippage_cost: float
+    total_transaction_cost: float
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -99,6 +101,9 @@ class PortfolioSnapshot:
     current_drawdown: float
     peak_equity: float
     cumulative_dividends: float = 0.0
+    cumulative_commission_cost: float = 0.0
+    cumulative_slippage_cost: float = 0.0
+    cumulative_transaction_cost: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

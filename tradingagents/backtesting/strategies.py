@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
+import tempfile
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -127,14 +130,63 @@ def strict_action(raw: str, processed: str | None = None) -> Action:
     return Action(candidates.pop())
 
 
+_DECISION_PREFIX_SEED = hashlib.sha256(
+    b"TradingAgents chronological decision prefix v1"
+).hexdigest()
+
+
+@dataclass
+class DecisionChronology:
+    """Attempt-local chain binding every Agent cache key to its valid prefix."""
+
+    prefix_sha256: str = field(default=_DECISION_PREFIX_SEED, init=False)
+    failed_case: str | None = field(default=None, init=False)
+
+    def require_active(self) -> None:
+        if self.failed_case is not None:
+            raise RuntimeError(
+                "TradingAgents chronology already terminated at "
+                f"{self.failed_case}; future decisions are forbidden"
+            )
+
+    def record_success(self, decision: StrategyDecision, *, cache_key_value: str) -> None:
+        """Advance identically for a fresh success and its exact cache replay."""
+        self.require_active()
+        payload = {
+            "prior_prefix_sha256": self.prefix_sha256,
+            "cache_key": cache_key_value,
+            "symbol": decision.symbol,
+            "decision_session": decision.decision_session,
+            "action": decision.action.value if decision.action else None,
+            "target_weight": decision.target_weight,
+            "raw_signal": decision.raw_signal,
+        }
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+            allow_nan=False,
+        )
+        self.prefix_sha256 = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    def record_failure(self, symbol: str, session: str) -> None:
+        self.failed_case = f"{symbol}:{session}"
+
+
+@dataclass(frozen=True)
+class _MemoryFileSnapshot:
+    path: Path
+    existed: bool
+    content: bytes
+
+
 class TradingAgentsStrategy(BaseStrategy):
     strategy_id = "tradingagents"
+    fail_fast_on_decision_failure = True
 
     def __init__(
         self, graph: Any, *, reports_root: str | Path | None = None,
         cache: DecisionCache | None = None, cache_config: dict[str, Any] | None = None,
         usage_callback: Any | None = None, run_root: str | Path | None = None,
-        force: bool = False,
+        force: bool = False, chronology: DecisionChronology | None = None,
     ) -> None:
         self.graph = graph
         self.reports_root = Path(reports_root) if reports_root else None
@@ -143,6 +195,7 @@ class TradingAgentsStrategy(BaseStrategy):
         self.usage_callback = usage_callback
         self.run_root = Path(run_root) if run_root else None
         self.force = force
+        self.chronology = chronology or DecisionChronology()
 
     def _cache_payload(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         snapshot = kwargs["portfolio_snapshot"]
@@ -187,7 +240,64 @@ class TradingAgentsStrategy(BaseStrategy):
             ).hexdigest(),
             "market_history_sha256": hashlib.sha256(history_payload.encode()).hexdigest(),
             "memory_namespace_version": self.cache_config.get("memory_namespace_version", "v1"),
+            # This rolling chain covers all earlier successful Agent cases in
+            # the attempt, including prior symbols. A repaired failed point
+            # therefore invalidates every obsolete downstream cache entry.
+            "decision_prefix_sha256": self.chronology.prefix_sha256,
         }
+
+    def _capture_memory(
+        self, symbol: str, run_context: RunContext,
+    ) -> _MemoryFileSnapshot | None:
+        """Snapshot the exact runtime Memory file before an uncached Agent case."""
+        resolver = getattr(self.graph, "_historical_memory_config", None)
+        if not callable(resolver):
+            return None
+        memory_config = resolver(symbol, run_context)
+        path_value = memory_config.get("memory_log_path")
+        if not path_value:
+            return None
+        path = Path(path_value)
+        if path.is_file():
+            return _MemoryFileSnapshot(path, True, path.read_bytes())
+        if path.exists():
+            raise ValueError(f"historical Memory path is not a file: {path}")
+        return _MemoryFileSnapshot(path, False, b"")
+
+    @staticmethod
+    def _restore_memory(snapshot: _MemoryFileSnapshot | None) -> str:
+        """Atomically roll an unsuccessful case back to its Memory prefix."""
+        if snapshot is None:
+            return "not_applicable"
+        path = snapshot.path
+        if not snapshot.existed:
+            if path.exists():
+                if not path.is_file():
+                    raise ValueError(f"historical Memory path is not a file: {path}")
+                path.unlink()
+            return "restored"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.rollback.", dir=path.parent,
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(snapshot.content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+        return "restored"
+
+    def record_chronological_success(self, decision: StrategyDecision) -> None:
+        """Commit a decision to the attempt chain after the engine accepts it."""
+        key = decision.metadata.get("cache_key")
+        if not isinstance(key, str) or not key:
+            raise ValueError("TradingAgents decision is missing its cache key")
+        self.chronology.record_success(decision, cache_key_value=key)
 
     def _case_dir(self, symbol: str, session: str) -> Path | None:
         if self.reports_root is None:
@@ -257,6 +367,7 @@ class TradingAgentsStrategy(BaseStrategy):
             return {}
 
     def decide(self, **kwargs: Any) -> StrategyDecision:
+        self.chronology.require_active()
         started = time.monotonic()
         symbol = kwargs["symbol"]
         session = kwargs["decision_session"]
@@ -308,6 +419,9 @@ class TradingAgentsStrategy(BaseStrategy):
                         case_dir / "source_audit.json" if case_dir else None
                     ),
                     "model_config": self._model_config(),
+                    "decision_prefix_sha256": cache_payload[
+                        "decision_prefix_sha256"
+                    ],
                 }
                 decision = StrategyDecision(
                     symbol=symbol, decision_session=session,
@@ -335,7 +449,9 @@ class TradingAgentsStrategy(BaseStrategy):
         usage: list[dict[str, Any]] = []
         source_audit: dict[str, Any] = {}
         cache_status = "bypass" if self.force else "miss"
+        memory_snapshot: _MemoryFileSnapshot | None = None
         try:
+            memory_snapshot = self._capture_memory(symbol, run_context)
             final_state, processed = self.graph.propagate(
                 symbol, session, mode="historical", run_context=run_context,
             )
@@ -359,6 +475,9 @@ class TradingAgentsStrategy(BaseStrategy):
                 "cache_key": key,
                 "cache_status": cache_status,
                 "model_config": self._model_config(),
+                "decision_prefix_sha256": cache_payload[
+                    "decision_prefix_sha256"
+                ],
             }
             decision = self._decision(
                 action, reason="TradingAgents structured decision", metadata=metadata, **kwargs
@@ -381,6 +500,8 @@ class TradingAgentsStrategy(BaseStrategy):
                 )
             return decision
         except Exception as exc:
+            self.chronology.record_failure(symbol, session)
+            rollback_status = self._restore_memory(memory_snapshot)
             if self.usage_callback is not None:
                 usage = self.usage_callback.finish_case()
             source_audit = self._load_source_audit(self.graph, symbol, run_context)
@@ -390,6 +511,10 @@ class TradingAgentsStrategy(BaseStrategy):
                 **visibility_metadata,
                 "cache_key": key,
                 "cache_status": cache_status,
+                "decision_prefix_sha256": cache_payload[
+                    "decision_prefix_sha256"
+                ],
+                "memory_rollback_status": rollback_status,
                 "report_path": self._artifact_path(
                     case_dir / "reports" if case_dir and (case_dir / "reports").is_dir()
                     else None

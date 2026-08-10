@@ -7,6 +7,68 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+FILL_COST_INPUT_COLUMNS = (
+    "raw_open_price", "fill_price", "quantity", "commission",
+)
+
+
+def transaction_cost_components(fills: pd.DataFrame | None) -> pd.DataFrame:
+    """Recompute fill costs from archived execution facts.
+
+    Slippage is signed implementation shortfall: signed fill quantity times
+    ``fill_price - raw_open_price``. It is positive for both adverse buys and
+    adverse sells produced by the broker. Commission is the cash fee recorded
+    on the fill, and total transaction cost is their sum.
+    """
+    fills = pd.DataFrame() if fills is None else fills
+    output_columns = (
+        "commission_cost", "slippage_cost", "total_transaction_cost",
+    )
+    if fills.empty:
+        return pd.DataFrame(0.0, index=fills.index, columns=output_columns)
+    missing = set(FILL_COST_INPUT_COLUMNS) - set(fills.columns)
+    if missing:
+        raise ValueError(
+            f"fills lack transaction-cost inputs: {sorted(missing)}"
+        )
+    values = {
+        column: pd.to_numeric(fills[column], errors="coerce").astype(float)
+        for column in FILL_COST_INPUT_COLUMNS
+    }
+    if any((~np.isfinite(series.to_numpy())).any() for series in values.values()):
+        raise ValueError("fill transaction-cost inputs must be finite")
+    if (values["raw_open_price"] <= 0).any() or (values["fill_price"] <= 0).any():
+        raise ValueError("fill prices must be positive")
+    if (values["commission"] < 0).any():
+        raise ValueError("fill commissions must be non-negative")
+    commission = values["commission"]
+    slippage = values["quantity"] * (
+        values["fill_price"] - values["raw_open_price"]
+    )
+    components = pd.DataFrame({
+        "commission_cost": commission,
+        "slippage_cost": slippage,
+        "total_transaction_cost": commission + slippage,
+    }, index=fills.index)
+    for recorded, computed in (
+        ("slippage_cost", "slippage_cost"),
+        ("total_transaction_cost", "total_transaction_cost"),
+    ):
+        if recorded not in fills:
+            continue
+        recorded_values = pd.to_numeric(fills[recorded], errors="coerce").astype(float)
+        if (
+            (~np.isfinite(recorded_values.to_numpy())).any()
+            or not np.allclose(
+                recorded_values.to_numpy(), components[computed].to_numpy(),
+                rtol=1e-12, atol=1e-10,
+            )
+        ):
+            raise ValueError(
+                f"recorded fill {recorded} does not match recomputed execution cost"
+            )
+    return components
+
 
 def _finite_or_none(value: float) -> float | None:
     return float(value) if np.isfinite(value) else None
@@ -43,7 +105,10 @@ def compute_metrics(
     maximum_drawdown = float(-drawdowns.min())
     calmar = None if maximum_drawdown == 0 else annual_return / maximum_drawdown
     fills = pd.DataFrame() if fills is None else fills
-    total_cost = float(fills.get("commission", pd.Series(dtype=float)).sum())
+    fill_costs = transaction_cost_components(fills)
+    commission_cost = float(fill_costs["commission_cost"].sum())
+    slippage_cost = float(fill_costs["slippage_cost"].sum())
+    total_cost = float(fill_costs["total_transaction_cost"].sum())
     notional = float(fills.get("notional", pd.Series(dtype=float)).abs().sum())
     avg_equity = float(curve.mean())
     initial = float(curve.iloc[0] if initial_equity is None else initial_equity)
@@ -60,7 +125,11 @@ def compute_metrics(
         "maximum_drawdown": maximum_drawdown,
         "calmar_ratio": _finite_or_none(calmar) if calmar is not None else None,
         "turnover": notional / avg_equity,
+        "total_commission_cost": commission_cost,
+        "total_slippage_cost": slippage_cost,
         "total_transaction_cost": total_cost,
+        "commission_cost_rate": commission_cost / initial,
+        "slippage_cost_rate": slippage_cost / initial,
         "transaction_cost_rate": total_cost / initial,
         "trade_count": int(len(fills)),
         "average_exposure": float(pd.Series(exposure, dtype=float).mean()) if exposure is not None else None,

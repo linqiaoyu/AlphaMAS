@@ -13,10 +13,14 @@ import pandas as pd
 
 from tradingagents.backtesting.cache import cache_key
 from tradingagents.backtesting.config import compute_graph_config_sha256
-from tradingagents.backtesting.metrics import compute_metrics
+from tradingagents.backtesting.memory_archive import (
+    MEMORY_ARCHIVE_MANIFEST_PATH,
+    validate_final_memory_archive,
+)
+from tradingagents.backtesting.metrics import compute_metrics, transaction_cost_components
 from tradingagents.backtesting.recorder import equal_weight_aggregate, write_json
 
-ARTIFACT_SCHEMA_VERSION = "1.2"
+ARTIFACT_SCHEMA_VERSION = "1.3"
 RESULT_TABLES = {
     "decisions.csv": "decisions",
     "orders.csv": "orders",
@@ -112,6 +116,8 @@ ANALYSIS_READY_SCHEMAS = {
         "SPY_forward_return",
         "strategy_excess_vs_stock",
         "strategy_excess_vs_spy",
+        "commission_cost_in_period",
+        "slippage_cost_in_period",
         "transaction_cost_in_period",
         "average_exposure_in_period",
     ),
@@ -132,6 +138,8 @@ ANALYSIS_READY_SCHEMAS = {
         "fill_price",
         "fill_quantity",
         "commission",
+        "slippage_cost",
+        "total_transaction_cost",
         "position_after",
         "cache_status",
     ),
@@ -460,7 +468,15 @@ def aggregate_outputs(results: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, 
         annualization=first_metrics["annualization_factor"],
     )
     total_initial = sum(float(result.daily_equity.iloc[0]["equity"]) for result in results.values())
-    total_cost = sum(float(result.metrics["total_transaction_cost"]) for result in results.values())
+    commission_cost = sum(
+        float(result.metrics["total_commission_cost"])
+        for result in results.values()
+    )
+    slippage_cost = sum(
+        float(result.metrics["total_slippage_cost"])
+        for result in results.values()
+    )
+    total_cost = commission_cost + slippage_cost
     total_notional = sum(
         float(result.fills.get("notional", pd.Series(dtype=float)).abs().sum())
         for result in results.values()
@@ -482,7 +498,11 @@ def aggregate_outputs(results: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, 
             metrics["decision_failure_count"] / metrics["decision_count"]
             if metrics["decision_count"] else 0.0
         ),
+        "total_commission_cost": commission_cost,
+        "total_slippage_cost": slippage_cost,
         "total_transaction_cost": total_cost,
+        "commission_cost_rate": commission_cost / total_initial,
+        "slippage_cost_rate": slippage_cost / total_initial,
         "transaction_cost_rate": total_cost / total_initial,
         "turnover": total_notional / total_average_equity,
         "average_exposure": float(np.mean([
@@ -620,6 +640,8 @@ def _decision_timeline(results: dict[str, Any]) -> pd.DataFrame:
                 "fill_price": fill.get("fill_price", ""),
                 "fill_quantity": fill.get("quantity", ""),
                 "commission": fill.get("commission", ""),
+                "slippage_cost": fill.get("slippage_cost", ""),
+                "total_transaction_cost": fill.get("total_transaction_cost", ""),
                 "position_after": fill.get("position_after", ""),
                 # Cache provenance is independent of decision success/cached status:
                 # forced recomputation is a bypass, not a miss.
@@ -650,11 +672,15 @@ def _weekly_performance(
             data = market_data[symbol]
             start_close, end_close = data.loc[start, "Close"], data.loc[end, "Close"]
             fills = result.fills
-            if fills.empty:
-                period_cost = 0.0
-            else:
-                dates = fills["execution_time"].astype(str).str[:10]
-                period_cost = float(fills.loc[(dates > start) & (dates <= end), "commission"].sum())
+            dates = fills.get("execution_time", pd.Series(index=fills.index, dtype=str))
+            period_fills = fills.loc[
+                (dates.astype(str).str[:10] > start)
+                & (dates.astype(str).str[:10] <= end)
+            ]
+            period_costs = transaction_cost_components(period_fills)
+            commission_cost = float(period_costs["commission_cost"].sum())
+            slippage_cost = float(period_costs["slippage_cost"].sum())
+            period_cost = float(period_costs["total_transaction_cost"].sum())
             daily = result.daily_equity.set_index("session").loc[start:end]
             stock_return = _period_return(stock_benchmarks[symbol].daily_equity, start, end)
             strategy_return = _period_return(result.daily_equity, start, end)
@@ -668,6 +694,8 @@ def _weekly_performance(
                 "SPY_forward_return": spy_return,
                 "strategy_excess_vs_stock": strategy_return - stock_return,
                 "strategy_excess_vs_spy": strategy_return - spy_return,
+                "commission_cost_in_period": commission_cost,
+                "slippage_cost_in_period": slippage_cost,
                 "transaction_cost_in_period": period_cost,
                 "average_exposure_in_period": float(daily["current_weight"].mean()),
             })
@@ -686,6 +714,14 @@ def artifact_schema() -> dict[str, Any]:
             "daily_return": "close-to-close portfolio equity percentage change",
             "drawdown": "equity / running_peak_equity - 1",
             "turnover": "sum(abs(fill_notional)) / average_daily_equity",
+            "total_commission_cost": "sum(fill commission)",
+            "total_slippage_cost": (
+                "sum(signed quantity * (fill_price - raw_open_price))"
+            ),
+            "total_transaction_cost": (
+                "total_commission_cost + total_slippage_cost; informational only because "
+                "commission and slipped fill prices already affect equity"
+            ),
             "transaction_cost_rate": "total_transaction_cost / initial_equity",
             "sortino_ratio": (
                 "mean(daily_return-daily_rf) / sqrt(mean(min(daily_return-daily_rf,0)^2)) "
@@ -698,6 +734,20 @@ def artifact_schema() -> dict[str, Any]:
             "same_stock_benchmark": "100% long same symbol from first available next-open",
             "SPY_benchmark": "100% long SPY from first available next-open",
             "final_valuation": "marked at configured final XNYS close; no forced liquidation",
+            "final_memory_archive": (
+                "one-way byte copies of the final symbol-specific experiment Memory; "
+                "read-only research artifacts that are never inputs to runtime or resume"
+            ),
+        },
+        "memory_artifacts": {
+            "memory/manifest.json": (
+                "run, lineage, Graph, and symbol provenance plus per-file SHA-256; "
+                "its own SHA-256 is bound into the top-level manifest"
+            ),
+            "memory/symbols/<symbol>.md": (
+                "exact final TradingMemoryLog state copied out of the operational "
+                "runtime namespace"
+            ),
         },
         "csv_files": {
             "inputs/market_data/<symbol>.csv": "canonical exact raw OHLCV plus actions",
@@ -734,8 +784,14 @@ def artifact_schema() -> dict[str, Any]:
             "execution_session": "next XNYS session intended for open execution",
             "raw_open_price": "unadjusted market open before slippage",
             "fill_price": "execution price after directional slippage",
-            "fill_quantity": "signed shares bought (positive) or sold (negative)",
+            "quantity": "signed fill shares bought (positive) or sold (negative)",
+            "fill_quantity": "decision-timeline alias of signed fill quantity",
             "commission": "cash commission charged on the fill",
+            "slippage_cost": (
+                "signed fill quantity times (fill price - raw open price); positive for "
+                "the broker's adverse buys and sells"
+            ),
+            "total_transaction_cost": "commission plus slippage cost",
             "equity": "cash plus close-marked position market value",
             "realized_pnl": (
                 "completed round-trip price P&L net of entry and exit commissions exactly once"
@@ -744,14 +800,27 @@ def artifact_schema() -> dict[str, Any]:
                 "open-position mark-to-fill-price P&L net of its entry commission"
             ),
             "cumulative_cost": (
-                "all commissions already deducted from cash/equity; informational and not "
-                "subtracted again"
+                "compatibility alias for cumulative_transaction_cost; informational and not "
+                "subtracted from equity again"
+            ),
+            "cumulative_commission_cost": "running sum of fill commissions",
+            "cumulative_slippage_cost": "running sum of fill slippage costs",
+            "cumulative_transaction_cost": (
+                "running commission plus slippage; equity already bears both components"
             ),
             "normalized_equity": "equity divided by the series first equity",
             "drawdown": "signed decline from running peak (zero at a peak)",
             "cash_effect": "cash credited by a corporate-action event",
             "strategy_forward_return": "equity return from decision close to next evaluation close",
-            "transaction_cost_in_period": "commissions on fills after the decision through period end",
+            "commission_cost_in_period": (
+                "commissions on fills after the decision through period end"
+            ),
+            "slippage_cost_in_period": (
+                "recomputed slippage on fills after the decision through period end"
+            ),
+            "transaction_cost_in_period": (
+                "commission plus slippage on fills after the decision through period end"
+            ),
             "average_exposure_in_period": "mean daily position market value/equity in the period",
             "metric": "stable metric name",
             "value": "numeric metric value or empty when undefined",
@@ -791,7 +860,7 @@ def artifact_schema() -> dict[str, Any]:
             "latency_seconds": "local monotonic request duration in seconds",
         },
         "units": {
-            "prices_cash_equity_commission": "account currency",
+            "prices_cash_equity_transaction_costs": "account currency",
             "quantity": "shares (fractional when configured)",
             "rates_returns_weights_drawdowns": "decimal fraction",
             "slippage_bps": "basis points",
@@ -897,6 +966,9 @@ def validate_artifact_bundle(
         symbol_list = [symbol for symbol in symbol_list if isinstance(symbol, str) and symbol]
 
     strategy = strategy_name or str(config.get("strategy", ""))
+    require_memory_archive = strategy == "tradingagents" and require_success
+    if require_memory_archive:
+        required.add(MEMORY_ARCHIVE_MANIFEST_PATH)
     result_files = [*RESULT_TABLES, "metrics.json", "metrics.csv"]
     for symbol in symbol_list:
         required.update(f"strategy/{symbol}/{filename}" for filename in result_files)
@@ -1070,6 +1142,9 @@ def validate_artifact_bundle(
     expected_lineage_id = config.get("memory_lineage_id")
     expected_memory_lifecycle = config.get("memory_lifecycle")
     expected_resumed_from = config.get("memory_resumed_from_run_id")
+    memory_archive_errors: list[str] = []
+    memory_archive_checksum_errors: list[str] = []
+    memory_archive_missing_files: list[str] = []
     if not isinstance(expected_experiment_id, str) or not expected_experiment_id:
         lineage_errors.append("experiment_id must be a non-empty string")
     if not isinstance(expected_run_id, str) or not expected_run_id:
@@ -1121,6 +1196,46 @@ def validate_artifact_bundle(
         lineage_errors.append(
             "graph_config.resolved historical_memory_lineage_id does not match the bundle"
         )
+
+    if require_memory_archive:
+        memory_symbols = symbol_list
+        expected_memory_cases = config.get("actual_decision_count")
+        if (
+            isinstance(expected_memory_cases, int)
+            and not isinstance(expected_memory_cases, bool)
+            and schedule_frame is not None
+            and "decision_session" in schedule_frame
+        ):
+            remaining_memory_cases = max(expected_memory_cases, 0)
+            sessions_per_symbol = len(schedule_frame)
+            memory_symbols = []
+            for symbol in symbol_list:
+                symbol_cases = min(sessions_per_symbol, remaining_memory_cases)
+                if symbol_cases > 0:
+                    memory_symbols.append(symbol)
+                remaining_memory_cases -= symbol_cases
+        memory_validation = validate_final_memory_archive(
+            run_dir=root,
+            descriptor=(
+                manifest_document.get("memory_archive")
+                if isinstance(manifest_document, Mapping) else None
+            ),
+            experiment_id=expected_experiment_id,
+            run_id=expected_run_id,
+            memory_lineage_id=expected_lineage_id,
+            memory_lifecycle=expected_memory_lifecycle,
+            memory_resumed_from_run_id=expected_resumed_from,
+            graph_config_sha256=next(iter(graph_hashes.values()), None),
+            symbols=memory_symbols,
+        )
+        memory_archive_errors.extend(memory_validation["errors"])
+        memory_archive_checksum_errors.extend(
+            memory_validation["checksum_errors"]
+        )
+        memory_archive_missing_files.extend(memory_validation["missing_files"])
+        for relative in memory_archive_missing_files:
+            if relative not in missing_files:
+                missing_files.append(relative)
 
     if strategy == "tradingagents":
         case_index = analysis_frames.get("case_index.csv")
@@ -1660,6 +1775,11 @@ def validate_artifact_bundle(
         "market_snapshot_sha256_valid": not checksum_errors,
         "graph_config_sha256_present_and_consistent": graph_hash_valid,
         "memory_lineage_provenance_consistent": not lineage_errors,
+        "final_memory_archive_complete_and_valid": not (
+            memory_archive_errors
+            or memory_archive_checksum_errors
+            or memory_archive_missing_files
+        ),
         "agent_case_artifacts_complete": not agent_artifact_errors,
         "validation_report_passed": validation_status_valid,
         "run_status_valid": run_status_valid,
@@ -1674,5 +1794,7 @@ def validate_artifact_bundle(
         "schema_errors": schema_errors,
         "checksum_errors": checksum_errors,
         "lineage_errors": lineage_errors,
+        "memory_archive_errors": memory_archive_errors,
+        "memory_archive_checksum_errors": memory_archive_checksum_errors,
         "agent_artifact_errors": agent_artifact_errors,
     }

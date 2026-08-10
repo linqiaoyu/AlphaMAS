@@ -13,7 +13,7 @@ from tradingagents.backtesting.calendar import ExchangeSchedule, WeeklyEvent
 from tradingagents.backtesting.data import MarketDataProvider, normalize_ohlcv
 from tradingagents.backtesting.execution import Broker
 from tradingagents.backtesting.metrics import compute_metrics
-from tradingagents.backtesting.models import DecisionStatus, Order
+from tradingagents.backtesting.models import DecisionStatus, Order, StrategyDecision
 from tradingagents.backtesting.portfolio import Portfolio
 from tradingagents.backtesting.strategies import Strategy
 
@@ -27,6 +27,17 @@ class BacktestResult:
     daily_equity: pd.DataFrame
     corporate_action_events: pd.DataFrame
     metrics: dict[str, Any]
+
+
+class ChronologicalDecisionFailure(RuntimeError):
+    """Abort an Agent attempt at its first unsuccessful chronological case."""
+
+    def __init__(self, decision: StrategyDecision) -> None:
+        self.decision = decision
+        super().__init__(
+            "TradingAgents decision failed at "
+            f"{decision.symbol}:{decision.decision_session}: {decision.reason}"
+        )
 
 
 def _market_history_visibility(
@@ -235,7 +246,14 @@ class WeeklyBacktestEngine:
                 decision.metadata["market_history_visibility"] = visibility
                 decision_rows.append(decision.to_dict())
                 if decision.status is DecisionStatus.FAILED:
+                    if getattr(strategy, "fail_fast_on_decision_failure", False):
+                        raise ChronologicalDecisionFailure(decision)
                     continue
+                record_success = getattr(
+                    strategy, "record_chronological_success", None
+                )
+                if callable(record_success):
+                    record_success(decision)
                 assert decision.target_weight is not None
                 current_target = 1.0 if portfolio.quantity > Portfolio.tolerance else 0.0
                 if decision.target_weight == current_target:

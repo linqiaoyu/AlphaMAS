@@ -16,11 +16,16 @@ they are never replaced with closes and are never silently carried forward.
 commissions, with each commission attributed exactly once. The entry commission
 remains attached to the open position until liquidation. `unrealized_pnl`
 is the open position's mark-to-fill-price movement net of that entry commission.
-`cumulative_cost` separately reports every commission already deducted from
-cash and equity; it must not be subtracted from the P&L fields again. At every
-valuation, `equity = initial_cash + realized_pnl + unrealized_pnl +
-cumulative_dividends`. Dividends are not trading P&L and remain separate in
-`cumulative_dividends`.
+Every fill reports commission, signed implementation-shortfall slippage
+`quantity * (fill_price - raw_open_price)`, and their sum as total transaction
+cost. This formula is positive for both the adverse buys and adverse sells
+produced by the broker. Daily state reports the corresponding cumulative
+components; `cumulative_cost` is a compatibility alias for
+`cumulative_transaction_cost`. These values are informational: commission is
+already deducted from cash, and slippage is already borne through fill price,
+so neither is subtracted from equity again. At every valuation,
+`equity = initial_cash + realized_pnl + unrealized_pnl + cumulative_dividends`.
+Dividends are not trading P&L and remain separate in `cumulative_dividends`.
 
 Metrics use daily close equity and the configured annualization factor (252 by
 default). The configured annual risk-free rate is converted to a simple daily
@@ -29,7 +34,8 @@ the magnitude of the worst daily equity/peak decline. Turnover is
 `sum(abs(fill_notional)) / average_daily_equity`; exposure is the mean daily
 position market value/equity; time in market is the fraction of valuation
 sessions with positive quantity. Transaction cost rate is
-`total_transaction_cost / initial_equity`. Sortino downside deviation is
+`total_transaction_cost / initial_equity`, where total transaction cost is
+commission plus slippage recomputed from archived fills. Sortino downside deviation is
 `sqrt(mean(min(daily_return - daily_rf, 0) ** 2))`, including zero components
 for non-downside days. Undefined Sharpe, Sortino, and Calmar values are JSON
 `null`, never infinity.
@@ -53,7 +59,9 @@ Resume replays from the first valuation session and restores successful
 TradingAgents decisions from lineage-scoped content-addressed cache entries; it
 is not a checkpointed portfolio resume. `latest.json` points to the latest
 attempt and `run_status.json` is atomically changed from `running` to `success`
-or `failed`.
+or `failed`. The first failed TradingAgents decision terminates the whole
+attempt before any later week or symbol can run. Its runtime Memory mutation is
+rolled back, leaving the earlier successful cases as the only reusable prefix.
 
 Use `--data-source yfinance` to download once and archive canonical CSVs, then
 use `--data-source snapshot --snapshot-dir <prior-run>/inputs/market_data` for
@@ -71,14 +79,24 @@ cutoff at which it existed; an earlier decision replay hides that future-derived
 entry even when it belongs to the resumed lineage. Legacy resolved entries that
 lack this provenance fail closed in historical mode. The Graph continues to
 enforce the configured trading-session outcome maturity and idempotent updates.
+After a successful TradingAgents experiment, the final log for every symbol
+with a completed Agent decision is copied into `memory/symbols/` inside that run
+bundle (all of AAPL, AMZN, and JPM for formal M0). This is a one-way archival
+copy: runtime and resume never read it. `memory/manifest.json` binds the symbol
+files to the experiment, completing run, lineage, Graph hash, and per-file
+SHA-256 values; the top-level manifest also records the Memory manifest
+checksum. The archive therefore remains analysis-ready if operational runtime
+Memory and decision caches are later removed.
 
 TradingAgents cache identity covers experiment, symbol, exact UTC decision
 close, analysts, debate depth, models/provider/temperature, data vendors,
 point-in-time mode, git and prompt versions, portfolio-state hash, and memory
-namespace version and lineage. Consequently, cache hits can rebuild a legitimate
-resume but cannot silently bridge independent historical runs. Only atomically
-completed successful cases are cache hits; failed and partial cases remain
-retryable.
+namespace version and lineage. It also includes a rolling hash of every earlier
+successful Agent case in actual execution order, shared across all symbols in
+the attempt. Consequently, cache hits can rebuild a legitimate resume but
+cannot silently bridge independent historical runs or reuse a downstream
+decision after a repaired failure changes the prefix. Only atomically completed
+successful cases are cache hits; failed and partial cases remain retryable.
 
 Research depth has one shared mapping for the CLI and backtester: shallow is 1,
 medium is 3, and deep is 5 debate and risk-discussion rounds.

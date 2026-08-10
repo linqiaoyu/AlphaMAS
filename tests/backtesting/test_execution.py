@@ -20,7 +20,19 @@ def test_fractional_buy_reserves_fee_and_uses_slipped_open():
     expected = 100_000 / (fill.fill_price * 1.0005)
     assert fill.quantity == pytest.approx(expected)
     assert portfolio.cash == pytest.approx(0, abs=1e-8)
-    assert portfolio.cumulative_cost == pytest.approx(fill.notional * 0.0005)
+    expected_commission = fill.notional * 0.0005
+    expected_slippage = fill.quantity * (fill.fill_price - fill.raw_open_price)
+    assert fill.commission == pytest.approx(expected_commission)
+    assert fill.slippage_cost == pytest.approx(expected_slippage)
+    assert fill.total_transaction_cost == pytest.approx(
+        expected_commission + expected_slippage
+    )
+    assert portfolio.cumulative_commission_cost == pytest.approx(expected_commission)
+    assert portfolio.cumulative_slippage_cost == pytest.approx(expected_slippage)
+    assert portfolio.cumulative_transaction_cost == pytest.approx(
+        fill.total_transaction_cost
+    )
+    assert portfolio.cumulative_cost == pytest.approx(fill.total_transaction_cost)
 
 
 def test_sell_slippage_commission_and_noop():
@@ -79,6 +91,41 @@ def test_round_trip_realized_pnl_includes_both_commissions_once():
     assert closed_snapshot.equity == pytest.approx(118.8)
     assert closed_snapshot.equity == pytest.approx(
         portfolio.initial_cash + portfolio.realized_pnl
+    )
+
+
+def test_round_trip_reports_slippage_without_deducting_it_twice():
+    portfolio = Portfolio("TEST", initial_cash=10_000.0)
+    broker = Broker(commission_bps=100, slippage_bps=100, fractional_shares=True)
+    execution_time = datetime(2024, 1, 8, tzinfo=timezone.utc)
+
+    buy_fill = broker.execute(order(1.0), portfolio, 100.0, execution_time)
+    assert buy_fill is not None
+    sell = Order(
+        "o2", "TEST", execution_time, "2024-01-09", 0.0, 1.0, "SELL",
+    )
+    sell_fill = broker.execute(sell, portfolio, 120.0, execution_time)
+    assert sell_fill is not None
+
+    expected_commission = buy_fill.commission + sell_fill.commission
+    expected_slippage = (
+        buy_fill.quantity * (buy_fill.fill_price - buy_fill.raw_open_price)
+        + sell_fill.quantity * (sell_fill.fill_price - sell_fill.raw_open_price)
+    )
+    expected_total = expected_commission + expected_slippage
+    assert portfolio.cumulative_commission_cost == pytest.approx(expected_commission)
+    assert portfolio.cumulative_slippage_cost == pytest.approx(expected_slippage)
+    assert portfolio.cumulative_transaction_cost == pytest.approx(expected_total)
+
+    closed = portfolio.snapshot("2024-01-09", execution_time, 120.0)
+    expected_realized = (
+        (sell_fill.fill_price - buy_fill.fill_price) * buy_fill.quantity
+        - expected_commission
+    )
+    assert closed.realized_pnl == pytest.approx(expected_realized)
+    assert closed.equity == pytest.approx(portfolio.initial_cash + expected_realized)
+    assert closed.equity != pytest.approx(
+        portfolio.initial_cash + expected_realized - expected_total
     )
 
 
