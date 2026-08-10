@@ -12,10 +12,9 @@ Scope: M0 infrastructure freeze only
 
 ## Executive status
 
-All locally identified BLOCKER and SHOULD_FIX items are fixed. The required offline
-test suites, formal M0 dry-run, and snapshot-backed SMA readiness run pass without
-network or LLM access. The final readiness statement remains conditional only on the
-pull-request CI matrix; this section will be updated after CI completes.
+All identified BLOCKER and SHOULD_FIX items are fixed. The required offline test
+suites, formal M0 dry-run, snapshot-backed SMA readiness run, and pull-request CI
+matrix pass without any real LLM call.
 
 - Real LLM API calls during this task: **0**
 - Yahoo or other market-data downloads during final verification: **0**
@@ -320,11 +319,24 @@ The repository workflow defines:
 - Python 3.12 clean-install smoke;
 - strict full-repository ruff.
 
-PR CI status: **PENDING PR**.
+PR [#14](https://github.com/linqiaoyu/AlphaMAS/pull/14), CI run
+[31395117771](https://github.com/linqiaoyu/AlphaMAS/actions/runs/31395117771):
+
+| CI job | Result |
+|---|---|
+| tests (Python 3.10) | passed |
+| tests (Python 3.11) | passed |
+| tests (Python 3.12) | passed |
+| tests (Python 3.13) | passed |
+| clean-install smoke | passed |
+| ruff (strict, full repo) | passed |
 
 ## Readiness conclusion
 
-Local engineering conclusion: all identified BLOCKER and SHOULD_FIX findings are resolved.
+All identified BLOCKER and SHOULD_FIX findings are resolved, all required local checks pass,
+and the complete PR CI matrix is green.
 
-Final statement `M0 INFRASTRUCTURE FROZEN AND READY FOR STAGE 3` is intentionally withheld
-until the PR CI matrix is green. Stage 3 and formal M0 remain explicitly not run.
+**M0 INFRASTRUCTURE FROZEN AND READY FOR STAGE 3.**
+
+This is an infrastructure-readiness conclusion only. Stage 3 and formal M0 remain explicitly
+not run and require a separate, deliberate execution authorization.
