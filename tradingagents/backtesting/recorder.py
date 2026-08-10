@@ -30,6 +30,7 @@ class BacktestRecorder:
             "orders.csv": result.orders,
             "fills.csv": result.fills,
             "daily_equity.csv": result.daily_equity,
+            "corporate_action_events.csv": result.corporate_action_events,
         }
         for filename, frame in tables.items():
             frame.to_csv(root / filename, index=False)

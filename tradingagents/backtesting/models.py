@@ -98,6 +98,7 @@ class PortfolioSnapshot:
     cumulative_cost: float
     current_drawdown: float
     peak_equity: float
+    cumulative_dividends: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

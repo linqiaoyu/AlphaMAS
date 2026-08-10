@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
-from uuid import uuid4
 
 from tradingagents.backtesting.models import Fill, Order
 from tradingagents.backtesting.portfolio import Portfolio
@@ -69,7 +69,8 @@ class Broker:
         order.status = "filled"
         self.filled_order_ids.add(order.order_id)
         return Fill(
-            fill_id=uuid4().hex, order_id=order.order_id, symbol=order.symbol,
+            fill_id=hashlib.sha256(f"fill:{order.order_id}".encode()).hexdigest()[:32],
+            order_id=order.order_id, symbol=order.symbol,
             execution_time=execution_time, raw_open_price=float(raw_open),
             slippage_bps=self.slippage_bps, fill_price=fill_price, quantity=quantity,
             notional=notional, commission=commission, cash_after=portfolio.cash,

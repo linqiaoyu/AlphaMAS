@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
 
 import pandas as pd
 
@@ -24,6 +24,7 @@ class BacktestResult:
     orders: pd.DataFrame
     fills: pd.DataFrame
     daily_equity: pd.DataFrame
+    corporate_action_events: pd.DataFrame
     metrics: dict[str, Any]
 
 
@@ -32,10 +33,13 @@ class WeeklyBacktestEngine:
         self, *, data_provider: MarketDataProvider, schedule: ExchangeSchedule | None = None,
         initial_cash: float = 100_000, commission_bps: float = 5,
         slippage_bps: float = 5, fractional_shares: bool = True,
+        risk_free_rate: float = 0.0, annualization: int = 252,
     ) -> None:
         self.data_provider = data_provider
         self.schedule = schedule or ExchangeSchedule()
         self.initial_cash = initial_cash
+        self.risk_free_rate = risk_free_rate
+        self.annualization = annualization
         self.broker_args = {
             "commission_bps": commission_bps,
             "slippage_bps": slippage_bps,
@@ -65,12 +69,33 @@ class WeeklyBacktestEngine:
         decision_rows: list[dict[str, Any]] = []
         order_rows: list[dict[str, Any]] = []
         fill_rows: list[dict[str, Any]] = []
+        action_rows: list[dict[str, Any]] = []
         snapshot_rows: list[dict[str, Any]] = []
 
         for session_ts in valuation_sessions:
             session = session_ts.date().isoformat()
             bar = data.loc[session_ts.tz_localize(None)]
-            # 1. Market open: only the immediately intended pending order can execute.
+            # 1. Corporate actions at the open, before new orders. Eligibility is
+            # determined by the position carried from the previous close.
+            dividend = float(bar["Dividends"])
+            if dividend:
+                eligible = portfolio.quantity
+                cash_effect = portfolio.apply_dividend(dividend)
+                action_rows.append({
+                    "session": session, "symbol": symbol, "type": "dividend",
+                    "value": dividend, "quantity_eligible": eligible,
+                    "cash_effect": cash_effect,
+                })
+            split = float(bar["Stock Splits"])
+            if split:
+                eligible = portfolio.quantity
+                portfolio.apply_split(split)
+                action_rows.append({
+                    "session": session, "symbol": symbol, "type": "split",
+                    "value": split, "quantity_eligible": eligible, "cash_effect": 0.0,
+                })
+
+            # 2. Market open: only the immediately intended pending order can execute.
             if pending is not None:
                 if pending.intended_execution_session != session:
                     pending.status = "rejected"
@@ -85,12 +110,12 @@ class WeeklyBacktestEngine:
                         fill_rows.append(fill.to_dict())
                     pending = None
 
-            # 2. Market close valuation.
+            # 3. Market close valuation.
             close_time = self.schedule.session_close(session)
             snapshot = portfolio.snapshot(session, close_time.to_pydatetime(), float(bar["Close"]))
             snapshot_rows.append(snapshot.to_dict())
 
-            # 3. Weekly decision at the actual close; data is sliced point-in-time.
+            # 4. Weekly decision at the actual close; data is sliced point-in-time.
             event: WeeklyEvent | None = event_by_decision.get(session)
             if event:
                 if max_decisions is not None and len(decision_rows) >= max_decisions:
@@ -111,7 +136,9 @@ class WeeklyBacktestEngine:
                     decision_rows[-1]["rebalance_status"] = "noop"
                     continue
                 pending = Order(
-                    order_id=uuid4().hex, symbol=symbol,
+                    order_id=hashlib.sha256(
+                        f"{experiment_id}:{symbol}:{session}:{decision.target_weight}".encode()
+                    ).hexdigest()[:32], symbol=symbol,
                     created_at=event.decision_close_utc.to_pydatetime(),
                     intended_execution_session=event.execution_session,
                     target_weight=decision.target_weight,
@@ -125,9 +152,18 @@ class WeeklyBacktestEngine:
         orders = pd.DataFrame(order_rows)
         fills = pd.DataFrame(fill_rows)
         daily = pd.DataFrame(snapshot_rows)
+        actions = pd.DataFrame(action_rows, columns=(
+            "session", "symbol", "type", "value", "quantity_eligible", "cash_effect",
+        ))
+        failure_count = int(
+            (decisions["status"] == "failed").sum() if "status" in decisions else 0
+        )
         metrics = compute_metrics(
             daily["equity"], fills=fills, exposure=daily["current_weight"],
             positions=daily["quantity"], decision_count=len(decisions),
-            decision_failure_count=(decisions.get("status") == "failed").sum(),
+            decision_failure_count=failure_count, decisions=decisions, orders=orders,
+            initial_equity=self.initial_cash,
+            cumulative_dividends=portfolio.cumulative_dividends,
+            risk_free_rate=self.risk_free_rate, annualization=self.annualization,
         )
-        return BacktestResult(symbol, decisions, orders, fills, daily, metrics)
+        return BacktestResult(symbol, decisions, orders, fills, daily, actions, metrics)
