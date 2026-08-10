@@ -91,6 +91,9 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "memory_mode": "isolated_date",
     # Trading-session horizon used to mature deferred decision-memory outcomes.
     "memory_holding_horizon_sessions": 5,
+    # yfinance auto-adjusted daily Close (splits/dividends reflected). The Graph
+    # accepts only this frozen mode so provider defaults cannot change labels.
+    "memory_outcome_price_mode": "adjusted_close",
     # Optional exact path for the machine-readable historical source audit.
     # When unset it is written under results_dir/<ticker>/ per as-of date.
     "historical_audit_path": None,

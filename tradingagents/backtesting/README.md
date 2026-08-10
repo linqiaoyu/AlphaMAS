@@ -79,6 +79,22 @@ cutoff at which it existed; an earlier decision replay hides that future-derived
 entry even when it belongs to the resumed lineage. Legacy resolved entries that
 lack this provenance fail closed in historical mode. The Graph continues to
 enforce the configured trading-session outcome maturity and idempotent updates.
+Memory outcome returns use yfinance daily `Close` with `auto_adjust=True` and
+all output-shaping history options explicit. The authoritative XNYS calendar
+defines SPY-benchmarked horizons; other benchmarks use the asset's
+exchange-local session dates. Both price series must have every required date.
+The decision-date adjusted close is observation zero and the fifth subsequent
+session is observation five. Raw return is the asset
+adjusted-close ratio minus one; benchmark return uses the identical two dates;
+alpha is raw return minus benchmark return. Historical requests end at the
+exclusive day after the latest completed session allowed by
+`historical_as_of`, and returned rows after that cutoff are discarded before
+alignment or price validation. Timestamped SPY
+cutoffs are gated by the actual XNYS close; another benchmark's timestamped
+cutoff conservatively excludes its current date. Live resolution excludes the
+current UTC date so an in-progress daily bar cannot mature an outcome. Outcome
+visibility is persisted as an exact UTC timestamp; legacy date-only visibility
+tags mean end-of-day and therefore fail closed for earlier same-day replays.
 After a successful TradingAgents experiment, the final log for every symbol
 with a completed Agent decision is copied into `memory/symbols/` inside that run
 bundle (all of AAPL, AMZN, and JPM for formal M0). This is a one-way archival

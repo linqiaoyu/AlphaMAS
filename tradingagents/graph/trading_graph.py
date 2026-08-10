@@ -2,8 +2,9 @@
 
 import json
 import logging
+import math
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,97 @@ from .setup import GraphSetup
 from .signal_processing import SignalProcessor
 
 logger = logging.getLogger(__name__)
+
+_MEMORY_OUTCOME_PRICE_MODE = "adjusted_close"
+_MEMORY_OUTCOME_HISTORY_OPTIONS = {
+    # Freeze the yfinance daily adjusted-close contract instead of inheriting
+    # provider defaults, which have changed across yfinance releases.
+    "period": None,
+    "interval": "1d",
+    "prepost": False,
+    "actions": False,
+    "auto_adjust": True,
+    "back_adjust": False,
+    "repair": False,
+    "keepna": False,
+    "rounding": False,
+}
+
+
+def _completed_outcome_cutoff(context: RunContext, benchmark: str) -> pd.Timestamp:
+    """Return the latest daily session label whose close is safely available.
+
+    Date-only historical cutoffs mean the completed UTC day by RunContext
+    contract. Timestamped US/``SPY`` cutoffs are checked against the actual
+    XNYS session close, including DST and early closes. Other timestamped
+    historical benchmarks conservatively exclude the current date. Live mode
+    also excludes the current UTC date so an in-progress daily bar cannot count
+    toward maturity.
+    """
+    cutoff = pd.Timestamp(context.as_of.date())
+    if context.mode == "live":
+        return cutoff - pd.Timedelta(days=1)
+    if context.as_of.time() == datetime.max.time():
+        return cutoff
+    if benchmark == "SPY":
+        import exchange_calendars as xcals
+
+        calendar = xcals.get_calendar("XNYS")
+        if calendar.is_session(cutoff):
+            if pd.Timestamp(context.as_of) >= calendar.session_close(cutoff):
+                return cutoff
+            return calendar.previous_session(cutoff).tz_localize(None)
+        return cutoff
+    return cutoff - pd.Timedelta(days=1)
+
+
+def _xnys_outcome_sessions(
+    start_session: pd.Timestamp, holding_days: int,
+) -> pd.DatetimeIndex:
+    """Return the authoritative XNYS start plus subsequent holding sessions."""
+    import exchange_calendars as xcals
+
+    calendar = xcals.get_calendar("XNYS")
+    if not calendar.is_session(start_session):
+        raise ValueError(f"outcome start is not an XNYS session: {start_session.date()}")
+    return calendar.sessions_window(start_session, holding_days + 1).tz_localize(None)
+
+
+def _outcome_close_by_session(
+    history: pd.DataFrame,
+    *,
+    start_session: pd.Timestamp,
+    cutoff_session: pd.Timestamp | None,
+) -> pd.Series:
+    """Return valid adjusted closes indexed by timezone-naive session date.
+
+    yfinance daily indexes represent exchange-local sessions and are commonly
+    timezone-aware. Removing the timezone without converting it preserves that
+    local session date and makes date-only historical cutoffs safe to compare.
+    Rows outside the permitted window are removed before price validation so
+    future provider output cannot affect the outcome.
+    """
+    if not isinstance(history, pd.DataFrame) or "Close" not in history.columns:
+        raise ValueError("outcome history must contain a Close column")
+
+    parsed_index = pd.to_datetime(history.index, errors="coerce")
+    if not isinstance(parsed_index, pd.DatetimeIndex):
+        parsed_index = pd.DatetimeIndex(parsed_index)
+    valid_index = ~parsed_index.isna()
+    normalized = history.iloc[valid_index][["Close"]].copy()
+    normalized.index = parsed_index[valid_index].tz_localize(None).normalize()
+    normalized = normalized.loc[normalized.index >= start_session]
+    if cutoff_session is not None:
+        normalized = normalized.loc[normalized.index <= cutoff_session]
+    normalized = normalized.sort_index()
+
+    if not normalized.index.is_unique:
+        raise ValueError("outcome history has duplicate daily session dates")
+    normalized["Close"] = pd.to_numeric(normalized["Close"], errors="coerce")
+    close = normalized["Close"]
+    if close.isna().any() or (close <= 0).any() or not close.map(math.isfinite).all():
+        raise ValueError("outcome history contains an invalid adjusted Close")
+    return close
 
 
 def _coerce_max_retries(value):
@@ -279,16 +371,37 @@ class TradingAgentsGraph:
             raise ValueError("memory_holding_horizon_sessions must be a positive integer")
         return value
 
+    def _memory_outcome_price_mode(self) -> str:
+        config = getattr(self, "config", {})
+        value = (
+            config.get("memory_outcome_price_mode", _MEMORY_OUTCOME_PRICE_MODE)
+            if isinstance(config, dict) else _MEMORY_OUTCOME_PRICE_MODE
+        )
+        if value != _MEMORY_OUTCOME_PRICE_MODE:
+            raise ValueError(
+                "memory_outcome_price_mode must be 'adjusted_close'; "
+                f"got {value!r}"
+            )
+        return value
+
     def _fetch_returns(
         self, ticker: str, trade_date: str, holding_days: int | None = None,
         benchmark: str = "SPY",
     ) -> tuple[float | None, float | None, int | None]:
-        """Fetch raw and alpha return for ticker over holding_days from trade_date.
+        """Fetch adjusted-close raw and alpha returns over a complete horizon.
 
         ``benchmark`` is the index used as the alpha baseline (resolved by the
-        caller via ``_resolve_benchmark``). Returns ``(raw_return, alpha_return,
-        actual_holding_days)`` or ``(None, None, None)`` if price data is
-        unavailable (too recent, delisted, or network error).
+        caller via ``_resolve_benchmark``). XNYS defines the session labels for
+        SPY-benchmarked outcomes; otherwise the asset's exchange-local daily
+        labels define them. Both price series must contain every required label.
+        Observation zero must be exactly ``trade_date`` and observation
+        ``holding_days`` is the end price, so a five-session return requires six
+        aligned observations. Raw return is the asset adjusted-close return;
+        alpha is raw return minus the benchmark's adjusted-close return over
+        those identical endpoints.
+
+        Returns ``(raw_return, alpha_return, holding_days)`` or
+        ``(None, None, None)`` if the complete horizon is unavailable.
         """
         from tradingagents.dataflows.symbol_utils import normalize_symbol
 
@@ -296,36 +409,62 @@ class TradingAgentsGraph:
             # Call the implementation on the class so ``MagicMock(spec=Graph)``
             # compatibility tests cannot replace this helper with a mock value.
             holding_days = TradingAgentsGraph._memory_holding_horizon_sessions(self)
+        TradingAgentsGraph._memory_outcome_price_mode(self)
 
         try:
             start = datetime.strptime(trade_date, "%Y-%m-%d")
+            start_session = pd.Timestamp(start.date())
             context = current_run_context()
-            if context.mode == "historical" and start.date() > context.as_of.date():
+            cutoff_session = _completed_outcome_cutoff(context, benchmark)
+            if start_session > cutoff_session:
                 return None, None, None
-            end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
-            if context.mode == "historical":
-                # yfinance ``end`` is exclusive. Never ask for, or use, a
-                # price after the historical cutoff.
-                end = min(end, datetime.combine(context.as_of.date(), datetime.max.time()) + timedelta(days=1))
-            end_str = end.strftime("%Y-%m-%d")
+            # yfinance ``end`` is exclusive. Asking for the day after the last
+            # completed session includes that label without crossing the cutoff.
+            end_str = (cutoff_session + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
             # Normalize so the realized-return lookup hits the same instrument
             # the analysis priced (e.g. XAUUSD -> GC=F) (#984). The benchmark is
             # already a canonical Yahoo symbol from ``_resolve_benchmark``.
-            stock = yf.Ticker(normalize_symbol(ticker)).history(start=trade_date, end=end_str)
-            bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
+            stock_history = yf.Ticker(normalize_symbol(ticker)).history(
+                start=trade_date, end=end_str, **_MEMORY_OUTCOME_HISTORY_OPTIONS
+            )
+            benchmark_history = yf.Ticker(benchmark).history(
+                start=trade_date, end=end_str, **_MEMORY_OUTCOME_HISTORY_OPTIONS
+            )
+            stock = _outcome_close_by_session(
+                stock_history,
+                start_session=start_session,
+                cutoff_session=cutoff_session,
+            ).rename("asset")
+            bench = _outcome_close_by_session(
+                benchmark_history,
+                start_session=start_session,
+                cutoff_session=cutoff_session,
+            ).rename("benchmark")
+            if benchmark == "SPY":
+                required_sessions = _xnys_outcome_sessions(start_session, holding_days)
+                asset_window = stock.reindex(required_sessions)
+                benchmark_window = bench.reindex(required_sessions)
+                complete_horizon = (
+                    required_sessions[-1] <= cutoff_session
+                    and not asset_window.isna().any()
+                    and not benchmark_window.isna().any()
+                )
+            else:
+                complete_horizon = (
+                    start_session in stock.index and len(stock) >= holding_days + 1
+                )
+                asset_window = stock.iloc[:holding_days + 1]
+                endpoint = asset_window.index[-1] if complete_horizon else None
+                benchmark_window = (
+                    bench.loc[:endpoint] if endpoint is not None else bench.iloc[:0]
+                )
+                complete_horizon = (
+                    complete_horizon
+                    and asset_window.index.equals(benchmark_window.index)
+                )
 
-            if context.mode == "historical":
-                cutoff = pd.Timestamp(context.as_of.date())
-                stock = stock.loc[pd.to_datetime(stock.index, errors="coerce") <= cutoff]
-                bench = bench.loc[pd.to_datetime(bench.index, errors="coerce") <= cutoff]
-
-            if len(stock) < 2 or len(bench) < 2:
-                return None, None, None
-
-            if context.mode == "historical" and (
-                len(stock) < holding_days + 1 or len(bench) < holding_days + 1
-            ):
+            if not complete_horizon:
                 audit_source(
                     source_name="decision_memory.outcome_prices",
                     capability="POINT_IN_TIME",
@@ -333,25 +472,32 @@ class TradingAgentsGraph:
                     requested_start=trade_date,
                     requested_end=context.as_of,
                     reason=(
-                        f"holding horizon of {holding_days} trading days is not mature "
-                        f"by historical_as_of {context.as_of.isoformat()}"
+                        f"complete aligned horizon of {holding_days} trading sessions "
+                        "is unavailable at the current cutoff or provider output"
                     ),
                 )
                 return None, None, None
 
-            actual_days = holding_days if context.mode == "historical" else min(
-                holding_days, len(stock) - 1, len(bench) - 1
-            )
-            raw = float(
-                (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
-                / stock["Close"].iloc[0]
-            )
+            window = pd.concat([asset_window, benchmark_window], axis=1)
+            raw = float(window["asset"].iloc[-1] / window["asset"].iloc[0] - 1)
             bench_ret = float(
-                (bench["Close"].iloc[actual_days] - bench["Close"].iloc[0])
-                / bench["Close"].iloc[0]
+                window["benchmark"].iloc[-1] / window["benchmark"].iloc[0] - 1
             )
             alpha = raw - bench_ret
-            return raw, alpha, actual_days
+            audit_source(
+                source_name="decision_memory.outcome_prices",
+                capability="POINT_IN_TIME",
+                status="used",
+                requested_start=trade_date,
+                requested_end=context.as_of,
+                latest_event_time=window.index[-1].date(),
+                latest_available_time=window.index[-1].date(),
+                reason=(
+                    f"adjusted-close return used {holding_days} asset trading "
+                    "sessions with matching benchmark observations"
+                ),
+            )
+            return raw, alpha, holding_days
         except Exception as e:
             logger.warning(
                 "Could not resolve outcome for %s on %s vs %s (will retry next run): %s",
@@ -408,9 +554,7 @@ class TradingAgentsGraph:
                 # Reflections depend on post-decision prices. Persist the
                 # first cutoff at which this evidence existed so replaying an
                 # earlier decision in the same lineage cannot read it.
-                "outcome_visible_from": (
-                    current_run_context().as_of.date().isoformat()
-                ),
+                "outcome_visible_from": current_run_context().as_of.isoformat(),
             })
 
         if updates:
@@ -458,7 +602,7 @@ class TradingAgentsGraph:
             raise ValueError(f"unsupported memory_mode: {memory_mode!r}")
         if memory_mode == "disabled":
             config["memory_log_path"] = None
-            config["historical_as_of"] = context.as_of.date().isoformat()
+            config["historical_as_of"] = context.as_of.isoformat()
             return config
         explicit = config.get("historical_memory_log_path")
         if memory_mode == "experiment" and explicit:
@@ -502,7 +646,7 @@ class TradingAgentsGraph:
             else:
                 path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"
         config["memory_log_path"] = str(path)
-        config["historical_as_of"] = context.as_of.date().isoformat()
+        config["historical_as_of"] = context.as_of.isoformat()
         return config
 
     def _audit_path(self, ticker: str, context: RunContext) -> Path:

@@ -21,6 +21,7 @@
   "memory_mode": "experiment",
   "memory_log_max_entries": null,
   "holding_horizon_sessions": 5,
+  "memory_outcome_price_mode": "adjusted_close",
   "research_depth": "medium",
   "max_debate_rounds": 3,
   "max_risk_discuss_rounds": 3,

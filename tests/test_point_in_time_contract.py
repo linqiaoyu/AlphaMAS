@@ -327,13 +327,13 @@ def test_memory_outcome_stays_pending_until_five_trading_days(monkeypatch, tmp_p
         index=pd.to_datetime([
             "2024-03-15", "2024-03-18", "2024-03-19", "2024-03-20",
             "2024-03-21", "2024-03-22", "2024-03-25",
-        ]),
+        ]).tz_localize("America/New_York"),
     )
-    requested_ends = []
+    requests = []
 
     class DummyTicker:
-        def history(self, *, start, end):
-            requested_ends.append(end)
+        def history(self, *, start, end, **kwargs):
+            requests.append({"start": start, "end": end, **kwargs})
             return prices.copy()
 
     graph = TradingAgentsGraph.__new__(TradingAgentsGraph)
@@ -351,7 +351,7 @@ def test_memory_outcome_stays_pending_until_five_trading_days(monkeypatch, tmp_p
         graph._resolve_pending_entries("SPY")
     assert graph.memory_log.get_pending_entries()
     graph.reflector.reflect_on_final_decision.assert_not_called()
-    assert all(end <= "2024-03-19" for end in requested_ends)
+    assert all(request["end"] <= "2024-03-19" for request in requests)
 
     mature_context = RunContext.historical("2024-03-22", generated_at=context.generated_at)
     graph.memory_log = TradingMemoryLog(
@@ -362,7 +362,10 @@ def test_memory_outcome_stays_pending_until_five_trading_days(monkeypatch, tmp_p
         graph._resolve_pending_entries("SPY")
     assert graph.memory_log.get_pending_entries() == []
     assert graph.reflector.reflect_on_final_decision.called
-    assert all(end <= "2024-03-23" for end in requested_ends)
+    assert all(request["end"] <= "2024-03-23" for request in requests)
+    assert all(request["interval"] == "1d" for request in requests)
+    assert all(request["auto_adjust"] is True for request in requests)
+    assert all(request["actions"] is False for request in requests)
 
 
 @pytest.mark.unit

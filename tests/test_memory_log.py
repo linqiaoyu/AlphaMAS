@@ -54,9 +54,12 @@ def _resolve_entry(log, ticker, date, decision, reflection="Good call."):
     log.update_with_outcome(ticker, date, 0.05, 0.02, 5, reflection)
 
 
-def _price_df(prices):
+def _price_df(prices, start="2026-01-05"):
     """Minimal DataFrame matching yfinance .history() output shape."""
-    return pd.DataFrame({"Close": prices})
+    return pd.DataFrame(
+        {"Close": prices},
+        index=pd.bdate_range(start, periods=len(prices)),
+    )
 
 
 def _make_pm_state(past_context=""):
@@ -521,7 +524,7 @@ class TestDeferredReflection:
         mock_graph = MagicMock(spec=TradingAgentsGraph)
         with patch("yfinance.Ticker") as mock_ticker_cls:
             m = MagicMock()
-            m.history.return_value = _price_df([100.0])
+            m.history.return_value = _price_df([100.0], start="2026-04-19")
             mock_ticker_cls.return_value = m
             raw, alpha, days = TradingAgentsGraph._fetch_returns(mock_graph, "NVDA", "2026-04-19")
         assert raw is None and alpha is None and days is None
@@ -537,7 +540,7 @@ class TestDeferredReflection:
         assert raw is None and alpha is None and days is None
 
     def test_fetch_returns_spy_shorter_than_stock(self):
-        """SPY having fewer rows than the stock must not raise IndexError."""
+        """An incomplete benchmark horizon fails closed instead of resolving early."""
         stock_prices = [100.0, 102.0, 104.0, 103.0, 105.0, 106.0]
         spy_prices   = [400.0, 402.0, 403.0]
         mock_graph = MagicMock(spec=TradingAgentsGraph)
@@ -548,8 +551,7 @@ class TestDeferredReflection:
                 return m
             mock_ticker_cls.side_effect = _make_ticker
             raw, alpha, days = TradingAgentsGraph._fetch_returns(mock_graph, "NVDA", "2026-01-05")
-        assert raw is not None and alpha is not None and days is not None
-        assert days == 2
+        assert raw is None and alpha is None and days is None
 
     # TradingAgentsGraph._resolve_benchmark — picks index for alpha calc
 

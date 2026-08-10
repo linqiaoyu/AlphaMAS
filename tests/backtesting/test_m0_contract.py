@@ -49,6 +49,7 @@ def test_formal_m0_contract_is_frozen() -> None:
     assert config["temperature"] == 0.0
     assert config["memory_mode"] == "experiment"
     assert config["holding_horizon_sessions"] == 5
+    assert config["memory_outcome_price_mode"] == "adjusted_close"
     assert config["data_source"] == "snapshot"
     assert "seed" not in config
 
@@ -146,6 +147,25 @@ def test_memory_horizon_comes_from_backtest_config(tmp_path: Path) -> None:
     )
 
     assert graph_config["memory_holding_horizon_sessions"] == 3
+
+
+def test_memory_outcome_price_mode_is_frozen_and_research_affecting(tmp_path: Path) -> None:
+    config = load_formal_config()
+    graph = resolve_graph_config(
+        config,
+        results_dir=tmp_path / "results",
+        data_cache_dir=tmp_path / "cache",
+        historical_memory_dir=tmp_path / "memory",
+    )
+    changed = {**graph, "memory_outcome_price_mode": "unadjusted_close"}
+
+    assert graph["memory_outcome_price_mode"] == "adjusted_close"
+    assert compute_graph_config_sha256(changed) != compute_graph_config_sha256(graph)
+
+    instance = object.__new__(TradingAgentsGraph)
+    instance.config = changed
+    with pytest.raises(ValueError, match="must be 'adjusted_close'"):
+        instance._memory_outcome_price_mode()
 
 
 def test_graph_config_hash_is_path_stable_and_research_sensitive(tmp_path: Path) -> None:

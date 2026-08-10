@@ -1,10 +1,11 @@
 """Append-only markdown decision log for TradingAgents."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from tradingagents.agents.utils.rating import parse_rating
+from tradingagents.runtime.run_context import coerce_as_of
 
 
 class TradingMemoryLog:
@@ -27,9 +28,13 @@ class TradingMemoryLog:
         self._max_entries = cfg.get("memory_log_max_entries")
         cutoff = cfg.get("historical_as_of")
         try:
-            self._historical_cutoff = date.fromisoformat(str(cutoff)[:10]) if cutoff else None
+            self._historical_cutoff_at = coerce_as_of(cutoff) if cutoff else None
         except ValueError as exc:
             raise ValueError(f"invalid historical_as_of for memory log: {cutoff!r}") from exc
+        self._historical_cutoff = (
+            self._historical_cutoff_at.date()
+            if self._historical_cutoff_at else None
+        )
 
     # --- Write path (Phase A) ---
 
@@ -108,13 +113,16 @@ class TradingMemoryLog:
                     if not parsed["pending"]:
                         visible_from = parsed.get("outcome_visible_from")
                         try:
-                            visible_date = (
-                                date.fromisoformat(str(visible_from)[:10])
+                            visible_at = (
+                                coerce_as_of(visible_from)
                                 if visible_from else None
                             )
                         except ValueError:
-                            visible_date = None
-                        if visible_date is None or visible_date > self._historical_cutoff:
+                            visible_at = None
+                        if (
+                            visible_at is None
+                            or visible_at > self._historical_cutoff_at
+                        ):
                             continue
                 entries.append(parsed)
         return entries
@@ -160,7 +168,7 @@ class TradingMemoryLog:
         alpha_return: float,
         holding_days: int,
         reflection: str,
-        outcome_visible_from: str | date | None = None,
+        outcome_visible_from: str | date | datetime | None = None,
     ) -> None:
         """Replace pending tag and append REFLECTION section using atomic write.
 
@@ -282,12 +290,17 @@ class TradingMemoryLog:
 
     # --- Helpers ---
 
-    def _coerce_outcome_visible_from(self, value: str | date | None) -> str | None:
-        """Return a canonical visibility date for future-derived outcomes."""
+    def _coerce_outcome_visible_from(
+        self, value: str | date | datetime | None,
+    ) -> str | None:
+        """Return a canonical UTC visibility timestamp for an outcome."""
         if value is None:
-            return self._historical_cutoff.isoformat() if self._historical_cutoff else None
+            return (
+                self._historical_cutoff_at.isoformat()
+                if self._historical_cutoff_at else None
+            )
         try:
-            return date.fromisoformat(str(value)[:10]).isoformat()
+            return coerce_as_of(value).isoformat()
         except ValueError as exc:
             raise ValueError(f"invalid outcome_visible_from: {value!r}") from exc
 

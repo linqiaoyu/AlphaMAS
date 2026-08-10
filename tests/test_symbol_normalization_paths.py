@@ -41,7 +41,13 @@ def test_fetch_returns_normalizes_symbol(monkeypatch):
             queried.append(symbol)
 
         def history(self, *args, **kwargs):
-            return pd.DataFrame({"Close": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0]})
+            return pd.DataFrame(
+                {"Close": [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0]},
+                index=pd.to_datetime([
+                    "2025-01-02", "2025-01-03", "2025-01-06", "2025-01-07",
+                    "2025-01-08", "2025-01-10", "2025-01-13",
+                ]),
+            )
 
     monkeypatch.setattr(tg.yf, "Ticker", FakeTicker)
 
