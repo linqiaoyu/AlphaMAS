@@ -405,6 +405,12 @@ class TradingAgentsGraph:
                 "alpha_return": alpha,
                 "holding_days": days,
                 "reflection": reflection,
+                # Reflections depend on post-decision prices. Persist the
+                # first cutoff at which this evidence existed so replaying an
+                # earlier decision in the same lineage cannot read it.
+                "outcome_visible_from": (
+                    current_run_context().as_of.date().isoformat()
+                ),
             })
 
         if updates:
@@ -437,6 +443,11 @@ class TradingAgentsGraph:
             f"asset={asset_type}",
             f"mode={context.mode}",
             f"as_of={context.historical_as_of or ''}",
+            "memory_lineage=" + str(
+                context.memory_lineage_id
+                or self.config.get("historical_memory_lineage_id")
+                or ""
+            ),
         ])
 
     def _historical_memory_config(self, ticker: str, context: RunContext) -> dict[str, Any]:
@@ -450,6 +461,11 @@ class TradingAgentsGraph:
             config["historical_as_of"] = context.as_of.date().isoformat()
             return config
         explicit = config.get("historical_memory_log_path")
+        if memory_mode == "experiment" and explicit:
+            raise ValueError(
+                "experiment memory cannot use historical_memory_log_path; "
+                "use historical_memory_dir so lineage, graph, and symbol isolation apply"
+            )
         if explicit:
             path = Path(explicit).expanduser()
         else:
@@ -470,7 +486,19 @@ class TradingAgentsGraph:
                     raise ValueError(
                         "experiment memory requires a resolved graph_config_sha256"
                     ) from exc
-                path = root / experiment / graph_hash / f"{safe_symbol}.md"
+                lineage_value = (
+                    context.memory_lineage_id
+                    or config.get("historical_memory_lineage_id")
+                )
+                if not lineage_value:
+                    raise ValueError(
+                        "experiment memory requires a historical memory lineage"
+                    )
+                lineage = safe_ticker_component(str(lineage_value), max_len=128)
+                path = (
+                    root / experiment / graph_hash / lineage / f"{safe_symbol}.md"
+                )
+                config["historical_memory_lineage_id"] = lineage
             else:
                 path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"
         config["memory_log_path"] = str(path)

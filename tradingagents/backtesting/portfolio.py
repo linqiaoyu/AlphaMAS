@@ -18,6 +18,7 @@ class Portfolio:
         self.cash = float(initial_cash)
         self.quantity = 0.0
         self.average_entry_price = 0.0
+        self.open_position_commission = 0.0
         self.realized_pnl = 0.0
         self.cumulative_cost = 0.0
         self.cumulative_dividends = 0.0
@@ -55,6 +56,7 @@ class Portfolio:
         drawdown = equity / self.peak_equity - 1.0
         unrealized = (
             self.quantity * (close_price - self.average_entry_price)
+            - self.open_position_commission
             if self.quantity else 0.0
         )
         return PortfolioSnapshot(

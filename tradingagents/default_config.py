@@ -82,6 +82,10 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # per-ticker/per-date namespace is created under data_cache_dir.
     "historical_memory_log_path": None,
     "historical_memory_dir": None,
+    # Historical experiment memory must be bound to one chronological run
+    # lineage. The weekly runner assigns this automatically; direct callers
+    # using memory_mode="experiment" must supply an explicit safe identifier.
+    "historical_memory_lineage_id": None,
     # Historical walk-forward runs may opt into a symbol-scoped experiment
     # namespace. The default preserves the existing per-date isolation.
     "memory_mode": "isolated_date",

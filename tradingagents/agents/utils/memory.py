@@ -42,12 +42,39 @@ class TradingMemoryLog:
         """Append pending entry at end of propagate(). No LLM call."""
         if not self._log_path:
             return
-        # Idempotency guard: fast raw-text scan instead of full parse
         if self._log_path.exists():
             raw = self._log_path.read_text(encoding="utf-8")
-            for line in raw.splitlines():
-                if line.startswith(f"[{trade_date} | {ticker} |") and line.endswith("| pending]"):
-                    return
+            prefix = f"[{trade_date} | {ticker} |"
+            if self._historical_cutoff is None:
+                # Preserve live-memory lifecycle semantics: only an existing
+                # pending entry is idempotent. A later live analysis on the
+                # same date may follow an already-resolved entry.
+                for line in raw.splitlines():
+                    if line.startswith(prefix) and line.endswith("| pending]"):
+                        return
+            else:
+                # A chronological historical resume may revisit an earlier
+                # decision after its outcome was resolved later in the same
+                # lineage. Its saved reflection is reusable only when the
+                # recomputed decision is byte-for-byte equivalent.
+                for block in raw.split(self._SEPARATOR):
+                    stripped = block.strip()
+                    if (
+                        not stripped
+                        or not stripped.splitlines()[0].startswith(prefix)
+                    ):
+                        continue
+                    existing = self._parse_entry(stripped)
+                    if (
+                        existing is not None
+                        and existing.get("decision", "").strip()
+                        == final_trade_decision.strip()
+                    ):
+                        return
+                    raise ValueError(
+                        "historical memory lineage conflict for "
+                        f"{ticker} on {trade_date}: recomputed decision differs"
+                    )
         rating = parse_rating(final_trade_decision)
         tag = f"[{trade_date} | {ticker} | {rating} | pending]"
         entry = f"{tag}\n\nDECISION:\n{final_trade_decision}{self._SEPARATOR}"
@@ -73,6 +100,22 @@ class TradingMemoryLog:
                         continue
                     if entry_date > self._historical_cutoff:
                         continue
+                    # A resolved outcome is future-derived evidence. Its
+                    # decision date alone is not a sufficient visibility
+                    # bound when a resume replays an earlier decision. Legacy
+                    # or malformed resolved entries have no trustworthy
+                    # provenance and therefore fail closed in historical mode.
+                    if not parsed["pending"]:
+                        visible_from = parsed.get("outcome_visible_from")
+                        try:
+                            visible_date = (
+                                date.fromisoformat(str(visible_from)[:10])
+                                if visible_from else None
+                            )
+                        except ValueError:
+                            visible_date = None
+                        if visible_date is None or visible_date > self._historical_cutoff:
+                            continue
                 entries.append(parsed)
         return entries
 
@@ -117,6 +160,7 @@ class TradingMemoryLog:
         alpha_return: float,
         holding_days: int,
         reflection: str,
+        outcome_visible_from: str | date | None = None,
     ) -> None:
         """Replace pending tag and append REFLECTION section using atomic write.
 
@@ -133,6 +177,7 @@ class TradingMemoryLog:
         pending_prefix = f"[{trade_date} | {ticker} |"
         raw_pct = f"{raw_return:+.1%}"
         alpha_pct = f"{alpha_return:+.1%}"
+        visible_from = self._coerce_outcome_visible_from(outcome_visible_from)
 
         updated = False
         new_blocks = []
@@ -155,7 +200,8 @@ class TradingMemoryLog:
                 rating = fields[2]
                 new_tag = (
                     f"[{trade_date} | {ticker} | {rating}"
-                    f" | {raw_pct} | {alpha_pct} | {holding_days}d]"
+                    f" | {raw_pct} | {alpha_pct} | {holding_days}d"
+                    f"{self._visibility_tag(visible_from)}]"
                 )
                 rest = "\n".join(lines[1:])
                 new_blocks.append(
@@ -178,7 +224,9 @@ class TradingMemoryLog:
         """Apply multiple outcome updates in a single read + atomic write.
 
         Each element of updates must have keys: ticker, trade_date,
-        raw_return, alpha_return, holding_days, reflection.
+        raw_return, alpha_return, holding_days, reflection. Historical callers
+        also record ``outcome_visible_from``; when omitted it defaults to this
+        log instance's historical cutoff.
         """
         if not self._log_path or not self._log_path.exists() or not updates:
             return
@@ -207,9 +255,13 @@ class TradingMemoryLog:
                     rating = fields[2]
                     raw_pct = f"{upd['raw_return']:+.1%}"
                     alpha_pct = f"{upd['alpha_return']:+.1%}"
+                    visible_from = self._coerce_outcome_visible_from(
+                        upd.get("outcome_visible_from")
+                    )
                     new_tag = (
                         f"[{trade_date} | {ticker} | {rating}"
-                        f" | {raw_pct} | {alpha_pct} | {upd['holding_days']}d]"
+                        f" | {raw_pct} | {alpha_pct} | {upd['holding_days']}d"
+                        f"{self._visibility_tag(visible_from)}]"
                     )
                     rest = "\n".join(lines[1:])
                     new_blocks.append(
@@ -229,6 +281,19 @@ class TradingMemoryLog:
         tmp_path.replace(self._log_path)
 
     # --- Helpers ---
+
+    def _coerce_outcome_visible_from(self, value: str | date | None) -> str | None:
+        """Return a canonical visibility date for future-derived outcomes."""
+        if value is None:
+            return self._historical_cutoff.isoformat() if self._historical_cutoff else None
+        try:
+            return date.fromisoformat(str(value)[:10]).isoformat()
+        except ValueError as exc:
+            raise ValueError(f"invalid outcome_visible_from: {value!r}") from exc
+
+    @staticmethod
+    def _visibility_tag(value: str | None) -> str:
+        return f" | visible_from={value}" if value else ""
 
     def _apply_rotation(self, blocks: list[str]) -> list[str]:
         """Drop oldest resolved blocks when their count exceeds max_entries.
@@ -285,6 +350,14 @@ class TradingMemoryLog:
             "raw": fields[3] if fields[3] != "pending" else None,
             "alpha": fields[4] if len(fields) > 4 else None,
             "holding": fields[5] if len(fields) > 5 else None,
+            "outcome_visible_from": next(
+                (
+                    field.removeprefix("visible_from=")
+                    for field in fields[6:]
+                    if field.startswith("visible_from=")
+                ),
+                None,
+            ),
         }
         body = "\n".join(lines[1:]).strip()
         decision_match = self._DECISION_RE.search(body)

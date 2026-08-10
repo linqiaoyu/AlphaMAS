@@ -111,6 +111,14 @@ def test_decision_cache_identity_changes_with_point_in_time_mode():
     )
 
 
+def test_decision_cache_identity_changes_with_memory_lineage():
+    assert cache_key(_strategy_payload(
+        graph_overrides={"historical_memory_lineage_id": "run-a"}
+    )) != cache_key(_strategy_payload(
+        graph_overrides={"historical_memory_lineage_id": "run-b"}
+    ))
+
+
 @pytest.mark.parametrize(
     ("field", "changed"),
     (("git_commit_sha", "git-b"), ("prompt_config_version", "prompt-b")),

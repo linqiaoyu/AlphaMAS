@@ -131,6 +131,21 @@ class TestTradingMemoryLogCore:
         log.store_decision("NVDA", "2026-01-10", DECISION_BUY)
         assert len(log.load_entries()) == 1
 
+    def test_live_resolved_entry_does_not_block_same_date_new_decision(self, tmp_path):
+        log = make_log(tmp_path)
+        log.store_decision("NVDA", "2026-01-10", DECISION_BUY)
+        log.update_with_outcome(
+            "NVDA", "2026-01-10", 0.05, 0.02, 5, "First outcome."
+        )
+
+        log.store_decision("NVDA", "2026-01-10", DECISION_SELL)
+
+        entries = log.load_entries()
+        assert len(entries) == 2
+        assert entries[0]["pending"] is False
+        assert entries[1]["pending"] is True
+        assert entries[1]["decision"] == DECISION_SELL
+
     def test_batch_update_resolves_multiple_entries(self, tmp_path):
         """batch_update_with_outcomes resolves multiple pending entries in one write."""
         log = make_log(tmp_path)

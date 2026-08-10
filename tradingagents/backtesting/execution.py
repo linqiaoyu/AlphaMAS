@@ -46,6 +46,7 @@ class Broker:
             portfolio.cash -= notional + commission
             portfolio.quantity += quantity
             portfolio.average_entry_price = fill_price
+            portfolio.open_position_commission = commission
         elif order.target_weight == 0.0:
             if portfolio.quantity <= Portfolio.tolerance:
                 order.status = "noop"
@@ -56,10 +57,13 @@ class Broker:
             commission = notional * fee_rate
             portfolio.cash += notional - commission
             portfolio.realized_pnl += (
-                (fill_price - portfolio.average_entry_price) * abs(quantity) - commission
+                (fill_price - portfolio.average_entry_price) * abs(quantity)
+                - portfolio.open_position_commission
+                - commission
             )
             portfolio.quantity = 0.0
             portfolio.average_entry_price = 0.0
+            portfolio.open_position_commission = 0.0
         else:
             raise ValueError("only target weights 0 and 1 are supported")
         if portfolio.cash < -Portfolio.tolerance:

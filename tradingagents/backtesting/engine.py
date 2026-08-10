@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,103 @@ class BacktestResult:
     daily_equity: pd.DataFrame
     corporate_action_events: pd.DataFrame
     metrics: dict[str, Any]
+
+
+def _market_history_visibility(
+    history: pd.DataFrame, schedule: ExchangeSchedule,
+) -> dict[str, Any]:
+    """Describe the exact daily market-history frame passed to a strategy."""
+    if history.empty:
+        return {
+            "first_session": None,
+            "last_session": None,
+            "last_observation_time_utc": None,
+            "row_count": 0,
+            "sha256": hashlib.sha256(b"").hexdigest(),
+        }
+    first_session = pd.Timestamp(history.index.min()).date().isoformat()
+    last_session = pd.Timestamp(history.index.max()).date().isoformat()
+    payload = history.to_csv(lineterminator="\n", float_format="%.12g")
+    return {
+        "first_session": first_session,
+        "last_session": last_session,
+        "last_observation_time_utc": schedule.session_close(last_session).isoformat(),
+        "row_count": len(history),
+        "sha256": hashlib.sha256(payload.encode()).hexdigest(),
+    }
+
+
+def market_history_visibility_errors(
+    results: Mapping[str, BacktestResult], schedule: ExchangeSchedule,
+) -> list[str]:
+    """Return errors when a recorded strategy input extends past its decision time."""
+    errors: list[str] = []
+    for result_symbol, result in results.items():
+        for row_number, decision in result.decisions.iterrows():
+            symbol = str(decision.get("symbol") or result_symbol)
+            session = str(decision.get("decision_session", ""))
+            case = f"{symbol}:{session or row_number}"
+            metadata = decision.get("metadata")
+            visibility = (
+                metadata.get("market_history_visibility")
+                if isinstance(metadata, Mapping) else None
+            )
+            if not isinstance(visibility, Mapping):
+                errors.append(f"{case}: missing market_history_visibility audit")
+                continue
+            try:
+                first_value = pd.Timestamp(visibility["first_session"])
+                last_value = pd.Timestamp(visibility["last_session"])
+                decision_session_value = pd.Timestamp(session)
+                last_observation = pd.Timestamp(
+                    visibility["last_observation_time_utc"]
+                )
+                decision_time = pd.Timestamp(decision["decision_time_utc"])
+                if any(pd.isna(value) for value in (
+                    first_value,
+                    last_value,
+                    decision_session_value,
+                    last_observation,
+                    decision_time,
+                )):
+                    raise ValueError("market-history audit times cannot be null")
+                first_session = pd.Timestamp(first_value.date())
+                last_session = pd.Timestamp(last_value.date())
+                decision_session = pd.Timestamp(decision_session_value.date())
+                expected_last_observation = schedule.session_close(
+                    last_session.date().isoformat()
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                errors.append(f"{case}: invalid market-history time audit ({exc})")
+                continue
+            if last_observation.tzinfo is None or decision_time.tzinfo is None:
+                errors.append(f"{case}: market-history and decision times must be timezone-aware")
+            elif last_observation != expected_last_observation:
+                errors.append(
+                    f"{case}: last observation time is not its XNYS session close"
+                )
+            elif last_observation > decision_time:
+                errors.append(f"{case}: market history extends beyond decision time")
+            if first_session > last_session:
+                errors.append(f"{case}: first market-history session is after the last")
+            if last_session > decision_session:
+                errors.append(f"{case}: market history extends beyond decision session")
+            row_count = visibility.get("row_count")
+            if (
+                not isinstance(row_count, int)
+                or isinstance(row_count, bool)
+                or row_count <= 0
+            ):
+                errors.append(f"{case}: market-history row_count must be positive")
+            history_hash = visibility.get("sha256")
+            if not isinstance(history_hash, str) or len(history_hash) != 64:
+                errors.append(f"{case}: market-history sha256 is invalid")
+            else:
+                try:
+                    int(history_hash, 16)
+                except ValueError:
+                    errors.append(f"{case}: market-history sha256 is invalid")
+    return errors
 
 
 class WeeklyBacktestEngine:
@@ -121,12 +219,20 @@ class WeeklyBacktestEngine:
                 if max_decisions is not None and len(decision_rows) >= max_decisions:
                     continue
                 visible = data.loc[:session_ts.tz_localize(None)].copy()
+                visibility = _market_history_visibility(visible, self.schedule)
                 decision = strategy.decide(
                     symbol=symbol, decision_session=session,
                     decision_time=event.decision_close_utc.to_pydatetime(),
                     market_history=visible, portfolio_snapshot=snapshot,
-                    context={"experiment_id": experiment_id, "point_in_time": True},
+                    context={
+                        "experiment_id": experiment_id,
+                        "point_in_time": True,
+                        "market_history_visibility": dict(visibility),
+                    },
                 )
+                # This is engine-owned provenance: overwrite any strategy-provided
+                # value with the audit of the frame that was actually passed above.
+                decision.metadata["market_history_visibility"] = visibility
                 decision_rows.append(decision.to_dict())
                 if decision.status is DecisionStatus.FAILED:
                     continue

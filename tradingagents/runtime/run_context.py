@@ -72,6 +72,7 @@ class RunContext:
     as_of: datetime
     generated_at: datetime
     experiment_id: str | None = None
+    memory_lineage_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.mode not in ("live", "historical"):
@@ -103,9 +104,13 @@ class RunContext:
         as_of: date | datetime | str,
         generated_at: datetime | None = None,
         experiment_id: str | None = None,
+        memory_lineage_id: str | None = None,
     ) -> RunContext:
         generated = _as_utc(generated_at or datetime.now(UTC))
-        return cls("historical", coerce_as_of(as_of), generated, experiment_id)
+        return cls(
+            "historical", coerce_as_of(as_of), generated,
+            experiment_id, memory_lineage_id,
+        )
 
 
 def create_run_context(
@@ -114,12 +119,15 @@ def create_run_context(
     as_of: date | datetime | str | None = None,
     generated_at: datetime | None = None,
     experiment_id: str | None = None,
+    memory_lineage_id: str | None = None,
 ) -> RunContext:
     """Construct a validated context, requiring ``as_of`` in historical mode."""
     if mode == "historical":
         if as_of is None:
             raise ValueError("historical mode requires an explicit as_of")
-        return RunContext.historical(as_of, generated_at, experiment_id)
+        return RunContext.historical(
+            as_of, generated_at, experiment_id, memory_lineage_id,
+        )
     if as_of is not None:
         raise ValueError("live mode does not accept a historical as_of")
     if experiment_id is not None:
@@ -169,6 +177,7 @@ class AuditTrail:
                 "historical_as_of": self.context.historical_as_of,
                 "generated_at": self.context.generated_at.isoformat(),
                 "experiment_id": self.context.experiment_id,
+                "memory_lineage_id": self.context.memory_lineage_id,
             },
             "sources": list(self.records),
         }

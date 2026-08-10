@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import time
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -172,6 +173,9 @@ class TradingAgentsStrategy(BaseStrategy):
             "tool_vendor_config": graph_config.get("tool_vendors"),
             "point_in_time": bool(kwargs["context"].get("point_in_time")),
             "memory_mode": graph_config.get("memory_mode"),
+            "memory_lineage_id": graph_config.get(
+                "historical_memory_lineage_id"
+            ),
             "holding_horizon_sessions": graph_config.get(
                 "memory_holding_horizon_sessions"
             ),
@@ -224,6 +228,7 @@ class TradingAgentsStrategy(BaseStrategy):
             "as_of": run_context.as_of.isoformat(),
             "generated_at": run_context.generated_at.isoformat(),
             "experiment_id": run_context.experiment_id,
+            "memory_lineage_id": run_context.memory_lineage_id,
         })
         write_json(case_dir / "cache_identity.json", {
             "cache_key": key, "identity": cache_payload,
@@ -257,12 +262,20 @@ class TradingAgentsStrategy(BaseStrategy):
         session = kwargs["decision_session"]
         decision_time = kwargs["decision_time"]
         context = kwargs["context"]
+        visibility = context.get("market_history_visibility")
+        visibility_metadata = (
+            {"market_history_visibility": dict(visibility)}
+            if isinstance(visibility, Mapping) else {}
+        )
         cache_payload = self._cache_payload(kwargs)
         key = cache_key(cache_payload)
         case_dir = self._case_dir(symbol, session)
         run_context = RunContext.historical(
             decision_time, generated_at=datetime.now(timezone.utc),
             experiment_id=context["experiment_id"],
+            memory_lineage_id=getattr(self.graph, "config", {}).get(
+                "historical_memory_lineage_id"
+            ),
         )
         if self.cache and not self.force:
             bundle = self.cache.load_bundle(
@@ -284,6 +297,7 @@ class TradingAgentsStrategy(BaseStrategy):
                 elapsed = time.monotonic() - started
                 metadata = {
                     **cached.get("metadata", {}),
+                    **visibility_metadata,
                     "cache_key": key,
                     "cache_status": "hit",
                     "wall_clock_seconds": elapsed,
@@ -337,6 +351,7 @@ class TradingAgentsStrategy(BaseStrategy):
             metadata = {
                 "wall_clock_seconds": elapsed,
                 "run_context": {"mode": "historical", "as_of": decision_time.isoformat()},
+                **visibility_metadata,
                 "report_path": self._artifact_path(report_dir),
                 "source_audit_path": self._artifact_path(
                     case_dir / "source_audit.json" if case_dir else None
@@ -372,6 +387,7 @@ class TradingAgentsStrategy(BaseStrategy):
             elapsed = time.monotonic() - started
             metadata = {
                 "wall_clock_seconds": elapsed,
+                **visibility_metadata,
                 "cache_key": key,
                 "cache_status": cache_status,
                 "report_path": self._artifact_path(

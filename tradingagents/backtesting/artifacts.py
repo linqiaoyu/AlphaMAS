@@ -16,7 +16,7 @@ from tradingagents.backtesting.config import compute_graph_config_sha256
 from tradingagents.backtesting.metrics import compute_metrics
 from tradingagents.backtesting.recorder import equal_weight_aggregate, write_json
 
-ARTIFACT_SCHEMA_VERSION = "1.1"
+ARTIFACT_SCHEMA_VERSION = "1.2"
 RESULT_TABLES = {
     "decisions.csv": "decisions",
     "orders.csv": "orders",
@@ -588,6 +588,11 @@ def _decision_timeline(results: dict[str, Any]) -> pd.DataFrame:
         orders = result.orders.copy()
         fills = result.fills.copy()
         for _, decision in result.decisions.iterrows():
+            metadata = decision.get("metadata")
+            cache_status = (
+                metadata.get("cache_status")
+                if isinstance(metadata, Mapping) else ""
+            )
             order = pd.Series(dtype=object)
             if not orders.empty:
                 match = orders.loc[
@@ -616,7 +621,9 @@ def _decision_timeline(results: dict[str, Any]) -> pd.DataFrame:
                 "fill_quantity": fill.get("quantity", ""),
                 "commission": fill.get("commission", ""),
                 "position_after": fill.get("position_after", ""),
-                "cache_status": "hit" if decision["status"] == "cached" else "miss",
+                # Cache provenance is independent of decision success/cached status:
+                # forced recomputation is a bypass, not a miss.
+                "cache_status": cache_status if cache_status is not None else "",
             })
     return pd.DataFrame(rows)
 
@@ -730,6 +737,16 @@ def artifact_schema() -> dict[str, Any]:
             "fill_quantity": "signed shares bought (positive) or sold (negative)",
             "commission": "cash commission charged on the fill",
             "equity": "cash plus close-marked position market value",
+            "realized_pnl": (
+                "completed round-trip price P&L net of entry and exit commissions exactly once"
+            ),
+            "unrealized_pnl": (
+                "open-position mark-to-fill-price P&L net of its entry commission"
+            ),
+            "cumulative_cost": (
+                "all commissions already deducted from cash/equity; informational and not "
+                "subtracted again"
+            ),
             "normalized_equity": "equity divided by the series first equity",
             "drawdown": "signed decline from running peak (zero at a peak)",
             "cash_effect": "cash credited by a corporate-action event",
@@ -744,6 +761,10 @@ def artifact_schema() -> dict[str, Any]:
             "report_path": "run-relative path to the immutable report tree",
             "cache_key": "content-addressed decision cache identity",
             "cache_status": "miss, hit, or bypass for the current case",
+            "market_history_visibility": (
+                "engine-owned audit of the exact strategy-visible history, including its "
+                "maximum session, corresponding XNYS close time, row count, and SHA-256"
+            ),
             "wall_clock_seconds": (
                 "elapsed time for the current case materialization; cache hits measure replay"
             ),
@@ -831,6 +852,7 @@ def validate_artifact_bundle(
     schema_errors: list[str] = []
     checksum_errors: list[str] = []
     agent_artifact_errors: list[str] = []
+    lineage_errors: list[str] = []
 
     required = {
         "manifest.json",
@@ -996,19 +1018,149 @@ def validate_artifact_bundle(
             "recomputed resolved Graph identity"
         )
 
+    manifest_document = base_documents.get("manifest.json")
+    run_status_document = base_documents.get("run_status.json")
+    base_provenance_documents = {
+        "manifest.json": manifest_document,
+        "config.resolved.json": config,
+        "run_status.json": run_status_document,
+    }
+
+    def require_consistent_provenance(
+        field: str, document_names: tuple[str, ...],
+    ) -> None:
+        values: list[tuple[str, Any]] = []
+        for document_name in document_names:
+            document = base_provenance_documents.get(document_name)
+            if not isinstance(document, Mapping) or field not in document:
+                lineage_errors.append(
+                    f"{document_name} is missing provenance field {field}"
+                )
+            else:
+                values.append((document_name, document[field]))
+        if len(values) == len(document_names) and any(
+            value != values[0][1] for _, value in values[1:]
+        ):
+            lineage_errors.append(
+                f"{field} disagrees across {', '.join(document_names)}"
+            )
+
+    for provenance_field in (
+        "experiment_id",
+        "run_id",
+        "memory_lineage_id",
+        "memory_lifecycle",
+        "memory_resumed_from_run_id",
+    ):
+        require_consistent_provenance(
+            provenance_field,
+            ("manifest.json", "config.resolved.json", "run_status.json"),
+        )
+    for provenance_field in (
+        "backtest_protocol_sha256",
+        "implementation_identity",
+        "market_input_identity",
+    ):
+        require_consistent_provenance(
+            provenance_field, ("manifest.json", "config.resolved.json")
+        )
+
+    expected_experiment_id = config.get("experiment_id")
+    expected_run_id = config.get("run_id")
+    expected_lineage_id = config.get("memory_lineage_id")
+    expected_memory_lifecycle = config.get("memory_lifecycle")
+    expected_resumed_from = config.get("memory_resumed_from_run_id")
+    if not isinstance(expected_experiment_id, str) or not expected_experiment_id:
+        lineage_errors.append("experiment_id must be a non-empty string")
+    if not isinstance(expected_run_id, str) or not expected_run_id:
+        lineage_errors.append("run_id must be a non-empty string")
+    if not isinstance(expected_lineage_id, str) or not expected_lineage_id:
+        lineage_errors.append("memory_lineage_id must be a non-empty string")
+    if expected_memory_lifecycle not in {
+        "independent_fresh", "force_fresh", "resume",
+    }:
+        lineage_errors.append(
+            f"invalid memory_lifecycle {expected_memory_lifecycle!r}"
+        )
+    elif expected_memory_lifecycle in {"independent_fresh", "force_fresh"}:
+        if expected_resumed_from is not None:
+            lineage_errors.append(
+                "fresh memory lifecycle cannot have memory_resumed_from_run_id"
+            )
+        if expected_lineage_id != expected_run_id:
+            lineage_errors.append(
+                "fresh memory_lineage_id must equal the current run_id"
+            )
+    elif not isinstance(expected_resumed_from, str) or not expected_resumed_from:
+        lineage_errors.append(
+            "resume lifecycle requires a non-empty memory_resumed_from_run_id"
+        )
+    expected_protocol_hash = config.get("backtest_protocol_sha256")
+    if not _valid_sha256(expected_protocol_hash):
+        lineage_errors.append("backtest_protocol_sha256 must be a valid SHA-256")
+    implementation_identity = config.get("implementation_identity")
+    if not isinstance(implementation_identity, str) or not implementation_identity:
+        lineage_errors.append("implementation_identity must be a non-empty string")
+    market_input_identity = config.get("market_input_identity")
+    if market_input_identity is not None and (
+        not isinstance(market_input_identity, Mapping)
+        or not market_input_identity
+        or any(
+            not isinstance(symbol, str) or not _valid_sha256(digest)
+            for symbol, digest in market_input_identity.items()
+        )
+    ):
+        lineage_errors.append(
+            "market_input_identity must be null or a non-empty symbol/SHA-256 mapping"
+        )
+    graph_lineage_id = (
+        resolved_graph.get("historical_memory_lineage_id")
+        if isinstance(resolved_graph, Mapping) else None
+    )
+    if graph_lineage_id != expected_lineage_id:
+        lineage_errors.append(
+            "graph_config.resolved historical_memory_lineage_id does not match the bundle"
+        )
+
     if strategy == "tradingagents":
         case_index = analysis_frames.get("case_index.csv")
+        decision_timeline = analysis_frames.get("decision_timeline.csv")
         availability = analysis_frames.get("data_availability.csv")
         usage = analysis_frames.get("llm_usage.csv")
         expected_cases = config.get("actual_decision_count")
         expected_graph_hash = next(iter(graph_hashes.values()), None) if graph_hash_valid else None
-        expected_experiment_id = config.get("experiment_id")
-        expected_run_id = config.get("run_id")
         observed_case_keys: list[tuple[str, str]] = []
         observed_case_ids: list[str] = []
         expected_audit_counts: dict[tuple[str, str], int] = {}
         expected_usage_counts: dict[str, int] = {}
         case_cache_statuses: dict[str, str] = {}
+        valid_cache_statuses = {"hit", "miss", "bypass"}
+        timeline_case_keys: list[tuple[str, str]] = []
+        timeline_cache_statuses: dict[tuple[str, str], str] = {}
+        timeline_decision_statuses: dict[tuple[str, str], str] = {}
+        if decision_timeline is None:
+            agent_artifact_errors.append("decision_timeline.csv is not readable")
+        else:
+            for _, timeline_row in decision_timeline.iterrows():
+                timeline_key = (
+                    str(timeline_row.get("symbol", "")),
+                    str(timeline_row.get("decision_session", "")),
+                )
+                timeline_status = str(timeline_row.get("cache_status", ""))
+                timeline_case_keys.append(timeline_key)
+                timeline_cache_statuses[timeline_key] = timeline_status
+                timeline_decision_statuses[timeline_key] = str(
+                    timeline_row.get("status", "")
+                )
+                if timeline_status not in valid_cache_statuses:
+                    agent_artifact_errors.append(
+                        f"{timeline_key}: decision_timeline has invalid cache_status "
+                        f"{timeline_status!r}"
+                    )
+            if len(set(timeline_case_keys)) != len(timeline_case_keys):
+                agent_artifact_errors.append(
+                    "decision_timeline contains duplicate symbol/session cases"
+                )
         if case_index is None:
             agent_artifact_errors.append("case_index.csv is not readable")
         else:
@@ -1024,9 +1176,53 @@ def validate_artifact_bundle(
                 symbol = str(case.get("symbol", ""))
                 session = str(case.get("decision_session", ""))
                 case_id = str(case.get("case_id", ""))
+                case_key = (symbol, session)
+                case_decision_status = str(case.get("decision_status", ""))
+                case_cache_status = str(case.get("cache_status", ""))
                 observed_case_keys.append((symbol, session))
                 observed_case_ids.append(case_id)
-                case_cache_statuses[case_id] = str(case.get("cache_status", ""))
+                case_cache_statuses[case_id] = case_cache_status
+                if case_cache_status not in valid_cache_statuses:
+                    agent_artifact_errors.append(
+                        f"{case_id}: case_index has invalid cache_status "
+                        f"{case_cache_status!r}"
+                    )
+                if (
+                    expected_memory_lifecycle == "independent_fresh"
+                    and case_cache_status != "miss"
+                ):
+                    lineage_errors.append(
+                        f"{case_id}: independent_fresh case must be a cache miss"
+                    )
+                elif (
+                    expected_memory_lifecycle == "force_fresh"
+                    and case_cache_status != "bypass"
+                ):
+                    lineage_errors.append(
+                        f"{case_id}: force_fresh case must bypass cache"
+                    )
+                elif (
+                    expected_memory_lifecycle == "resume"
+                    and case_cache_status not in {"hit", "miss"}
+                ):
+                    lineage_errors.append(
+                        f"{case_id}: resume case cache_status must be hit or miss"
+                    )
+                if (
+                    (case_cache_status == "hit")
+                    != (case_decision_status == "cached")
+                ):
+                    agent_artifact_errors.append(
+                        f"{case_id}: cache hit must correspond exactly to cached decision status"
+                    )
+                if timeline_cache_statuses.get(case_key) != case_cache_status:
+                    agent_artifact_errors.append(
+                        f"{case_id}: decision_timeline cache_status does not match case_index"
+                    )
+                if timeline_decision_statuses.get(case_key) != case_decision_status:
+                    agent_artifact_errors.append(
+                        f"{case_id}: decision_timeline status does not match case_index"
+                    )
                 case_root = root / "strategy" / "cases" / symbol / session
                 case_documents: dict[str, Any] = {}
                 for filename in (
@@ -1046,6 +1242,21 @@ def validate_artifact_bundle(
                     else:
                         case_documents[filename] = _read_json_document(
                             case_file, invalid_json,
+                        )
+
+                case_run_context = case_documents.get("run_context.json")
+                if not isinstance(case_run_context, Mapping):
+                    lineage_errors.append(
+                        f"{case_id}: run_context.json must contain lineage provenance"
+                    )
+                else:
+                    if case_run_context.get("memory_lineage_id") != expected_lineage_id:
+                        lineage_errors.append(
+                            f"{case_id}: run_context memory_lineage_id does not match bundle"
+                        )
+                    if case_run_context.get("experiment_id") != expected_experiment_id:
+                        lineage_errors.append(
+                            f"{case_id}: run_context experiment_id does not match bundle"
                         )
 
                 if require_success and str(case.get("decision_status")) not in {
@@ -1125,6 +1336,19 @@ def validate_artifact_bundle(
                         agent_artifact_errors.append(
                             f"{case_id}: case_index cache_key does not match cache identity"
                         )
+                if not isinstance(identity, Mapping):
+                    lineage_errors.append(
+                        f"{case_id}: cache identity must contain lineage provenance"
+                    )
+                else:
+                    if identity.get("memory_lineage_id") != expected_lineage_id:
+                        lineage_errors.append(
+                            f"{case_id}: cache identity memory_lineage_id does not match bundle"
+                        )
+                    if identity.get("experiment_id") != expected_experiment_id:
+                        lineage_errors.append(
+                            f"{case_id}: cache identity experiment_id does not match bundle"
+                        )
 
                 case_metadata = case_documents.get("case_metadata.json")
                 if not isinstance(case_metadata, Mapping):
@@ -1138,11 +1362,19 @@ def validate_artifact_bundle(
                         agent_artifact_errors.append(
                             f"{case_id}: case_metadata cache_key does not match case_index"
                         )
+                    if case_metadata.get("cache_status") != case_cache_status:
+                        agent_artifact_errors.append(
+                            f"{case_id}: case_metadata cache_status does not match case_index"
+                        )
 
                 decision_document = case_documents.get("decision.json")
                 if not isinstance(decision_document, Mapping):
                     agent_artifact_errors.append(f"{case_id}: decision.json must be an object")
                 else:
+                    if decision_document.get("status") != case_decision_status:
+                        agent_artifact_errors.append(
+                            f"{case_id}: decision.json status does not match case_index"
+                        )
                     metadata = decision_document.get("metadata")
                     if not isinstance(metadata, Mapping):
                         agent_artifact_errors.append(
@@ -1156,9 +1388,33 @@ def validate_artifact_bundle(
                         agent_artifact_errors.append(
                             f"{case_id}: decision metadata graph hash does not match the bundle"
                         )
+                    if (
+                        isinstance(metadata, Mapping)
+                        and metadata.get("cache_status") != case_cache_status
+                    ):
+                        agent_artifact_errors.append(
+                            f"{case_id}: decision metadata cache_status does not match case_index"
+                        )
 
                 source_audit = case_documents.get("source_audit.json")
                 sources = source_audit.get("sources") if isinstance(source_audit, Mapping) else None
+                source_run_context = (
+                    source_audit.get("run_context")
+                    if isinstance(source_audit, Mapping) else None
+                )
+                if not isinstance(source_run_context, Mapping):
+                    lineage_errors.append(
+                        f"{case_id}: source_audit run_context must contain lineage provenance"
+                    )
+                else:
+                    if source_run_context.get("memory_lineage_id") != expected_lineage_id:
+                        lineage_errors.append(
+                            f"{case_id}: source_audit memory_lineage_id does not match bundle"
+                        )
+                    if source_run_context.get("experiment_id") != expected_experiment_id:
+                        lineage_errors.append(
+                            f"{case_id}: source_audit experiment_id does not match bundle"
+                        )
                 if not isinstance(sources, list) or not sources:
                     agent_artifact_errors.append(
                         f"{case_id}: source_audit.json must contain source records"
@@ -1215,6 +1471,10 @@ def validate_artifact_bundle(
                 agent_artifact_errors.append("case_index contains duplicate symbol/session cases")
             if len(set(observed_case_ids)) != len(observed_case_ids):
                 agent_artifact_errors.append("case_index contains duplicate case_id values")
+            if set(timeline_case_keys) != set(observed_case_keys):
+                agent_artifact_errors.append(
+                    "decision_timeline case coverage does not match case_index"
+                )
             if (
                 schedule_frame is not None
                 and isinstance(expected_cases, int)
@@ -1399,6 +1659,7 @@ def validate_artifact_bundle(
         "analysis_ready_schemas_valid": not analysis_schema_errors,
         "market_snapshot_sha256_valid": not checksum_errors,
         "graph_config_sha256_present_and_consistent": graph_hash_valid,
+        "memory_lineage_provenance_consistent": not lineage_errors,
         "agent_case_artifacts_complete": not agent_artifact_errors,
         "validation_report_passed": validation_status_valid,
         "run_status_valid": run_status_valid,
@@ -1412,5 +1673,6 @@ def validate_artifact_bundle(
         "invalid_json": invalid_json,
         "schema_errors": schema_errors,
         "checksum_errors": checksum_errors,
+        "lineage_errors": lineage_errors,
         "agent_artifact_errors": agent_artifact_errors,
     }

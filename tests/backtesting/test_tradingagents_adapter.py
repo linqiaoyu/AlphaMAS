@@ -88,9 +88,66 @@ def test_adapter_exact_cache_hit_skips_graph(tmp_path):
         "market_history": pd.DataFrame({"Close": [100]}),
         "portfolio_snapshot": snapshot(), "context": {"experiment_id": "M0"},
     }
-    assert strategy.decide(**kwargs).status is DecisionStatus.SUCCESS
-    assert strategy.decide(**kwargs).status is DecisionStatus.CACHED
+    first = strategy.decide(**kwargs)
+    second = strategy.decide(**kwargs)
+
+    assert first.status is DecisionStatus.SUCCESS
+    assert first.metadata["cache_status"] == "miss"
+    assert second.status is DecisionStatus.CACHED
+    assert second.metadata["cache_status"] == "hit"
     assert graph.calls == 1
+
+
+def test_force_records_bypass_in_decision_and_case_artifacts(tmp_path):
+    class Graph:
+        config = {
+            "quick_think_llm": "q",
+            "deep_think_llm": "d",
+            "llm_provider": "mock",
+        }
+        selected_analysts = ("market",)
+        calls = 0
+
+        def propagate(self, *args, **kwargs):
+            self.calls += 1
+            return {"final_trade_decision": "Rating: BUY"}, "Buy"
+
+        def save_reports(self, final_state, symbol, report_dir):
+            del final_state, symbol
+            Path(report_dir).mkdir(parents=True, exist_ok=True)
+            (Path(report_dir) / "complete_report.md").write_text(
+                "offline report", encoding="utf-8"
+            )
+
+    graph = Graph()
+    cache = DecisionCache(tmp_path / "cache")
+    kwargs = {
+        "symbol": "AAPL",
+        "decision_session": "2024-01-05",
+        "decision_time": datetime(2024, 1, 5, 21, tzinfo=timezone.utc),
+        "market_history": pd.DataFrame({"Close": [100.0]}),
+        "portfolio_snapshot": snapshot(),
+        "context": {"experiment_id": "M0", "point_in_time": True},
+    }
+    first = TradingAgentsStrategy(graph, cache=cache).decide(**kwargs)
+    forced_run = tmp_path / "forced-run"
+    forced = TradingAgentsStrategy(
+        graph,
+        cache=cache,
+        reports_root=forced_run / "strategy" / "cases",
+        run_root=forced_run,
+        force=True,
+    ).decide(**kwargs)
+    case_dir = forced_run / "strategy/cases/AAPL/2024-01-05"
+    case_metadata = json.loads((case_dir / "case_metadata.json").read_text())
+    decision_document = json.loads((case_dir / "decision.json").read_text())
+
+    assert first.metadata["cache_status"] == "miss"
+    assert forced.status is DecisionStatus.SUCCESS
+    assert forced.metadata["cache_status"] == "bypass"
+    assert graph.calls == 2
+    assert case_metadata["cache_status"] == "bypass"
+    assert decision_document["metadata"]["cache_status"] == "bypass"
 
 
 def test_cache_hit_materializes_complete_case_artifacts_in_current_run(tmp_path):

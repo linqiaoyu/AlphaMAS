@@ -134,6 +134,7 @@ GRAPH_HASH_EXCLUDED_KEYS = frozenset({
     "memory_log_path",
     "historical_memory_log_path",
     "historical_memory_dir",
+    "historical_memory_lineage_id",
     "historical_audit_path",
 })
 

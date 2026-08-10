@@ -50,8 +50,17 @@ from tradingagents.backtesting.data import (  # noqa: E402
     YFinanceDataProvider,
     canonical_market_csv,
 )
-from tradingagents.backtesting.engine import WeeklyBacktestEngine  # noqa: E402
+from tradingagents.backtesting.engine import (  # noqa: E402
+    WeeklyBacktestEngine,
+    market_history_visibility_errors,
+)
 from tradingagents.backtesting.llm_usage import LLMUsageCallback  # noqa: E402
+from tradingagents.backtesting.memory_lineage import (  # noqa: E402
+    backtest_protocol_sha256,
+    select_memory_lineage,
+    snapshot_input_identity,
+    validate_resume_data_source,
+)
 from tradingagents.backtesting.recorder import write_json  # noqa: E402
 from tradingagents.backtesting.strategies import (  # noqa: E402
     BuyAndHoldStrategy,
@@ -66,8 +75,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", required=True)
     parser.add_argument("--strategy", choices=("scripted", "buy-and-hold", "sma", "tradingagents"))
     parser.add_argument("--experiment-id", required=True)
-    parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--force", action="store_true")
+    lifecycle = parser.add_mutually_exclusive_group()
+    lifecycle.add_argument("--resume", action="store_true")
+    lifecycle.add_argument("--force", action="store_true")
     parser.add_argument("--max-cases", type=int)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -89,6 +99,26 @@ def git_value(*args: str) -> str:
 def new_run_id(git_sha: str) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     return f"{stamp}_{git_sha[:8] or 'nogit'}"
+
+
+def implementation_identity(git_sha: str) -> str:
+    """Identify HEAD plus dirty backtester/Graph code that can affect memory."""
+    tracked_diff = git_value(
+        "diff", "--binary", "HEAD", "--", "scripts", "tradingagents"
+    )
+    untracked = git_value(
+        "ls-files", "--others", "--exclude-standard", "--",
+        "scripts", "tradingagents",
+    ).splitlines()
+    if not tracked_diff and not untracked:
+        return git_sha or "nogit"
+    digest = hashlib.sha256(tracked_diff.encode("utf-8"))
+    for relative in sorted(untracked):
+        path = REPO_ROOT / relative
+        if path.is_file():
+            digest.update(relative.encode("utf-8"))
+            digest.update(path.read_bytes())
+    return f"{git_sha or 'nogit'}-dirty-{digest.hexdigest()}"
 
 
 def synthetic_provider(
@@ -137,7 +167,7 @@ def strategy_factory(
         cache=DecisionCache(experiment_root / "runtime" / "decision_cache"),
         cache_config={
             "git_commit_sha": git_sha, "prompt_config_version": "weekly-backtest-v1",
-            "memory_namespace_version": "experiment-v2-graph-hash",
+            "memory_namespace_version": "experiment-v3-run-lineage",
         },
         usage_callback=usage_callback, run_root=run_dir, force=force,
     )
@@ -251,15 +281,108 @@ def run_accounts(
     return results
 
 
+PORTFOLIO_PNL_IDENTITY_ATOL = 1e-8
+
+
+def portfolio_pnl_identity_errors(
+    *, results: dict[str, Any], stock_benchmarks: dict[str, Any], spy: Any,
+    initial_cash: float, atol: float = PORTFOLIO_PNL_IDENTITY_ATOL,
+) -> list[str]:
+    """Validate net P&L identities and commission totals for every account."""
+    accounts = [
+        *((f"strategy/{symbol}", result) for symbol, result in results.items()),
+        *((f"benchmark/{symbol}", result) for symbol, result in stock_benchmarks.items()),
+        ("benchmark/SPY", spy),
+    ]
+    required_columns = {
+        "session",
+        "equity",
+        "realized_pnl",
+        "unrealized_pnl",
+        "cumulative_dividends",
+        "cumulative_cost",
+    }
+    errors: list[str] = []
+    for account_name, result in accounts:
+        daily = result.daily_equity
+        missing = required_columns - set(daily.columns)
+        if missing:
+            errors.append(
+                f"{account_name}: daily_equity lacks {sorted(missing)}"
+            )
+            continue
+        if daily.empty:
+            errors.append(f"{account_name}: daily_equity is empty")
+            continue
+        for _, row in daily.iterrows():
+            values = {
+                column: row[column]
+                for column in required_columns - {"session"}
+            }
+            if not all(
+                isinstance(value, (int, float, np.integer, np.floating))
+                and np.isfinite(value)
+                for value in values.values()
+            ):
+                errors.append(
+                    f"{account_name}:{row['session']}: P&L identity contains non-finite values"
+                )
+                continue
+            expected_equity = (
+                float(initial_cash)
+                + float(row["realized_pnl"])
+                + float(row["unrealized_pnl"])
+                + float(row["cumulative_dividends"])
+            )
+            if not np.isclose(
+                float(row["equity"]), expected_equity, rtol=0.0, atol=atol
+            ):
+                errors.append(
+                    f"{account_name}:{row['session']}: equity {row['equity']} != "
+                    f"initial_cash + realized_pnl + unrealized_pnl + "
+                    f"cumulative_dividends ({expected_equity}); "
+                    f"difference={float(row['equity']) - expected_equity}"
+                )
+        costs = daily["cumulative_cost"].astype(float).to_numpy()
+        if (np.diff(costs) < -atol).any():
+            errors.append(f"{account_name}: cumulative_cost decreases")
+        if result.fills.empty:
+            fill_commissions = 0.0
+        elif "commission" not in result.fills:
+            errors.append(f"{account_name}: fills lacks commission")
+            continue
+        else:
+            fill_commissions = float(result.fills["commission"].sum())
+        final_cost = float(costs[-1])
+        if not np.isclose(final_cost, fill_commissions, rtol=0.0, atol=atol):
+            errors.append(
+                f"{account_name}: final cumulative_cost {final_cost} != fills commissions "
+                f"{fill_commissions}; difference={final_cost - fill_commissions}"
+            )
+    return errors
+
+
 def validate_run(
     *, results: dict[str, Any], stock_benchmarks: dict[str, Any], spy: Any,
     replay_results: dict[str, Any] | None, events: list[Any], config: dict[str, Any],
     data_manifest: dict[str, Any], strategy_name: str, run_dir: Path,
     expected_decisions: int, aggregate: pd.DataFrame,
 ) -> dict[str, Any]:
-    expected_sessions = [item.date().isoformat() for item in ExchangeSchedule(
-        config["calendar"]
-    ).sessions(events[0].decision_session, config["final_valuation_session"])]
+    validation_schedule = ExchangeSchedule(config["calendar"])
+    expected_sessions = [
+        item.date().isoformat() for item in validation_schedule.sessions(
+            events[0].decision_session, config["final_valuation_session"]
+        )
+    ]
+    market_history_errors = market_history_visibility_errors(
+        results, validation_schedule
+    )
+    portfolio_pnl_errors = portfolio_pnl_identity_errors(
+        results=results,
+        stock_benchmarks=stock_benchmarks,
+        spy=spy,
+        initial_cash=float(config["initial_cash"]),
+    )
     all_accounts = [*results.values(), *stock_benchmarks.values(), spy]
     all_fills = pd.concat([item.fills for item in results.values()], ignore_index=True)
     action_frames = [
@@ -311,11 +434,7 @@ def validate_run(
             symbol: len(item.decisions) for symbol, item in results.items()
         },
         "no_same_bar_execution": bool(no_same_bar),
-        "no_future_market_data_visible": all(
-            set(item.decisions.get("decision_session", ())).issubset(
-                {event.decision_session for event in events}
-            ) for item in results.values()
-        ),
+        "no_future_market_data_visible": not market_history_errors,
         "no_negative_cash": all((item.daily_equity["cash"] >= -1e-8).all()
                                 for item in all_accounts),
         "no_short_position": all((item.daily_equity["quantity"] >= -1e-8).all()
@@ -339,6 +458,7 @@ def validate_run(
             ].sum()
             for item in all_accounts
         ),
+        "portfolio_pnl_identity": not portfolio_pnl_errors,
         "split_accounting_tested_offline": True,
         "metrics_finite_or_null": all(
             value is None or isinstance(value, (str, dict)) or np.isfinite(value)
@@ -372,7 +492,13 @@ def validate_run(
     )
     return {
         "status": "passed" if all(value is not False for value in checks.values()) else "failed",
-        "checks": checks, "tolerance": {"floating_point": 1e-12},
+        "checks": checks,
+        "market_history_visibility_errors": market_history_errors,
+        "portfolio_pnl_identity_errors": portfolio_pnl_errors,
+        "tolerance": {
+            "floating_point": 1e-12,
+            "portfolio_pnl_identity_absolute": PORTFOLIO_PNL_IDENTITY_ATOL,
+        },
         "snapshot_hashes": {entry["symbol"]: entry["sha256"]
                             for entry in data_manifest["symbols"]},
         "result_hashes": primary_hashes, "replay_result_hashes": replay_hashes,
@@ -472,25 +598,57 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
 
     if source == "snapshot" and not args.snapshot_dir:
         raise ValueError("--snapshot-dir is required with --data-source snapshot")
+    validate_resume_data_source(source, resume=bool(args.resume))
+    if protocol_mode == "formal_m0" and git_value("status", "--porcelain"):
+        raise ValueError("formal M0 execution requires a clean git worktree")
 
+    market_input_identity = (
+        snapshot_input_identity(args.snapshot_dir, config["symbols"])
+        if source == "snapshot" else None
+    )
     run_id = new_run_id(git_sha)
     run_dir = experiment_root / "runs" / run_id
+    effective_config = {**config, "strategy": strategy_name, "data_source": source}
+    graph_config = resolve_graph_config(
+        effective_config,
+        results_dir=run_dir / "strategy" / "agent_results",
+        data_cache_dir=experiment_root / "runtime" / "data_cache",
+        historical_memory_dir=experiment_root / "runtime" / "memory",
+    )
+    graph_config_sha256 = compute_graph_config_sha256(graph_config)
+    code_identity = implementation_identity(git_sha)
+    protocol_sha256 = backtest_protocol_sha256(
+        effective_config,
+        planned_cases=planned_cases,
+        market_input_identity=market_input_identity,
+        implementation_identity=code_identity,
+    )
+    memory_lineage = select_memory_lineage(
+        experiment_root=experiment_root,
+        experiment_id=args.experiment_id,
+        run_id=run_id,
+        graph_config_sha256=graph_config_sha256,
+        backtest_protocol_sha256=protocol_sha256,
+        resume=bool(args.resume),
+        force=bool(args.force),
+    )
+    graph_config["historical_memory_lineage_id"] = memory_lineage.lineage_id
     run_dir.mkdir(parents=True, exist_ok=False)
     started = datetime.now(timezone.utc).isoformat()
     status_path = run_dir / "run_status.json"
-    write_json(status_path, {
+    running_status = {
         "experiment_id": args.experiment_id, "run_id": run_id,
         "status": "running", "started_at": started,
+        **memory_lineage.to_dict(),
+    }
+    write_json(status_path, running_status)
+    # Publish the running attempt immediately so an interrupted process can be
+    # selected explicitly by the next --resume. The run_path is informational;
+    # resume reconstructs the path from the validated run_id.
+    write_json(experiment_root / "latest.json", {
+        **running_status, "run_path": str(run_dir),
     })
     try:
-        effective_config = {**config, "strategy": strategy_name, "data_source": source}
-        graph_config = resolve_graph_config(
-            effective_config,
-            results_dir=run_dir / "strategy" / "agent_results",
-            data_cache_dir=experiment_root / "runtime" / "data_cache",
-            historical_memory_dir=experiment_root / "runtime" / "memory",
-        )
-        graph_config_sha256 = compute_graph_config_sha256(graph_config)
         provider, market_data, data_manifest = materialize_inputs(
             source, args.snapshot_dir, config["symbols"], schedule, data_start,
             config["final_valuation_session"], run_dir, warmup_metadata,
@@ -514,7 +672,11 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
             ),
             "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
             "graph_config_sha256": graph_config_sha256,
+            "backtest_protocol_sha256": protocol_sha256,
+            "implementation_identity": code_identity,
+            "market_input_identity": market_input_identity,
             "resume_requested": bool(args.resume),
+            **memory_lineage.to_dict(),
         }
         write_json(run_dir / "config.resolved.json", resolved)
         write_json(run_dir / "graph_config.resolved.json", sanitize_graph_config(graph_config))
@@ -527,7 +689,14 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
             **dry, "run_id": run_id, "git_sha": git_sha, "started_at": started,
             "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
             "graph_config_sha256": graph_config_sha256,
-            "resume_semantics": "deterministic replay from shared DecisionCache",
+            "backtest_protocol_sha256": protocol_sha256,
+            "implementation_identity": code_identity,
+            "market_input_identity": market_input_identity,
+            **memory_lineage.to_dict(),
+            "resume_semantics": (
+                "replay from the latest incomplete run using its exact memory "
+                "lineage and lineage-scoped DecisionCache identity"
+            ),
             "runtime_paths": {
                 "decision_cache": str(experiment_root / "runtime" / "decision_cache"),
                 "memory": str(experiment_root / "runtime" / "memory"),
@@ -646,6 +815,7 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         final_status = {
             "experiment_id": args.experiment_id, "run_id": run_id, "status": "success",
             "started_at": started, "completed_at": completed,
+            **memory_lineage.to_dict(),
         }
         write_json(status_path, final_status)
         bundle_validation = validate_artifact_bundle(
@@ -668,6 +838,7 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         failed = {
             "experiment_id": args.experiment_id, "run_id": run_id, "status": "failed",
             "started_at": started, "completed_at": datetime.now(timezone.utc).isoformat(),
+            **memory_lineage.to_dict(),
             "error_type": type(exc).__name__, "error_message": str(exc),
             "traceback": traceback.format_exc(),
         }
