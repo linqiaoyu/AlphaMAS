@@ -9,6 +9,7 @@ def graph_stub(tmp_path, memory_mode):
         "historical_memory_dir": str(tmp_path / "results" / "memory"),
         "historical_memory_log_path": None,
         "memory_mode": memory_mode,
+        "graph_config_sha256": "a" * 64,
     }
     return graph
 
@@ -30,6 +31,18 @@ def test_experiment_memory_shared_by_date_but_isolated_by_symbol_and_experiment(
     assert one == later
     assert one != other_symbol != other_experiment
     assert "live" not in one
+
+
+def test_experiment_memory_isolated_by_graph_config_hash(tmp_path):
+    first = graph_stub(tmp_path, "experiment")
+    second = graph_stub(tmp_path, "experiment")
+    second.config["graph_config_sha256"] = "b" * 64
+    context = RunContext.historical("2024-01-05", experiment_id="M0")
+
+    first_path = first._historical_memory_config("AAPL", context)["memory_log_path"]
+    second_path = second._historical_memory_config("AAPL", context)["memory_log_path"]
+
+    assert first_path != second_path
 
 
 def test_memory_disabled_and_unsafe_experiment_rejected(tmp_path):

@@ -25,6 +25,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_GOOGLE_THINKING_LEVEL":   "google_thinking_level",
     "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
     "TRADINGAGENTS_ANTHROPIC_EFFORT":        "anthropic_effort",
+    "TRADINGAGENTS_DEEPSEEK_THINKING":        "deepseek_thinking",
 }
 
 
@@ -84,6 +85,8 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Historical walk-forward runs may opt into a symbol-scoped experiment
     # namespace. The default preserves the existing per-date isolation.
     "memory_mode": "isolated_date",
+    # Trading-session horizon used to mature deferred decision-memory outcomes.
+    "memory_holding_horizon_sessions": 5,
     # Optional exact path for the machine-readable historical source audit.
     # When unset it is written under results_dir/<ticker>/ per as-of date.
     "historical_audit_path": None,
@@ -101,6 +104,9 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "google_thinking_level": None,      # "high", "minimal", etc.
     "openai_reasoning_effort": None,    # "medium", "high", "low"
     "anthropic_effort": None,           # "high", "medium", "low"
+    # None preserves DeepSeek's provider default for general interactive use.
+    # Formal experiments freeze this to either "enabled" or "disabled".
+    "deepseek_thinking": None,
     # Sampling temperature, forwarded to every provider when set. None leaves
     # each provider at its own default. Lower values reduce run-to-run
     # variation on models that honor it; reasoning models largely ignore it

@@ -49,6 +49,21 @@ class ExchangeSchedule:
     def next_session(self, session: str | pd.Timestamp) -> pd.Timestamp:
         return self.calendar.next_session(pd.Timestamp(session))
 
+    def preceding_sessions(
+        self, session: str | pd.Timestamp, count: int,
+    ) -> pd.DatetimeIndex:
+        """Return exactly ``count`` sessions strictly before ``session``."""
+        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+            raise ValueError("warmup session count must be a positive integer")
+        current = pd.Timestamp(session)
+        prior = self.sessions(self.calendar.first_session, current - pd.Timedelta(days=1))
+        if len(prior) < count:
+            raise ValueError(
+                f"{self.name} calendar has only {len(prior)} sessions before {current.date()}, "
+                f"cannot provide {count} warmup sessions"
+            )
+        return prior[-count:]
+
     def weekly_events(self, first_week: str, final_week: str) -> list[WeeklyEvent]:
         first = pd.Timestamp(first_week).normalize()
         last = pd.Timestamp(final_week).normalize()

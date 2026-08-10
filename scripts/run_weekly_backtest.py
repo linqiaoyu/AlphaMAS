@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import importlib.metadata
 import json
@@ -11,7 +12,7 @@ import platform
 import subprocess
 import sys
 import traceback
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -27,13 +28,22 @@ from tradingagents.backtesting.artifacts import (  # noqa: E402
     aggregate_outputs,
     analysis_ready,
     artifact_schema,
+    collect_agent_analysis_records,
     result_hashes,
     save_result,
     save_strategy,
+    validate_artifact_bundle,
 )
 from tradingagents.backtesting.cache import DecisionCache  # noqa: E402
 from tradingagents.backtesting.calendar import ExchangeSchedule  # noqa: E402
-from tradingagents.backtesting.config import resolve_research_rounds  # noqa: E402
+from tradingagents.backtesting.config import (  # noqa: E402
+    compute_graph_config_sha256,
+    resolve_graph_config,
+    resolve_research_rounds,
+    sanitize_graph_config,
+    validate_fixed_backtest_contract,
+    validate_formal_m0_config,
+)
 from tradingagents.backtesting.data import (  # noqa: E402
     CSVSnapshotDataProvider,
     InMemoryDataProvider,
@@ -41,6 +51,7 @@ from tradingagents.backtesting.data import (  # noqa: E402
     canonical_market_csv,
 )
 from tradingagents.backtesting.engine import WeeklyBacktestEngine  # noqa: E402
+from tradingagents.backtesting.llm_usage import LLMUsageCallback  # noqa: E402
 from tradingagents.backtesting.recorder import write_json  # noqa: E402
 from tradingagents.backtesting.strategies import (  # noqa: E402
     BuyAndHoldStrategy,
@@ -99,7 +110,7 @@ def synthetic_provider(
 
 def strategy_factory(
     name: str, *, first_decision: str, config: dict[str, Any], experiment_root: Path,
-    run_dir: Path, git_sha: str, force: bool,
+    run_dir: Path, git_sha: str, force: bool, graph_config: dict[str, Any],
 ) -> Any:
     if name == "scripted":
         return ScriptedStrategy({first_decision: "BUY"})
@@ -110,30 +121,25 @@ def strategy_factory(
             short_window=int(config.get("sma_short_window", 20)),
             long_window=int(config.get("sma_long_window", 50)),
         )
-    from tradingagents.default_config import DEFAULT_CONFIG
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
-    rounds = resolve_research_rounds(config["research_depth"])
-    graph_config = dict(DEFAULT_CONFIG)
-    graph_config.update({
-        "memory_mode": config["memory_mode"],
-        "historical_memory_dir": str(experiment_root / "runtime" / "memory"),
-        "data_cache_dir": str(experiment_root / "runtime" / "data_cache"),
-        "results_dir": str(run_dir / "strategy" / "agent_results"),
-        "max_debate_rounds": rounds,
-        "max_risk_discuss_rounds": rounds,
-    })
-    for key in ("llm_provider", "quick_think_llm", "deep_think_llm", "temperature"):
-        if key in config:
-            graph_config[key] = config[key]
+    usage_callback = LLMUsageCallback(
+        provider=graph_config["llm_provider"],
+        thinking_mode=graph_config.get("deepseek_thinking"),
+        run_id=run_dir.name,
+    )
+    graph = TradingAgentsGraph(
+        selected_analysts=tuple(config["selected_analysts"]),
+        config=copy.deepcopy(graph_config), callbacks=[usage_callback],
+    )
     return TradingAgentsStrategy(
-        TradingAgentsGraph(config=graph_config), reports_root=run_dir / "strategy" / "cases",
+        graph, reports_root=run_dir / "strategy" / "cases",
         cache=DecisionCache(experiment_root / "runtime" / "decision_cache"),
         cache_config={
             "git_commit_sha": git_sha, "prompt_config_version": "weekly-backtest-v1",
-            "memory_namespace_version": "experiment-v1",
+            "memory_namespace_version": "experiment-v2-graph-hash",
         },
-        force=force,
+        usage_callback=usage_callback, run_root=run_dir, force=force,
     )
 
 
@@ -164,6 +170,7 @@ def environment(git_sha: str) -> dict[str, Any]:
 def materialize_inputs(
     source: str, snapshot_dir: str | None, symbols: list[str], schedule: ExchangeSchedule,
     requested_start: str, requested_end: str, run_dir: Path,
+    warmup_metadata: dict[str, Any],
 ) -> tuple[InMemoryDataProvider, dict[str, pd.DataFrame], dict[str, Any]]:
     if source == "synthetic":
         source_provider: Any = synthetic_provider(symbols, schedule, requested_start, requested_end)
@@ -171,8 +178,10 @@ def materialize_inputs(
         if not snapshot_dir:
             raise ValueError("--snapshot-dir is required with --data-source snapshot")
         source_provider = CSVSnapshotDataProvider(snapshot_dir)
-    else:
+    elif source == "yfinance":
         source_provider = YFinanceDataProvider()
+    else:
+        raise ValueError(f"unsupported market data source: {source!r}")
     market_root = run_dir / "inputs" / "market_data"
     actions_root = run_dir / "inputs" / "corporate_actions"
     retrieved_at = datetime.now(timezone.utc).isoformat()
@@ -206,7 +215,11 @@ def materialize_inputs(
     replay = CSVSnapshotDataProvider(market_root)
     frames = {symbol: replay.load(symbol, requested_start, requested_end)
               for symbol in dict.fromkeys([*symbols, "SPY"])}
-    manifest = {"schema_version": ARTIFACT_SCHEMA_VERSION, "symbols": entries}
+    manifest = {
+        "schema_version": ARTIFACT_SCHEMA_VERSION,
+        **warmup_metadata,
+        "symbols": entries,
+    }
     write_json(run_dir / "inputs" / "data_manifest.json", manifest)
     return InMemoryDataProvider(frames), frames, manifest
 
@@ -216,6 +229,7 @@ def run_accounts(
     config: dict[str, Any], strategy_name: str, experiment_id: str,
     experiment_root: Path, run_dir: Path, git_sha: str, events: list[Any],
     data_start: str, planned_cases: int, force: bool,
+    graph_config: dict[str, Any],
 ) -> dict[str, Any]:
     results = {}
     remaining = planned_cases
@@ -223,6 +237,7 @@ def run_accounts(
         strategy = strategy_factory(
             strategy_name, first_decision=events[0].decision_session, config=config,
             experiment_root=experiment_root, run_dir=run_dir, git_sha=git_sha, force=force,
+            graph_config=graph_config,
         )
         result = engine(provider, schedule, config).run(
             symbol=symbol, first_week=config["first_calendar_week"],
@@ -331,6 +346,20 @@ def validate_run(
             for value in item.metrics.values()
         ),
         "artifact_input_checksums_valid": input_hashes_valid,
+        "configured_warmup_sessions_honored": (
+            data_manifest.get("configured_warmup_sessions") == config["warmup_sessions"]
+            and data_manifest.get("actual_warmup_sessions") == config["warmup_sessions"]
+            and data_manifest.get("first_decision_session") == events[0].decision_session
+        ),
+        "agent_decisions_successful": (
+            all(
+                "status" in item.decisions
+                and not (item.decisions["status"] == "failed").any()
+                for item in results.values()
+                if not item.decisions.empty
+            )
+            if strategy_name == "tradingagents" else None
+        ),
         "no_paid_llm_call": True if strategy_name != "tradingagents" else None,
     }
     primary_hashes = {symbol: result_hashes(result) for symbol, result in results.items()}
@@ -351,28 +380,98 @@ def validate_run(
 
 
 def execute(args: argparse.Namespace) -> tuple[Path, str]:
-    config = json.loads(Path(args.config).read_text(encoding="utf-8"))
+    config_path = Path(args.config).resolve()
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    formal_config_path = (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").resolve()
+    if config_path == formal_config_path:
+        validate_formal_m0_config(config)
+    validate_fixed_backtest_contract(config)
     strategy_name = args.strategy or config["strategy"]
-    source = "synthetic" if args.synthetic_data else (args.data_source or config.get("data_source", "yfinance"))
+    source = "synthetic" if args.synthetic_data else (
+        args.data_source or config.get("data_source", "yfinance")
+    )
+    if config_path == formal_config_path and strategy_name == "tradingagents" and source != "snapshot":
+        raise ValueError("formal M0 TradingAgents execution requires data_source=snapshot")
     schedule = ExchangeSchedule(config["calendar"])
     events = schedule.weekly_events(config["first_calendar_week"], config["final_calendar_week"])
     if config.get("decision_weeks") != len(events):
         raise ValueError("configured decision week count does not match XNYS schedule")
+    rounds = resolve_research_rounds(config["research_depth"])
+    if (
+        int(config["max_debate_rounds"]) != rounds
+        or int(config["max_risk_discuss_rounds"]) != rounds
+    ):
+        raise ValueError("research depth and configured debate/risk rounds disagree")
+    warmup = schedule.preceding_sessions(
+        events[0].decision_session, config["warmup_sessions"]
+    )
+    data_start = warmup[0].date().isoformat()
+    warmup_metadata = {
+        "configured_warmup_sessions": int(config["warmup_sessions"]),
+        "actual_warmup_sessions": len(warmup),
+        "warmup_first_session": data_start,
+        "warmup_last_session": warmup[-1].date().isoformat(),
+        "first_decision_session": events[0].decision_session,
+    }
     total_cases = len(events) * len(config["symbols"])
     planned_cases = min(total_cases, args.max_cases) if args.max_cases is not None else total_cases
     if planned_cases < 0:
         raise ValueError("--max-cases must be non-negative")
     experiment_root = Path(args.output_root) / args.experiment_id
     git_sha = git_value("rev-parse", "HEAD")
+    protocol_mode = (
+        "formal_m0"
+        if (
+            config_path == formal_config_path
+            and strategy_name == "tradingagents"
+            and source == "snapshot"
+            and args.max_cases is None
+        )
+        else "engineering_validation" if config_path == formal_config_path else "custom"
+    )
+    decision_sessions = [event.decision_session for event in events]
     dry = {
         "experiment_id": args.experiment_id, "symbols": config["symbols"],
-        "decision_sessions": len(events), "estimated_cases": planned_cases,
+        "protocol_mode": protocol_mode,
+        "decision_sessions": len(events), "decision_weeks": len(events),
+        "expected_paid_agent_cases": total_cases, "estimated_cases": planned_cases,
+        "planned_cases": planned_cases,
         "requires_llm": strategy_name == "tradingagents", "data_source": source,
+        "snapshot_required": source == "snapshot",
+        "snapshot_dir_supplied": bool(args.snapshot_dir),
+        "snapshot_requirement": (
+            "snapshot required for execution" if source == "snapshot" else None
+        ),
+        "research_depth": config["research_depth"],
+        "debate_rounds": rounds,
+        "risk_rounds": rounds,
+        "llm_provider": config["llm_provider"],
+        "quick_model": config["quick_think_llm"],
+        "deep_model": config["deep_think_llm"],
+        "thinking_mode": config["deepseek_thinking"],
+        "temperature": float(config["temperature"]),
+        "selected_analysts": config["selected_analysts"],
+        "key_dates": {
+            "first_decision": events[0].decision_session,
+            "good_friday_week_decision": (
+                "2024-03-28" if "2024-03-28" in decision_sessions else None
+            ),
+            "last_decision": events[-1].decision_session,
+            "first_execution": events[0].execution_session,
+            "last_execution": events[-1].execution_session,
+            "final_valuation": config["final_valuation_session"],
+        },
+        "warmup": warmup_metadata,
+        "will_execute": False if args.dry_run else None,
+        "do_not_execute_paid_agent_cases": bool(args.dry_run and strategy_name == "tradingagents"),
         "output_path": str(experiment_root), "schedule": [event.to_dict() for event in events],
     }
     if args.dry_run:
         print(json.dumps(dry, indent=2))
         return experiment_root, "dry-run"
+
+    if source == "snapshot" and not args.snapshot_dir:
+        raise ValueError("--snapshot-dir is required with --data-source snapshot")
 
     run_id = new_run_id(git_sha)
     run_dir = experiment_root / "runs" / run_id
@@ -384,18 +483,24 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         "status": "running", "started_at": started,
     })
     try:
-        data_start = (
-            datetime.fromisoformat(config["first_calendar_week"]) - timedelta(days=400)
-        ).date().isoformat()
+        effective_config = {**config, "strategy": strategy_name, "data_source": source}
+        graph_config = resolve_graph_config(
+            effective_config,
+            results_dir=run_dir / "strategy" / "agent_results",
+            data_cache_dir=experiment_root / "runtime" / "data_cache",
+            historical_memory_dir=experiment_root / "runtime" / "memory",
+        )
+        graph_config_sha256 = compute_graph_config_sha256(graph_config)
         provider, market_data, data_manifest = materialize_inputs(
             source, args.snapshot_dir, config["symbols"], schedule, data_start,
-            config["final_valuation_session"], run_dir,
+            config["final_valuation_session"], run_dir, warmup_metadata,
         )
-        rounds = resolve_research_rounds(config["research_depth"])
         resolved = {
             **config, "experiment_id": args.experiment_id, "run_id": run_id,
             "strategy": strategy_name, "data_source": source,
+            "protocol_mode": protocol_mode,
             "requested_data_start": data_start,
+            **warmup_metadata,
             "actual_decision_count": planned_cases,
             "actual_dates": {
                 "decision_sessions": [event.decision_session for event in events],
@@ -408,9 +513,11 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
                 "raw prices; actions at effective open before orders using prior-close holdings"
             ),
             "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+            "graph_config_sha256": graph_config_sha256,
             "resume_requested": bool(args.resume),
         }
         write_json(run_dir / "config.resolved.json", resolved)
+        write_json(run_dir / "graph_config.resolved.json", sanitize_graph_config(graph_config))
         write_json(run_dir / "environment.json", environment(git_sha))
         write_json(run_dir / "artifact_schema.json", artifact_schema())
         pd.DataFrame([event.to_dict() for event in events]).to_csv(
@@ -419,6 +526,7 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         manifest = {
             **dry, "run_id": run_id, "git_sha": git_sha, "started_at": started,
             "artifact_schema_version": ARTIFACT_SCHEMA_VERSION,
+            "graph_config_sha256": graph_config_sha256,
             "resume_semantics": "deterministic replay from shared DecisionCache",
             "runtime_paths": {
                 "decision_cache": str(experiment_root / "runtime" / "decision_cache"),
@@ -431,6 +539,7 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
             strategy_name=strategy_name, experiment_id=args.experiment_id,
             experiment_root=experiment_root, run_dir=run_dir, git_sha=git_sha, events=events,
             data_start=data_start, planned_cases=planned_cases, force=args.force,
+            graph_config=graph_config,
         )
         benchmark_engine = engine(provider, schedule, config)
         spy = benchmark_engine.run(
@@ -471,10 +580,19 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         aggregate_root.mkdir(parents=True, exist_ok=False)
         aggregate.to_csv(aggregate_root / "equal_weight_equity.csv", index=False)
         write_json(aggregate_root / "equal_weight_metrics.json", aggregate_metrics)
+        if strategy_name == "tradingagents":
+            case_index, data_availability, llm_usage = collect_agent_analysis_records(
+                args.experiment_id, run_id, results,
+                run_dir / "strategy" / "cases", graph_config,
+            )
+        else:
+            case_index, data_availability, llm_usage = [], [], []
         analysis_ready(
             run_dir / "analysis_ready", experiment_id=args.experiment_id, run_id=run_id,
             results=results, stock_benchmarks=stock_benchmarks, spy=spy,
             aggregate=aggregate, aggregate_metrics=aggregate_metrics, market_data=market_data,
+            case_index=case_index, data_availability=data_availability,
+            llm_usage=llm_usage,
         )
         failures_root = run_dir / "failures"
         failures_root.mkdir(parents=True, exist_ok=False)
@@ -494,7 +612,7 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
                 ), schedule=schedule, config=config, strategy_name=strategy_name,
                 experiment_id=args.experiment_id, experiment_root=experiment_root,
                 run_dir=run_dir, git_sha=git_sha, events=events, data_start=data_start,
-                planned_cases=planned_cases, force=False,
+                planned_cases=planned_cases, force=False, graph_config=graph_config,
             )
             for symbol, replay in replay_results.items():
                 benchmark = stock_benchmarks[symbol]
@@ -530,6 +648,18 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
             "started_at": started, "completed_at": completed,
         }
         write_json(status_path, final_status)
+        bundle_validation = validate_artifact_bundle(
+            run_dir, symbols=config["symbols"], strategy_name=strategy_name,
+            require_success=True,
+        )
+        validation["artifact_bundle"] = bundle_validation
+        if bundle_validation["status"] != "passed":
+            validation["status"] = "failed"
+            write_json(validation_root / "validation_report.json", validation)
+            raise RuntimeError(
+                "artifact completeness validation failed; see validation_report.json"
+            )
+        write_json(validation_root / "validation_report.json", validation)
         write_json(experiment_root / "latest.json", {
             **final_status, "run_path": str(run_dir),
         })

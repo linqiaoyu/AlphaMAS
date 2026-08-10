@@ -11,7 +11,6 @@ from unittest import mock
 
 import pytest
 
-import tradingagents.dataflows.config as config_module
 import tradingagents.default_config as default_config
 from tradingagents.dataflows import interface
 from tradingagents.dataflows.config import set_config
@@ -19,9 +18,7 @@ from tradingagents.dataflows.symbol_utils import NoMarketDataError
 
 
 def _reset_config():
-    # Hard reset: set_config() merges, so empty DEFAULT dicts (e.g. tool_vendors)
-    # don't clear keys leaked by other tests. Replace the global outright.
-    config_module._config = copy.deepcopy(default_config.DEFAULT_CONFIG)
+    set_config(copy.deepcopy(default_config.DEFAULT_CONFIG), replace=True)
 
 
 def _no_data(symbol, *a, **k):
