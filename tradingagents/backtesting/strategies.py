@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,16 +14,20 @@ from typing import Any, Protocol
 import pandas as pd
 
 from tradingagents.backtesting.cache import DecisionCache, cache_key
+from tradingagents.backtesting.config import graph_config_identity
 from tradingagents.backtesting.models import Action, DecisionStatus, StrategyDecision
+from tradingagents.backtesting.recorder import write_json
 from tradingagents.runtime.run_context import RunContext
 
 
-def target_for(action: Action, current_weight: float) -> float:
+def target_for(action: Action, current_weight: float, quantity: float = 0.0) -> float:
     if action is Action.BUY:
         return 1.0
     if action is Action.SELL:
         return 0.0
-    return 1.0 if current_weight > 0.5 else 0.0
+    # HOLD preserves the discrete long-only position. Using a 0.5 weight
+    # threshold would silently turn a large drawdown into a SELL.
+    return 1.0 if quantity > 0.0 else 0.0
 
 
 class Strategy(Protocol):
@@ -46,7 +51,9 @@ class BaseStrategy:
         return StrategyDecision(
             symbol=symbol, decision_session=decision_session,
             decision_time_utc=decision_time, action=action,
-            target_weight=target_for(action, portfolio_snapshot.current_weight),
+            target_weight=target_for(
+                action, portfolio_snapshot.current_weight, portfolio_snapshot.quantity
+            ),
             status=DecisionStatus.SUCCESS, reason=reason, strategy_id=self.strategy_id,
             experiment_id=context["experiment_id"], raw_signal=action.value,
             metadata=metadata or {},
@@ -125,41 +132,124 @@ class TradingAgentsStrategy(BaseStrategy):
     def __init__(
         self, graph: Any, *, reports_root: str | Path | None = None,
         cache: DecisionCache | None = None, cache_config: dict[str, Any] | None = None,
+        usage_callback: Any | None = None, run_root: str | Path | None = None,
         force: bool = False,
     ) -> None:
         self.graph = graph
         self.reports_root = Path(reports_root) if reports_root else None
         self.cache = cache
         self.cache_config = cache_config or {}
+        self.usage_callback = usage_callback
+        self.run_root = Path(run_root) if run_root else None
         self.force = force
 
     def _cache_payload(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         snapshot = kwargs["portfolio_snapshot"]
-        state = {
+        state = snapshot.to_dict() if hasattr(snapshot, "to_dict") else {
             "cash": snapshot.cash, "quantity": snapshot.quantity,
             "equity": snapshot.equity, "average_entry_price": snapshot.average_entry_price,
         }
         graph_config = getattr(self.graph, "config", {})
+        history_payload = kwargs["market_history"].to_csv(
+            lineterminator="\n", float_format="%.12g"
+        )
         return {
             "experiment_id": kwargs["context"]["experiment_id"],
             "symbol": kwargs["symbol"],
             "decision_time_utc": kwargs["decision_time"].isoformat(),
             "strategy_id": self.strategy_id,
             "selected_analysts": list(getattr(self.graph, "selected_analysts", ())),
-            "research_depth": graph_config.get("max_debate_rounds"),
+            "research_depth": graph_config.get("research_depth"),
+            "debate_rounds": graph_config.get("max_debate_rounds"),
+            "risk_rounds": graph_config.get("max_risk_discuss_rounds"),
             "quick_model": graph_config.get("quick_think_llm"),
             "deep_model": graph_config.get("deep_think_llm"),
             "provider": graph_config.get("llm_provider"),
+            "thinking_mode": graph_config.get("deepseek_thinking"),
             "temperature": graph_config.get("temperature"),
+            "output_language": graph_config.get("output_language"),
             "data_vendor_config": graph_config.get("data_vendors"),
-            "point_in_time": True,
+            "tool_vendor_config": graph_config.get("tool_vendors"),
+            "point_in_time": bool(kwargs["context"].get("point_in_time")),
+            "memory_mode": graph_config.get("memory_mode"),
+            "holding_horizon_sessions": graph_config.get(
+                "memory_holding_horizon_sessions"
+            ),
+            "graph_config_sha256": graph_config.get("graph_config_sha256"),
             "git_commit_sha": self.cache_config.get("git_commit_sha"),
             "prompt_config_version": self.cache_config.get("prompt_config_version", "v1"),
             "portfolio_state_hash": hashlib.sha256(
-                json.dumps(state, sort_keys=True).encode()
+                json.dumps(state, sort_keys=True, default=str).encode()
             ).hexdigest(),
+            "market_history_sha256": hashlib.sha256(history_payload.encode()).hexdigest(),
             "memory_namespace_version": self.cache_config.get("memory_namespace_version", "v1"),
         }
+
+    def _case_dir(self, symbol: str, session: str) -> Path | None:
+        if self.reports_root is None:
+            return None
+        path = self.reports_root / symbol / session
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _artifact_path(self, path: Path | None) -> str | None:
+        if path is None:
+            return None
+        if self.run_root is not None:
+            try:
+                return path.relative_to(self.run_root).as_posix()
+            except ValueError:
+                pass
+        return path.as_posix()
+
+    def _model_config(self) -> dict[str, Any]:
+        config = getattr(self.graph, "config", {})
+        return {
+            **graph_config_identity(config),
+            "graph_config_sha256": config.get("graph_config_sha256"),
+        }
+
+    def _write_case(
+        self, case_dir: Path | None, *, decision: StrategyDecision,
+        cache_payload: dict[str, Any], key: str, source_audit: dict[str, Any],
+        usage: list[dict[str, Any]], cache_status: str, wall_clock_seconds: float,
+        run_context: RunContext,
+    ) -> None:
+        if case_dir is None:
+            return
+        write_json(case_dir / "decision.json", decision.to_dict())
+        write_json(case_dir / "model_config.json", self._model_config())
+        write_json(case_dir / "run_context.json", {
+            "mode": run_context.mode,
+            "as_of": run_context.as_of.isoformat(),
+            "generated_at": run_context.generated_at.isoformat(),
+            "experiment_id": run_context.experiment_id,
+        })
+        write_json(case_dir / "cache_identity.json", {
+            "cache_key": key, "identity": cache_payload,
+        })
+        write_json(case_dir / "source_audit.json", source_audit)
+        write_json(case_dir / "llm_usage.json", usage)
+        write_json(case_dir / "case_metadata.json", {
+            "case_id": f"{decision.symbol}:{decision.decision_session}",
+            "cache_key": key,
+            "cache_status": cache_status,
+            "wall_clock_seconds": wall_clock_seconds,
+            "report_path": decision.metadata.get("report_path"),
+            "source_audit_path": decision.metadata.get("source_audit_path"),
+        })
+
+    @staticmethod
+    def _load_source_audit(graph: Any, symbol: str, context: RunContext) -> dict[str, Any]:
+        if not hasattr(graph, "_audit_path"):
+            return {}
+        audit_path = Path(graph._audit_path(symbol, context))
+        if not audit_path.is_file():
+            return {}
+        try:
+            return json.loads(audit_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
 
     def decide(self, **kwargs: Any) -> StrategyDecision:
         started = time.monotonic()
@@ -167,70 +257,142 @@ class TradingAgentsStrategy(BaseStrategy):
         session = kwargs["decision_session"]
         decision_time = kwargs["decision_time"]
         context = kwargs["context"]
-        key = cache_key(self._cache_payload(kwargs))
+        cache_payload = self._cache_payload(kwargs)
+        key = cache_key(cache_payload)
+        case_dir = self._case_dir(symbol, session)
+        run_context = RunContext.historical(
+            decision_time, generated_at=datetime.now(timezone.utc),
+            experiment_id=context["experiment_id"],
+        )
         if self.cache and not self.force:
-            cached = self.cache.load(key)
-            if cached:
+            bundle = self.cache.load_bundle(
+                key,
+                require_artifacts=case_dir is not None,
+                require_usage=case_dir is not None and self.usage_callback is not None,
+            )
+            if bundle:
+                cached = bundle["decision"]
                 cached_action = Action(cached["action"])
-                return StrategyDecision(
+                if case_dir is not None:
+                    reports = Path(bundle["path"]) / "reports"
+                    if reports.is_dir():
+                        shutil.copytree(reports, case_dir / "reports", dirs_exist_ok=True)
+                    if bundle.get("llm_usage"):
+                        write_json(
+                            case_dir / "cached_origin_llm_usage.json", bundle["llm_usage"]
+                        )
+                elapsed = time.monotonic() - started
+                metadata = {
+                    **cached.get("metadata", {}),
+                    "cache_key": key,
+                    "cache_status": "hit",
+                    "wall_clock_seconds": elapsed,
+                    "report_path": self._artifact_path(
+                        case_dir / "reports" if case_dir else None
+                    ),
+                    "source_audit_path": self._artifact_path(
+                        case_dir / "source_audit.json" if case_dir else None
+                    ),
+                    "model_config": self._model_config(),
+                }
+                decision = StrategyDecision(
                     symbol=symbol, decision_session=session,
                     decision_time_utc=decision_time, action=cached_action,
                     target_weight=cached["target_weight"], status=DecisionStatus.CACHED,
                     reason="exact cache hit", strategy_id=self.strategy_id,
                     experiment_id=context["experiment_id"],
                     raw_signal=cached.get("raw_signal", cached_action.value),
-                    metadata={**cached.get("metadata", {}), "cache_key": key},
+                    metadata=metadata,
                 )
+                self._write_case(
+                    case_dir, decision=decision, cache_payload=cache_payload, key=key,
+                    source_audit=bundle.get("source_audit", {}), usage=[],
+                    cache_status="hit", wall_clock_seconds=elapsed,
+                    run_context=run_context,
+                )
+                return decision
         if decision_time.tzinfo is None:
             raise ValueError("decision_time must be timezone-aware")
-        run_context = RunContext.historical(
-            decision_time, generated_at=datetime.now(timezone.utc),
-            experiment_id=context["experiment_id"],
-        )
+        case_id = f"{symbol}:{session}"
+        if self.usage_callback is not None:
+            self.usage_callback.start_case(
+                context["experiment_id"], case_id, symbol, session
+            )
+        usage: list[dict[str, Any]] = []
+        source_audit: dict[str, Any] = {}
+        cache_status = "bypass" if self.force else "miss"
         try:
             final_state, processed = self.graph.propagate(
                 symbol, session, mode="historical", run_context=run_context,
             )
+            if case_dir is not None:
+                report_dir = case_dir / "reports"
+                self.graph.save_reports(final_state, symbol, report_dir)
+            else:
+                report_dir = None
             raw = str(final_state.get("final_trade_decision", ""))
             action = strict_action(raw, str(processed))
-            if self.reports_root:
-                report_dir = self.reports_root / symbol / session / "reports"
-                self.graph.save_reports(final_state, symbol, report_dir)
+            source_audit = self._load_source_audit(self.graph, symbol, run_context)
+            elapsed = time.monotonic() - started
             metadata = {
-                "wall_clock_seconds": time.monotonic() - started,
+                "wall_clock_seconds": elapsed,
                 "run_context": {"mode": "historical", "as_of": decision_time.isoformat()},
-                "report_path": str(report_dir) if self.reports_root else None,
-                "model_config": {
-                    key: getattr(self.graph, "config", {}).get(key)
-                    for key in (
-                        "llm_provider", "quick_think_llm", "deep_think_llm",
-                        "temperature", "max_debate_rounds", "max_risk_discuss_rounds",
-                    )
-                },
+                "report_path": self._artifact_path(report_dir),
+                "source_audit_path": self._artifact_path(
+                    case_dir / "source_audit.json" if case_dir else None
+                ),
+                "cache_key": key,
+                "cache_status": cache_status,
+                "model_config": self._model_config(),
             }
             decision = self._decision(
                 action, reason="TradingAgents structured decision", metadata=metadata, **kwargs
             )
+            if self.usage_callback is not None:
+                usage = self.usage_callback.finish_case()
+            self._write_case(
+                case_dir, decision=decision, cache_payload=cache_payload, key=key,
+                source_audit=source_audit, usage=usage, cache_status=cache_status,
+                wall_clock_seconds=elapsed, run_context=run_context,
+            )
             if self.cache:
-                source_audit = {}
-                audit_path = None
-                if hasattr(self.graph, "_audit_path"):
-                    audit_path = self.graph._audit_path(symbol, run_context)
-                if audit_path and Path(audit_path).is_file():
-                    source_audit = json.loads(Path(audit_path).read_text(encoding="utf-8"))
                 self.cache.save_success(
                     key, decision.to_dict(), {
                         "wall_clock_seconds": metadata["wall_clock_seconds"],
                         "source_audit": source_audit,
-                        "report_path": metadata["report_path"],
+                        "report_path": str(report_dir) if report_dir else None,
+                        "llm_usage": usage,
                     }
                 )
             return decision
         except Exception as exc:
-            return StrategyDecision(
+            if self.usage_callback is not None:
+                usage = self.usage_callback.finish_case()
+            source_audit = self._load_source_audit(self.graph, symbol, run_context)
+            elapsed = time.monotonic() - started
+            metadata = {
+                "wall_clock_seconds": elapsed,
+                "cache_key": key,
+                "cache_status": cache_status,
+                "report_path": self._artifact_path(
+                    case_dir / "reports" if case_dir and (case_dir / "reports").is_dir()
+                    else None
+                ),
+                "source_audit_path": self._artifact_path(
+                    case_dir / "source_audit.json" if case_dir else None
+                ),
+                "model_config": self._model_config(),
+            }
+            decision = StrategyDecision(
                 symbol=symbol, decision_session=session, decision_time_utc=decision_time,
                 action=None, target_weight=None, status=DecisionStatus.FAILED,
                 reason=f"{type(exc).__name__}: {exc}", strategy_id=self.strategy_id,
                 experiment_id=context["experiment_id"], raw_signal="",
-                metadata={"wall_clock_seconds": time.monotonic() - started},
+                metadata=metadata,
             )
+            self._write_case(
+                case_dir, decision=decision, cache_payload=cache_payload, key=key,
+                source_audit=source_audit, usage=usage, cache_status=cache_status,
+                wall_clock_seconds=elapsed, run_context=run_context,
+            )
+            return decision

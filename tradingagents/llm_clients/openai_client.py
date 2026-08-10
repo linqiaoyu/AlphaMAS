@@ -12,6 +12,17 @@ from .base_client import BaseLLMClient, normalize_content
 from .capabilities import get_capabilities
 from .validators import validate_model
 
+DEEPSEEK_THINKING_MODES = frozenset({"enabled", "disabled"})
+
+
+def validate_deepseek_thinking(value: Any) -> str:
+    """Return a normalized DeepSeek thinking mode or fail loudly."""
+    mode = str(value).strip().lower()
+    if mode not in DEEPSEEK_THINKING_MODES:
+        allowed = ", ".join(sorted(DEEPSEEK_THINKING_MODES))
+        raise ValueError(f"deepseek_thinking must be one of: {allowed}; got {value!r}")
+    return mode
+
 
 class NormalizedChatOpenAI(ChatOpenAI):
     """ChatOpenAI with normalized content output and capability-aware binding.
@@ -320,6 +331,14 @@ class OpenAIClient(BaseLLMClient):
                 llm_kwargs["use_responses_api"] = True
         elif self.base_url:
             llm_kwargs["base_url"] = self.base_url
+
+        # DeepSeek accepts its provider-specific thinking switch inside the
+        # OpenAI SDK's ``extra_body``. The SDK merges this into the final JSON
+        # request body, producing ``thinking: {type: ...}``. Never forward it
+        # to native OpenAI or another compatible provider.
+        if self.provider == "deepseek" and self.kwargs.get("deepseek_thinking") is not None:
+            mode = validate_deepseek_thinking(self.kwargs["deepseek_thinking"])
+            llm_kwargs["extra_body"] = {"thinking": {"type": mode}}
 
         # Forward user-provided kwargs
         for key in _PASSTHROUGH_KWARGS:

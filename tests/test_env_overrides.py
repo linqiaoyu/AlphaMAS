@@ -26,6 +26,7 @@ def test_no_env_uses_built_in_defaults(monkeypatch):
     assert dc.DEFAULT_CONFIG["backend_url"] is None
     assert dc.DEFAULT_CONFIG["max_debate_rounds"] == 1
     assert dc.DEFAULT_CONFIG["checkpoint_enabled"] is False
+    assert dc.DEFAULT_CONFIG["deepseek_thinking"] is None
 
 
 def test_string_overrides(monkeypatch):
@@ -75,10 +76,12 @@ def test_reasoning_thinking_overrides(monkeypatch):
         TRADINGAGENTS_OPENAI_REASONING_EFFORT="high",
         TRADINGAGENTS_GOOGLE_THINKING_LEVEL="minimal",
         TRADINGAGENTS_ANTHROPIC_EFFORT="low",
+        TRADINGAGENTS_DEEPSEEK_THINKING="disabled",
     )
     assert dc.DEFAULT_CONFIG["openai_reasoning_effort"] == "high"
     assert dc.DEFAULT_CONFIG["google_thinking_level"] == "minimal"
     assert dc.DEFAULT_CONFIG["anthropic_effort"] == "low"
+    assert dc.DEFAULT_CONFIG["deepseek_thinking"] == "disabled"
 
 
 def test_reasoning_effort_defaults_to_none(monkeypatch):
@@ -87,6 +90,7 @@ def test_reasoning_effort_defaults_to_none(monkeypatch):
     assert dc.DEFAULT_CONFIG["openai_reasoning_effort"] is None
     assert dc.DEFAULT_CONFIG["google_thinking_level"] is None
     assert dc.DEFAULT_CONFIG["anthropic_effort"] is None
+    assert dc.DEFAULT_CONFIG["deepseek_thinking"] is None
 
 
 def test_empty_env_value_is_passthrough(monkeypatch):

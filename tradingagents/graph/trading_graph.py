@@ -33,6 +33,7 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
+from tradingagents.llm_clients.openai_client import validate_deepseek_thinking
 from tradingagents.reporting import write_report_tree
 from tradingagents.runtime.run_context import (
     AuditTrail,
@@ -93,8 +94,10 @@ class TradingAgentsGraph:
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
 
-        # Update the interface's config
-        set_config(self.config)
+        # The Graph receives a complete resolved configuration. Replace the
+        # dataflow process-global state so an explicit empty mapping (notably
+        # tool_vendors={}) clears overrides left by an earlier Graph instance.
+        set_config(self.config, replace=True)
 
         # Create necessary directories
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
@@ -181,6 +184,11 @@ class TradingAgentsGraph:
             if effort:
                 kwargs["effort"] = effort
 
+        elif provider == "deepseek":
+            thinking = self.config.get("deepseek_thinking")
+            if thinking is not None and thinking != "":
+                kwargs["deepseek_thinking"] = validate_deepseek_thinking(thinking)
+
         # Sampling temperature is cross-provider: forward it whenever set.
         # float() here so a value coming from a TRADINGAGENTS_TEMPERATURE env
         # string ("0.2") works the same as a programmatic float.
@@ -259,8 +267,20 @@ class TradingAgentsGraph:
                 return benchmark
         return benchmark_map.get("", "SPY")
 
+    def _memory_holding_horizon_sessions(self) -> int:
+        config = getattr(self, "config", {})
+        value = (
+            config.get("memory_holding_horizon_sessions", 5)
+            if isinstance(config, dict) else 5
+        )
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("memory_holding_horizon_sessions must be a positive integer")
+        if value <= 0:
+            raise ValueError("memory_holding_horizon_sessions must be a positive integer")
+        return value
+
     def _fetch_returns(
-        self, ticker: str, trade_date: str, holding_days: int = 5,
+        self, ticker: str, trade_date: str, holding_days: int | None = None,
         benchmark: str = "SPY",
     ) -> tuple[float | None, float | None, int | None]:
         """Fetch raw and alpha return for ticker over holding_days from trade_date.
@@ -271,6 +291,11 @@ class TradingAgentsGraph:
         unavailable (too recent, delisted, or network error).
         """
         from tradingagents.dataflows.symbol_utils import normalize_symbol
+
+        if holding_days is None:
+            # Call the implementation on the class so ``MagicMock(spec=Graph)``
+            # compatibility tests cannot replace this helper with a mock value.
+            holding_days = TradingAgentsGraph._memory_holding_horizon_sessions(self)
 
         try:
             start = datetime.strptime(trade_date, "%Y-%m-%d")
@@ -359,10 +384,11 @@ class TradingAgentsGraph:
             return
 
         benchmark = self._resolve_benchmark(ticker)
+        holding_days = self._memory_holding_horizon_sessions()
         updates = []
         for entry in pending:
             raw, alpha, days = self._fetch_returns(
-                ticker, entry["date"], benchmark=benchmark,
+                ticker, entry["date"], holding_days=holding_days, benchmark=benchmark,
             )
             if raw is None:
                 continue  # price not available yet — try again next run
@@ -433,7 +459,18 @@ class TradingAgentsGraph:
                 if not context.experiment_id:
                     raise ValueError("experiment memory requires RunContext.experiment_id")
                 experiment = safe_ticker_component(context.experiment_id, max_len=128)
-                path = root / experiment / f"{safe_symbol}.md"
+                graph_hash = config.get("graph_config_sha256")
+                if not isinstance(graph_hash, str) or len(graph_hash) != 64:
+                    raise ValueError(
+                        "experiment memory requires a resolved graph_config_sha256"
+                    )
+                try:
+                    int(graph_hash, 16)
+                except ValueError as exc:
+                    raise ValueError(
+                        "experiment memory requires a resolved graph_config_sha256"
+                    ) from exc
+                path = root / experiment / graph_hash / f"{safe_symbol}.md"
             else:
                 path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"
         config["memory_log_path"] = str(path)

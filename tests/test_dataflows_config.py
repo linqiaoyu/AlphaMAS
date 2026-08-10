@@ -12,7 +12,7 @@ from tradingagents.dataflows.config import get_config, set_config
 @pytest.mark.unit
 class DataflowsConfigIsolationTests(unittest.TestCase):
     def setUp(self):
-        set_config(copy.deepcopy(default_config.DEFAULT_CONFIG))
+        set_config(copy.deepcopy(default_config.DEFAULT_CONFIG), replace=True)
 
     def test_get_config_returns_deep_copy(self):
         cfg = get_config()
@@ -59,3 +59,12 @@ class DataflowsConfigIsolationTests(unittest.TestCase):
         fresh = get_config()
         self.assertEqual(fresh["tool_vendors"]["get_stock_data"], "alpha_vantage")
         self.assertEqual(fresh["tool_vendors"]["get_news"], "alpha_vantage")
+
+    def test_resolved_config_replace_clears_stale_nested_overrides(self):
+        set_config({"tool_vendors": {"get_news": "alpha_vantage"}})
+
+        resolved = copy.deepcopy(default_config.DEFAULT_CONFIG)
+        resolved["tool_vendors"] = {}
+        set_config(resolved, replace=True)
+
+        self.assertEqual(get_config()["tool_vendors"], {})

@@ -55,9 +55,9 @@ class WeeklyBacktestEngine:
         valuation_sessions = self.schedule.sessions(
             events[0].decision_session, final_valuation_session,
         )
-        data_start = warmup_start or (
-            pd.Timestamp(events[0].decision_session) - pd.Timedelta(days=400)
-        ).date().isoformat()
+        data_start = warmup_start or self.schedule.preceding_sessions(
+            events[0].decision_session, 252,
+        )[0].date().isoformat()
         data = normalize_ohlcv(self.data_provider.load(symbol, data_start, final_valuation_session))
         missing = [session.date().isoformat() for session in valuation_sessions if session.tz_localize(None) not in data.index]
         if missing:
