@@ -1,0 +1,63 @@
+{
+  "manifest_id": "M1-FinMultiTime-Evidence-Contract-Freeze",
+  "contract_version": "M1-FINMULTITIME-v1.0",
+  "status": "FROZEN",
+  "freeze_date": "2026-08-12",
+  "source_parent_sha": "9f722d71d52d17432e8cc3d0391721d02aaf259d",
+  "frozen_m0_base_sha": "2535896c8b1070b19c06fa6a936663babb4356f7",
+  "raw_finmultitime_root": "/Volumes/Jackson/Dataset/FinMultiTime",
+  "source_data_identities": {
+    "news": "text/sp500_news.zip",
+    "table": "table/SP500_tabular.zip",
+    "time_series": "time_series/S&P500_time_series.zip",
+    "image": "image/image/S&P500_image_*",
+    "data_audit": {
+      "path": "docs/m1/finmultitime_data_audit.json",
+      "sha256": "f0f84e5e7b80e8d94ee33d5b380fb4fb3824352aaddd653f336dce851cee68ef",
+      "exists_before_contract_generation": true
+    },
+    "m0_snapshot": "/Users/yulinqiao/Desktop/FTIPFinal/AlphaMAS/results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs"
+  },
+  "artifacts": {
+    "M1_EVIDENCE_CONTRACT.md": {
+      "path": "docs/m1/M1_EVIDENCE_CONTRACT.md",
+      "sha256": "a3a7a719732a7e1ac56179ac7cf13a0d9ce13f30c8957b127bac996d8e0220db"
+    },
+    "m1_evidence_contract.json": {
+      "path": "docs/m1/m1_evidence_contract.json",
+      "sha256": "cd3ef3f127551c1775bc4aa803556cf071b264e72cde52072a901213c93a29b6"
+    },
+    "m1_evidence_contract_case_simulation.csv": {
+      "path": "docs/m1/m1_evidence_contract_case_simulation.csv",
+      "sha256": "7ac0ed892497e30d8e4078a7bebe0bbcae5c8b64bc5d83e0a4af181678a81830"
+    },
+    "finmultitime_table_concept_coverage.csv": {
+      "path": "docs/m1/finmultitime_table_concept_coverage.csv",
+      "sha256": "48187c87a68db6ce400449df4656bf3106feee77ed75503b2e8108c37b372f01"
+    },
+    "finmultitime_news_deduplication.csv": {
+      "path": "docs/m1/finmultitime_news_deduplication.csv",
+      "sha256": "947c79001ad4a2435973f43ab35a0807d8ef9f2320917b1b7eefdca715e7cf0c"
+    },
+    "finmultitime_ohlc_anomalies.csv": {
+      "path": "docs/m1/finmultitime_ohlc_anomalies.csv",
+      "sha256": "a2aac583a6b14e05c9c7697f72503d753cf045bad7f514115705db120bef1b0c"
+    },
+    "finmultitime_timeseries_semantics.md": {
+      "path": "docs/m1/finmultitime_timeseries_semantics.md",
+      "sha256": "fc54fbe62cb79f16e78275adbbd6269d5c1c573b0a14db386a8aced771f79ef5"
+    },
+    "finmultitime_timeseries_consistency.csv": {
+      "path": "docs/m1/finmultitime_timeseries_consistency.csv",
+      "sha256": "28a938a6f0131621d7a1d902e1db6d174ba4bbd6958c61f69a42ececd728abc0"
+    },
+    "m1_evidence_contract_table_selection_diagnostics.csv": {
+      "path": "docs/m1/m1_evidence_contract_table_selection_diagnostics.csv",
+      "sha256": "5b91d74955263678edb21021e2e0d263950274ed118c37b04ae2c77e23bb2234"
+    }
+  },
+  "selection_contract_not_input_freeze": true,
+  "final_processed_subset_built": false,
+  "final_evidence_packets_built": false,
+  "m1_input_sha_bundle_built": false
+}

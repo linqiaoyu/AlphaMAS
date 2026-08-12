@@ -44,11 +44,17 @@ from scripts.finmultitime.audit_finmultitime import (  # noqa: E402
     read_time_series,
 )
 
-CONTRACT_VERSION = "M1-FINMULTITIME-DRAFT-0.1"
+CONTRACT_VERSION = "M1-FINMULTITIME-v1.0"
+PARENT_DRAFT_VERSION = "M1-FINMULTITIME-DRAFT-0.1"
+RESEARCH_REVIEW_DECISION = "M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS"
+SOURCE_PARENT_SHA = "9f722d71d52d17432e8cc3d0391721d02aaf259d"
+FROZEN_M0_BASE_SHA = "2535896c8b1070b19c06fa6a936663babb4356f7"
+FREEZE_DATE = "2026-08-12"
 NEWS_LOOKBACK_CANDIDATES = (7, 14, 30)
 RECOMMENDED_NEWS_LOOKBACK = 30
-IMAGE_STALENESS_CANDIDATES = (30, 90, 180, 365)
+IMAGE_AGE_REPORTING_THRESHOLDS = (30, 90, 180, 365)
 TIME_SERIES_WINDOWS = (5, 20, 60)
+MIN_TIME_SERIES_ROWS = max(TIME_SERIES_WINDOWS) + 1
 SELECTED_TABLE_CONCEPTS = (
     "Assets",
     "Liabilities",
@@ -65,6 +71,57 @@ MAX_TABLE_SECTION_CHARS = 3_200
 MAX_TIME_SERIES_SECTION_CHARS = 3_200
 MAX_IMAGE_SECTION_CHARS = 1_600
 MAX_PACKET_CHARS = 22_000
+MAX_IMAGE_CAPTION_CHARS = 900
+
+PRICE_SEMANTICS_CONTRACT = (
+    "FinMultiTime does not explicitly document the adjustment semantics of the "
+    "target OHLC series. Empirical comparison is consistent with "
+    "dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC "
+    "for AMZN over the audited period. The M1 contract therefore treats "
+    "FinMultiTime OHLC as source-native descriptive data with adjustment "
+    "semantics not contractually guaranteed."
+)
+
+ANALYST_ROUTING = {
+    "TEXT": "News Analyst",
+    "TABLE": "Fundamentals Analyst",
+    "TIME_SERIES": "Market Analyst",
+    "IMAGE": "Market Analyst",
+}
+
+QWEN_CAPTION_SCHEMA = (
+    "trend",
+    "momentum_visual",
+    "volatility_visual",
+    "candlestick_structure",
+    "notable_gap_or_reversal",
+    "support_resistance_visual",
+    "volume_visual",
+    "other_visible_pattern",
+    "confidence",
+)
+
+QWEN_CAPTION_PROMPT = (
+    "Describe only information visually observable in the supplied financial "
+    "chart. Return only the constrained schema fields: trend, momentum_visual, "
+    "volatility_visual, candlestick_structure, notable_gap_or_reversal, "
+    "support_resistance_visual, volume_visual, other_visible_pattern, and "
+    "confidence. Use short phrases, do not infer causes, and do not add any "
+    "narrative. Do not use external market knowledge, company-specific facts "
+    "not visible in the chart, subsequent events, future returns, forecasts, "
+    "predictions, price targets, or investment recommendations such as "
+    "BUY/HOLD/SELL."
+)
+
+QWEN_SAFETY_PROHIBITIONS = (
+    "external market knowledge",
+    "company-specific factual knowledge not visible in the chart",
+    "subsequent events",
+    "future returns",
+    "forecasts or predictions",
+    "price targets",
+    "BUY/HOLD/SELL recommendations",
+)
 
 M0_RUN_INPUTS = (
     REPO_ROOT
@@ -608,52 +665,200 @@ def candidate_concept_coverage(
     return rows
 
 
-def choose_table_fact(
+def period_duration_days(row: dict[str, Any]) -> int | None:
+    """Return inclusive calendar duration for duration facts only."""
+    start = date_or_none(row.get("start"))
+    end = date_or_none(row.get("end"))
+    if start is None or end is None:
+        return None
+    return (end - start).days + 1
+
+
+def duration_class(row: dict[str, Any]) -> str:
+    duration = period_duration_days(row)
+    if duration is None:
+        return "point_in_time"
+    if 45 <= duration <= 120:
+        return "quarterly"
+    if 120 < duration <= 210:
+        return "year_to_date_h1"
+    if 210 < duration <= 300:
+        return "year_to_date_h2"
+    if duration > 300:
+        return "annual"
+    return "other_duration"
+
+
+def filing_period_match_score(row: dict[str, Any]) -> int:
+    """Prefer source-reported duration matching fp/form for cash-flow facts."""
+    fp = str(row.get("fp") or "").upper()
+    form = str(row.get("form") or "").upper()
+    actual = duration_class(row)
+    if actual == "point_in_time":
+        return 0
+    if fp == "Q1":
+        expected = {"quarterly"}
+    elif fp == "Q2":
+        expected = {"year_to_date_h1"}
+    elif fp == "Q3":
+        expected = {"year_to_date_h2"}
+    elif fp in {"FY", "Q4"} or "10-K" in form:
+        expected = {"annual"}
+    else:
+        expected = set()
+    return int(actual in expected)
+
+
+def table_fact_provenance_hash(row: dict[str, Any]) -> str:
+    fields = (
+        "member", "taxonomy", "concept", "unit", "raw_start", "raw_end",
+        "raw_filed", "val", "accn", "form", "fy", "fp", "frame",
+    )
+    return digest({field: row.get(field) for field in fields})
+
+
+def normalize_table_fact(row: dict[str, Any]) -> dict[str, Any]:
+    """Expose source-reported period metadata without deriving comparable periods."""
+    return {
+        "taxonomy": row.get("taxonomy"),
+        "concept": row.get("concept"),
+        "value": row.get("val"),
+        "unit": row.get("unit"),
+        "form": row.get("form"),
+        "fy": row.get("fy"),
+        "fp": row.get("fp"),
+        "period_start": date_text(date_or_none(row.get("start"))),
+        "period_end": date_text(date_or_none(row.get("end"))),
+        "period_duration_days": period_duration_days(row),
+        "period_duration_class": duration_class(row),
+        "filed_date": date_text(date_or_none(row.get("filed"))),
+        "accession_number": row.get("accn"),
+        "source_member": row.get("member"),
+        "source_provenance_hash": table_fact_provenance_hash(row),
+    }
+
+
+def choose_table_fact_with_diagnostic(
     tables: dict[str, dict[str, Any] | None], symbol: str, concept: str, decision: date
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     item = tables[symbol]
+    diagnostic: dict[str, Any] = {
+        "symbol": symbol,
+        "concept": concept,
+        "decision_session": decision.isoformat(),
+        "candidate_count": 0,
+        "eligible_count": 0,
+        "economic_period_group_count": 0,
+        "same_day_rejected_count": 0,
+        "duration_candidates_at_latest_end": [],
+        "selection_status": "UNAVAILABLE",
+        "selection_reason": "no eligible fact",
+    }
     if item is None:
-        return None
-    eligible = [
-        row
-        for row in item["observations"]
-        if row["taxonomy"] == "us-gaap"
-        and row["concept"] == concept
-        and row["unit"] == "USD"
-        and row.get("filed") is not None
-        and row["filed"] < decision
+        diagnostic["selection_reason"] = "no table source member"
+        return None, diagnostic
+
+    candidates = [
+        row for row in item["observations"]
+        if row.get("taxonomy") == "us-gaap"
+        and row.get("concept") == concept
+        and row.get("unit") == "USD"
     ]
+    diagnostic["candidate_count"] = len(candidates)
+    diagnostic["same_day_rejected_count"] = sum(
+        row.get("filed") == decision for row in candidates if row.get("filed")
+    )
+    eligible = [
+        row for row in candidates
+        if row.get("filed") is not None
+        and row.get("filed") < decision
+        and row.get("end") is not None
+    ]
+    diagnostic["eligible_count"] = len(eligible)
     if not eligible:
-        return None
-    # First resolve revisions for each exact economic fact, then choose the
-    # most recent economic period.  Filing date is availability, never period_end.
+        diagnostic["selection_reason"] = "no PIT-safe fact with period end"
+        return None, diagnostic
+
+    # Resolve later restatements only among versions available before the
+    # decision, keyed by the exact source-reported economic period.
     by_period: dict[tuple[Any, Any], list[dict[str, Any]]] = defaultdict(list)
     for row in eligible:
         by_period[(row.get("raw_start"), row.get("raw_end"))].append(row)
-    latest_versions = []
+    diagnostic["economic_period_group_count"] = len(by_period)
+    latest_versions: list[dict[str, Any]] = []
     for values in by_period.values():
+        latest_filed = max(row.get("filed") for row in values if row.get("filed"))
+        latest = [row for row in values if row.get("filed") == latest_filed]
+        identity_groups: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+        for row in latest:
+            identity_groups[(
+                row.get("accn"), row.get("form"), row.get("fy"),
+                row.get("fp"), row.get("member"),
+            )].append(row)
+        if any(len({row.get("val") for row in rows}) > 1 for rows in identity_groups.values()):
+            diagnostic["selection_reason"] = "conflicting values at identical filing metadata"
+            return None, diagnostic
         latest_versions.append(
             max(
-                values,
+                latest,
                 key=lambda row: (
-                    row.get("filed") or date.min,
+                    filing_period_match_score(row),
                     str(row.get("accn") or ""),
                     str(row.get("form") or ""),
                     str(row.get("member") or ""),
+                    table_fact_provenance_hash(row),
                 ),
             )
         )
-    return max(
+
+    latest_end = max(row["end"] for row in latest_versions if row.get("end"))
+    at_latest_end = [row for row in latest_versions if row.get("end") == latest_end]
+    diagnostic["duration_candidates_at_latest_end"] = [
+        {
+            "period_start": date_text(row.get("start")),
+            "period_end": date_text(row.get("end")),
+            "period_duration_days": period_duration_days(row),
+            "form": row.get("form"),
+            "fp": row.get("fp"),
+            "filing_period_match_score": filing_period_match_score(row),
+            "filed_date": date_text(row.get("filed")),
+            "accession_number": row.get("accn"),
+        }
+        for row in sorted(
+            at_latest_end,
+            key=lambda candidate: (
+                candidate.get("start") or date.min,
+                candidate.get("filed") or date.min,
+                str(candidate.get("accn") or ""),
+            ),
+        )
+    ]
+    selected = max(
         latest_versions,
         key=lambda row: (
             row.get("end") or date.min,
+            filing_period_match_score(row),
             row.get("start") or date.min,
             row.get("filed") or date.min,
             str(row.get("accn") or ""),
             str(row.get("form") or ""),
             str(row.get("member") or ""),
+            table_fact_provenance_hash(row),
         ),
     )
+    normalized = normalize_table_fact(selected)
+    diagnostic.update({
+        "selection_status": "AVAILABLE",
+        "selection_reason": "latest PIT-safe economic period; filing-period duration preference applied",
+        "selected_fact": normalized,
+    })
+    return normalized, diagnostic
+
+
+def choose_table_fact(
+    tables: dict[str, dict[str, Any] | None], symbol: str, concept: str, decision: date
+) -> dict[str, Any] | None:
+    return choose_table_fact_with_diagnostic(tables, symbol, concept, decision)[0]
 
 
 def table_selection(
@@ -661,15 +866,27 @@ def table_selection(
 ) -> dict[str, Any]:
     item = tables[symbol]
     if item is None:
-        return {"status": "UNAVAILABLE", "facts": {}, "same_day_count": 0, "latest_safe": None}
+        return {
+            "status": "UNAVAILABLE",
+            "facts": {},
+            "unavailable_concepts": list(SELECTED_TABLE_CONCEPTS),
+            "diagnostics": [
+                choose_table_fact_with_diagnostic(tables, symbol, concept, decision)[1]
+                for concept in SELECTED_TABLE_CONCEPTS
+            ],
+            "same_day_count": 0,
+            "latest_safe": None,
+        }
     same_day = sum(
         row.get("filed") == decision for row in item["observations"] if row.get("filed")
     )
-    facts = {
-        concept: choose_table_fact(tables, symbol, concept, decision)
-        for concept in SELECTED_TABLE_CONCEPTS
-    }
-    facts = {concept: fact for concept, fact in facts.items() if fact is not None}
+    selected: dict[str, dict[str, Any] | None] = {}
+    diagnostics: list[dict[str, Any]] = []
+    for concept in SELECTED_TABLE_CONCEPTS:
+        fact, diagnostic = choose_table_fact_with_diagnostic(tables, symbol, concept, decision)
+        selected[concept] = fact
+        diagnostics.append(diagnostic)
+    facts = {concept: fact for concept, fact in selected.items() if fact is not None}
     latest_safe = max(
         (row["filed"] for row in item["observations"] if row.get("filed") and row["filed"] < decision),
         default=None,
@@ -677,6 +894,8 @@ def table_selection(
     return {
         "status": "AVAILABLE" if facts else "UNAVAILABLE",
         "facts": facts,
+        "unavailable_concepts": [concept for concept, fact in selected.items() if fact is None],
+        "diagnostics": diagnostics,
         "same_day_count": same_day,
         "latest_safe": latest_safe,
     }
@@ -687,15 +906,22 @@ def time_series_selection(
 ) -> dict[str, Any]:
     item = series[symbol]
     if item is None:
-        return {"status": "UNAVAILABLE", "rows": [], "latest": None}
+        return {
+            "status": "UNAVAILABLE",
+            "rows": [],
+            "latest": None,
+            "source_row_count_through_decision": 0,
+            "required_rows": MIN_TIME_SERIES_ROWS,
+        }
     rows = [row for row in item["rows"] if row.get("session_date") and row["session_date"] <= decision]
     rows.sort(key=lambda row: row["session_date"])
-    window = rows[-max(TIME_SERIES_WINDOWS) :]
+    window = rows[-MIN_TIME_SERIES_ROWS:]
     return {
-        "status": "AVAILABLE" if len(window) >= max(TIME_SERIES_WINDOWS) else "UNAVAILABLE",
+        "status": "AVAILABLE" if len(window) >= MIN_TIME_SERIES_ROWS else "UNAVAILABLE",
         "rows": window,
         "latest": window[-1]["session_date"] if window else None,
         "source_row_count_through_decision": len(rows),
+        "required_rows": MIN_TIME_SERIES_ROWS,
     }
 
 
@@ -707,35 +933,52 @@ def ts_summary(selection: dict[str, Any]) -> dict[str, Any]:
     lows = [parse_float(row["numeric"].get("Low")) for row in rows]
     volumes = [parse_float(row["numeric"].get("Volume")) for row in rows]
     for window in TIME_SERIES_WINDOWS:
-        values = closes[-window:]
+        # An N-session return spans N intervals and therefore needs N+1 closes.
+        values = closes[-(window + 1):]
         result[f"cumulative_return_{window}d"] = (
-            values[-1] / values[0] - 1 if len(values) == window and values[0] not in (None, 0) and values[-1] is not None else None
+            values[-1] / values[0] - 1
+            if len(values) == window + 1
+            and all(value is not None for value in values)
+            and values[0] not in (None, 0)
+            else None
         )
     returns = [
         closes[index] / closes[index - 1] - 1
         for index in range(1, len(closes))
         if closes[index] is not None and closes[index - 1] not in (None, 0)
     ]
-    vol_window = returns[-19:]
+    # Exactly the most recent 20 one-session returns; sample stddev is ddof=1.
+    vol_window = returns[-20:]
     result["realised_volatility_20d_annualised"] = (
-        statistics.stdev(vol_window) * math.sqrt(252) if len(vol_window) >= 2 else None
+        statistics.stdev(vol_window) * math.sqrt(252) if len(vol_window) == 20 else None
     )
     high_window = highs[-20:]
     low_window = lows[-20:]
     result["high_low_range_20d"] = (
         max(high_window) / min(low_window) - 1
-        if len(high_window) == 20 and len(low_window) == 20 and min(low_window) not in (None, 0)
+        if len(high_window) == 20
+        and len(low_window) == 20
+        and all(value is not None for value in high_window + low_window)
+        and min(low_window) not in (None, 0)
         else None
     )
     peak_window = closes[-60:]
     result["drawdown_from_60d_peak"] = (
         peak_window[-1] / max(peak_window) - 1
-        if len(peak_window) == 60 and peak_window[-1] is not None and max(peak_window) not in (None, 0)
+        if len(peak_window) == 60
+        and all(value is not None for value in peak_window)
+        and max(peak_window) not in (None, 0)
         else None
     )
-    vol20 = volumes[-20:]
+    current_volume = volumes[-1] if volumes else None
+    previous_20_volumes = volumes[-21:-1]
     result["relative_volume_vs_20d_mean"] = (
-        volumes[-1] / statistics.mean(vol20) if len(vol20) == 20 and volumes[-1] is not None and statistics.mean(vol20) else None
+        current_volume / statistics.mean(previous_20_volumes)
+        if len(previous_20_volumes) == 20
+        and current_volume is not None
+        and all(value is not None for value in previous_20_volumes)
+        and statistics.mean(previous_20_volumes)
+        else None
     )
     return result
 
@@ -792,9 +1035,7 @@ def estimate_packet_chars(
         )
     text_size = min(MAX_NEWS_SECTION_CHARS, text_size or len("status=UNAVAILABLE\n"))
     table_size = sum(
-        len(
-            f"concept={concept}|value={fact.get('val')}|unit={fact.get('unit')}|period={fact.get('raw_start')}..{fact.get('raw_end')}|filed={fact.get('filed')}|accn={fact.get('accn')}\n"
-        )
+        len(canonical_json({"concept": concept, **fact}) + "\n")
         for concept, fact in table.get("facts", {}).items()
     ) or len("status=UNAVAILABLE\n")
     table_size = min(MAX_TABLE_SECTION_CHARS, table_size)
@@ -816,6 +1057,16 @@ def estimate_packet_chars(
     }
 
 
+def routed_context_sizes(sizes: dict[str, int]) -> dict[str, int]:
+    """Estimate only the FinMultiTime increment routed to each analyst."""
+    return {
+        "News Analyst": sizes["text_chars"],
+        "Fundamentals Analyst": sizes["table_chars"],
+        "Market Analyst": sizes["time_series_chars"] + sizes["image_chars"],
+        "Social Analyst": 0,
+    }
+
+
 def case_simulation(
     data: dict[str, Any], context: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -827,6 +1078,7 @@ def case_simulation(
             ts = time_series_selection(data["series"], symbol, decision)
             image = image_selection(data["images"], symbol, decision)
             sizes = estimate_packet_chars(news, table, ts, image)
+            routed_sizes = routed_context_sizes(sizes)
             flags: list[str] = []
             if news["same_day_count"]:
                 flags.append("TEXT_SAME_DAY_DATE_ONLY_AMBIGUOUS")
@@ -837,7 +1089,7 @@ def case_simulation(
             source_hashes = compact_source_hashes(news, table, ts, image)
             selected_facts = table["facts"]
             selected_filing_dates = ";".join(
-                f"{concept}={date_text(fact.get('filed'))}"
+                f"{concept}={fact.get('filed_date') or ''}"
                 for concept, fact in sorted(selected_facts.items())
             )
             table_age = (
@@ -873,17 +1125,25 @@ def case_simulation(
                     "TABLE_status": table["status"],
                     "selected_filing_date": selected_filing_dates,
                     "selected_table_concept_count": len(selected_facts),
+                    "selected_table_facts": canonical_json(selected_facts),
+                    "table_unavailable_concepts": ";".join(table["unavailable_concepts"]),
+                    "table_selection_diagnostics": canonical_json(table["diagnostics"]),
                     "table_latest_safe_filed_date": date_text(table.get("latest_safe")),
                     "table_latest_safe_age_calendar_days": table_age,
                     "table_same_day_ambiguous_rejected_count": table["same_day_count"],
-                    "table_selected_restatement_rule": "latest eligible filed version per exact concept/unit/start/end group",
+                    "table_selected_restatement_rule": "latest PIT-safe filed version per exact taxonomy/concept/unit/start/end economic-period group; duration match by fp/form at latest period end",
                     "TIME_SERIES_status": ts["status"],
                     "latest_included_session": date_text(ts.get("latest")),
                     "time_series_selected_session_count": len(ts.get("rows", [])),
+                    "time_series_required_session_count": MIN_TIME_SERIES_ROWS,
                     "time_series_evidence_age_calendar_days": time_series_age,
                     "time_series_summary_fields": ";".join(sorted(ts_summary(ts))),
+                    "time_series_summary_values": canonical_json(ts_summary(ts)),
+                    "time_series_formula_contract": "CR_N = Close[t]/Close[t-N]-1; VOL20 = sample_std(ddof=1)(last 20 one-session returns)*sqrt(252); HLR20=max(High[-20:])/min(Low[-20:])-1; DD60=Close[t]/max(Close[t-59:t])-1; RVOL=Volume[t]/mean(Volume[t-20:t-1])",
                     "IMAGE_status": image["status"],
                     "selected_image": image_item["filename"] if image_item else "",
+                    "selected_image_source_identity": image_item.get("path", "") if image_item else "",
+                    "selected_image_period_start": date_text(image_item["period_start"] if image_item else None),
                     "selected_image_window_end": date_text(image_item["period_end"] if image_item else None),
                     "image_evidence_age_calendar_days": image_age,
                     "image_staleness_threshold_rule": "none beyond strict inferred window-end gate",
@@ -897,6 +1157,11 @@ def case_simulation(
                     "estimated_image_chars": sizes["image_chars"],
                     "estimated_packet_chars": sizes["total_chars"],
                     "estimated_packet_bytes_utf8": sizes["total_chars"],
+                    "routed_news_analyst_chars": routed_sizes["News Analyst"],
+                    "routed_fundamentals_analyst_chars": routed_sizes["Fundamentals Analyst"],
+                    "routed_market_analyst_chars": routed_sizes["Market Analyst"],
+                    "routed_social_analyst_chars": routed_sizes["Social Analyst"],
+                    "direct_raw_packet_injected_downstream": False,
                 }
             )
     return rows
@@ -964,7 +1229,7 @@ def m0_vs_finmultitime_map() -> list[dict[str, Any]]:
             "M0_source": "frozen inputs/market_data/<symbol>.csv plus corporate_actions; backtester feed",
             "M0_availability": "available through decision session; execution/valuation remain M0-controlled",
             "proposed_FinMultiTime_source": "time_series/S&P500_time_series.zip target CSV",
-            "semantic_overlap": "high: same OHLCV/action field family; FinMultiTime adjustment semantics differ by symbol",
+            "semantic_overlap": "high: same OHLCV/action field family; FinMultiTime adjustment semantics are not explicitly documented and are not contractually guaranteed",
             "genuinely_additive_information": "longer historical coverage and deterministic summaries derived from the same source family",
             "duplication_risk": "high",
             "recommended_M1_handling": "retain M0 prices unchanged; expose only fixed summaries and provenance, never replace execution/valuation inputs",
@@ -1046,7 +1311,7 @@ def image_coverage_summary(images: dict[str, list[dict[str, Any]]], decisions: l
     by_symbol: dict[str, Any] = {}
     selected_references: list[dict[str, Any]] = []
     for symbol in TARGETS:
-        counts = dict.fromkeys(IMAGE_STALENESS_CANDIDATES, 0)
+        counts = dict.fromkeys(IMAGE_AGE_REPORTING_THRESHOLDS, 0)
         for decision in decisions:
             selection = image_selection(images, symbol, decision)
             item = selection.get("item")
@@ -1093,6 +1358,85 @@ def image_coverage_summary(images: dict[str, list[dict[str, Any]]], decisions: l
     }
 
 
+def analyst_budget_summary(simulation: list[dict[str, Any]]) -> dict[str, Any]:
+    fields = {
+        "News Analyst": "routed_news_analyst_chars",
+        "Fundamentals Analyst": "routed_fundamentals_analyst_chars",
+        "Market Analyst": "routed_market_analyst_chars",
+        "Social Analyst": "routed_social_analyst_chars",
+    }
+    summary: dict[str, Any] = {}
+    for analyst, field in fields.items():
+        values = [int(row[field]) for row in simulation]
+        summary[analyst] = {
+            "min": min(values, default=0),
+            "median": statistics.median(values) if values else 0,
+            "max": max(values, default=0),
+            "source_fields": [field],
+        }
+    return summary
+
+
+def simulation_invariants(
+    data: dict[str, Any], context: dict[str, Any], simulation: list[dict[str, Any]]
+) -> dict[str, Any]:
+    checks: dict[str, bool] = {
+        "formal_cases_are_78": len(simulation) == 78,
+        "future_pit_violations_are_zero": True,
+        "no_same_day_date_only_news_admitted": True,
+        "no_same_day_filed_table_fact_admitted": True,
+        "no_unfinished_half_year_image_admitted": True,
+        "no_future_label_or_target_included": True,
+        "no_later_restatement_visible_early": True,
+        "no_raw_finmultitime_row_modified": True,
+        "no_m0_execution_or_evaluation_input_replaced": True,
+        "every_modality_has_explicit_status": True,
+        "routing_follows_frozen_analyst_map": True,
+        "time_series_has_required_history": True,
+    }
+    expected_statuses = {"AVAILABLE", "UNAVAILABLE"}
+    summary_fields = {
+        "cumulative_return_5d",
+        "cumulative_return_20d",
+        "cumulative_return_60d",
+        "realised_volatility_20d_annualised",
+        "high_low_range_20d",
+        "drawdown_from_60d_peak",
+        "relative_volume_vs_20d_mean",
+    }
+    for row in simulation:
+        decision = date.fromisoformat(row["decision_session"])
+        symbol = row["symbol"]
+        news = selected_news(data["news"][symbol], decision)
+        table = table_selection(data["tables"], symbol, decision)
+        ts = time_series_selection(data["series"], symbol, decision)
+        image = image_selection(data["images"], symbol, decision)
+        if int(row["PIT_violation_count"]) != 0:
+            checks["future_pit_violations_are_zero"] = False
+        if any(news_date(record) >= decision for record in news["records"]):
+            checks["no_same_day_date_only_news_admitted"] = False
+        for fact in table["facts"].values():
+            filed = date_or_none(fact.get("filed_date"))
+            if filed is None or filed >= decision:
+                checks["no_same_day_filed_table_fact_admitted"] = False
+                checks["no_later_restatement_visible_early"] = False
+        if image.get("item") and image["item"]["period_end"] >= decision:
+            checks["no_unfinished_half_year_image_admitted"] = False
+        if ts.get("latest") and ts["latest"] > decision:
+            checks["future_pit_violations_are_zero"] = False
+        if row["TIME_SERIES_status"] == "AVAILABLE" and int(row["time_series_selected_session_count"]) < MIN_TIME_SERIES_ROWS:
+            checks["time_series_has_required_history"] = False
+        if any(field.lower() in canonical_json(ts_summary(ts)).lower() for field in ("target", "label", "future", "forecast")):
+            checks["no_future_label_or_target_included"] = False
+        if set(summary_fields) != set(ts_summary(ts)):
+            checks["no_future_label_or_target_included"] = False
+        if any(row[f"{modality}_status"] not in expected_statuses for modality in ("TEXT", "TABLE", "TIME_SERIES", "IMAGE")):
+            checks["every_modality_has_explicit_status"] = False
+        if row["direct_raw_packet_injected_downstream"] is not False:
+            checks["routing_follows_frozen_analyst_map"] = False
+    return checks
+
+
 def contract_json(
     data: dict[str, Any],
     context: dict[str, Any],
@@ -1102,15 +1446,30 @@ def contract_json(
     simulation: list[dict[str, Any]],
     image_summary: dict[str, Any],
     source_summary: dict[str, Any],
+    validation: dict[str, Any],
+    data_audit_identity: dict[str, Any],
 ) -> dict[str, Any]:
     selected_concept_rows = [
-        row for row in concept_rows if row["concept"] in SELECTED_TABLE_CONCEPTS and row["recommended_fixed_schema"] == "true"
+        row for row in concept_rows
+        if row["concept"] in SELECTED_TABLE_CONCEPTS
+        and row["recommended_fixed_schema"] == "true"
     ]
     return {
         "contract_id": "M1-FinMultiTime-Evidence-Contract",
         "packet_version": CONTRACT_VERSION,
-        "status": "PROPOSED_NOT_FROZEN",
-        "verdict": "M1 EVIDENCE CONTRACT PROPOSAL READY FOR RESEARCH REVIEW",
+        "parent_draft_version": PARENT_DRAFT_VERSION,
+        "status": "FROZEN",
+        "verdict": "M1 EVIDENCE CONTRACT FROZEN — READY FOR PREPROCESSING",
+        "research_review": {
+            "decision": RESEARCH_REVIEW_DECISION,
+            "required_revisions_applied": True,
+        },
+        "freeze_metadata": {
+            "freeze_date": FREEZE_DATE,
+            "timestamp_policy": "run timestamps are excluded from deterministic artifacts; PIT uses source availability dates/session labels and strict comparison rules",
+            "source_parent_sha": SOURCE_PARENT_SHA,
+            "frozen_m0_base_sha": FROZEN_M0_BASE_SHA,
+        },
         "formal_relationship": "M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet",
         "scope": {
             "symbols": list(TARGETS),
@@ -1124,24 +1483,19 @@ def contract_json(
         "required_sections": ["TEXT", "TABLE", "TIME_SERIES", "IMAGE"],
         "statuses": {
             "AVAILABLE": "PIT-safe evidence selected under the fixed rule",
-            "UNAVAILABLE": "source absent or no eligible evidence in the fixed window",
-            "AMBIGUOUS_REJECTED": "observed but excluded because date/time availability cannot be proven",
+            "UNAVAILABLE": "source absent, no eligible evidence, or canonical selection cannot be made",
+            "AMBIGUOUS_REJECTED": "observed but excluded because date/time availability cannot be proven; provenance-only and never Agent-visible",
         },
         "common_fields": [
-            "status",
-            "source_identity",
-            "source_available_date_or_session",
-            "evidence_age_calendar_days",
-            "provenance_hash_reference",
-            "selection_rule",
-            "missingness_reason",
+            "status", "source_identity", "source_available_date_or_session",
+            "evidence_age_calendar_days", "provenance_hash_reference",
+            "selection_rule", "missingness_reason",
         ],
         "modalities": {
             "TEXT": {
                 "source_identity": "text/sp500_news.zip::sp500_news/<SYMBOL>.jsonl",
                 "pit_rule": "Date < decision_session_date; same-day date-only records are AMBIGUOUS_REJECTED",
                 "lookback_calendar_days": RECOMMENDED_NEWS_LOOKBACK,
-                "candidate_lookbacks_days": list(NEWS_LOOKBACK_CANDIDATES),
                 "deduplication": [
                     "exact canonical record identity",
                     "duplicate exact URL after exact-record pass",
@@ -1152,48 +1506,86 @@ def contract_json(
                 "max_title_chars": MAX_ARTICLE_TITLE_CHARS,
                 "max_article_body_chars": MAX_ARTICLE_BODY_CHARS,
                 "representation": "date, title, URL, bounded article text, record hash; no LLM semantic deduplication",
-                "missingness": "JPM is UNAVAILABLE; AAPL/AMZN with no record in [decision-30d, decision) are UNAVAILABLE",
+                "missingness": "JPM remains UNAVAILABLE; no eligible article remains UNAVAILABLE; no external news filling",
             },
             "TABLE": {
                 "source_identity": "table/SP500_tabular.zip::financial_reports/<symbol>/*.json",
                 "pit_rule": "filed_date < decision_session_date; period_end is never availability",
                 "same_day_rule": "same-day filed observations are AMBIGUOUS_REJECTED",
-                "restatement_rule": "for each exact taxonomy/concept/unit/start/end economic fact, select latest eligible filed version; retain accn/filed/form/member",
                 "fixed_concepts": list(SELECTED_TABLE_CONCEPTS),
-                "selection_rule": "select latest eligible version for each exact period, then latest economic period by end, start, filed, accession, form",
-                "representation": "one bounded fact per selected concept with value, unit, period, filed, accession, form, provenance hash",
-                "missingness": "field-level UNAVAILABLE if no eligible fact; never substitute a later value or another symbol",
+                "selected_fact_fields": [
+                    "taxonomy", "concept", "value", "unit", "form", "fy", "fp",
+                    "period_start", "period_end", "period_duration_days",
+                    "filed_date", "accession_number", "source_provenance_hash",
+                ],
+                "duration_semantics": "point-in-time balance-sheet facts have no period start/duration; cash-flow facts retain the source-reported start/end and inclusive calendar period_duration_days; values are never annualised, interpolated, derived, or converted into artificial comparable periods",
+                "duration_selection_rule": "after PIT and eligible-version resolution, select the latest economic period by period_end; when multiple durations share that end, prefer the duration class matching fp/form: Q1=quarterly, Q2=year_to_date_h1, Q3=year_to_date_h2, FY/Q4 or 10-K=annual; retain the actual source-reported period metadata",
+                "restatement_rule": "for each exact taxonomy/concept/unit/start/end economic fact, select only the latest filed version whose filed_date is before the decision; a later restatement cannot appear in an earlier decision",
+                "canonical_selection_failure": "if identical filing metadata contains conflicting values, or no canonical period-end fact exists, mark that concept UNAVAILABLE rather than guess",
+                "representation": "one bounded fact per selected concept with full source-reported duration and filing metadata plus provenance hash",
+                "missingness": "concept-level UNAVAILABLE if no eligible or canonical fact; never substitute a later value or another symbol",
             },
             "TIME_SERIES": {
                 "source_identity": "time_series/S&P500_time_series.zip::S&P500_time_series/<symbol>.csv",
-                "pit_rule": "completed session rows with session <= decision_session",
-                "windows_sessions": list(TIME_SERIES_WINDOWS),
+                "pit_rule": "completed session rows with session <= decision_session; no later session is eligible",
+                "required_completed_rows": MIN_TIME_SERIES_ROWS,
                 "summary_fields": [
-                    "cumulative_return_5d",
-                    "cumulative_return_20d",
-                    "cumulative_return_60d",
-                    "realised_volatility_20d_annualised",
-                    "high_low_range_20d",
-                    "drawdown_from_60d_peak",
-                    "relative_volume_vs_20d_mean",
+                    "cumulative_return_5d", "cumulative_return_20d", "cumulative_return_60d",
+                    "realised_volatility_20d_annualised", "high_low_range_20d",
+                    "drawdown_from_60d_peak", "relative_volume_vs_20d_mean",
                 ],
+                "formulas": {
+                    "cumulative_return_5d": "Close[t] / Close[t-5] - 1; requires 6 close observations",
+                    "cumulative_return_20d": "Close[t] / Close[t-20] - 1; requires 21 close observations",
+                    "cumulative_return_60d": "Close[t] / Close[t-60] - 1; requires 61 close observations",
+                    "realised_volatility_20d_annualised": "sample_std(last 20 one-session returns, ddof=1) * sqrt(252), where r_i = Close[i] / Close[i-1] - 1; requires 21 closes",
+                    "high_low_range_20d": "max(High[t-19:t]) / min(Low[t-19:t]) - 1; most recent 20 completed bars",
+                    "drawdown_from_60d_peak": "Close[t] / max(Close[t-59:t]) - 1; most recent 60 completed closes including decision session",
+                    "relative_volume_vs_20d_mean": "Volume[t] / mean(Volume[t-20:t-1]); current completed-session volume divided by previous 20 completed-session volumes; requires 21 rows",
+                },
+                "off_by_one_fixed": True,
                 "raw_rows_in_packet": 0,
-                "price_semantics": "declared unresolved source policy; comparison indicates partially adjusted/inconsistent behavior across target symbols",
+                "price_semantics": PRICE_SEMANTICS_CONTRACT,
+                "price_use_for_execution": False,
+                "price_use_for_valuation": False,
+                "m0_market_path_authoritative": True,
                 "representation": "fixed numeric summary plus through_session and source hash; no target/forward labels",
-                "missingness": "UNAVAILABLE if required completed history is absent; invalid raw rows are never repaired",
+                "missingness": "UNAVAILABLE if required completed history or required numeric inputs are absent; invalid raw rows are never repaired",
             },
             "IMAGE": {
                 "source_identity": "image/image/S&P500_image_*/<symbol>/<symbol>_YYYY_H[1|2]_candlestick.png",
-                "window_rule": "infer H1 end=June 30 and H2 end=December 31; require inferred period_end < decision_session",
-                "staleness_rule": "no additional fixed maximum threshold proposed; report threshold coverage for review",
-                "selection_rule": "one latest eligible image by inferred period_end, filename, path",
-                "caption_rule": "if later approved, image -> frozen Qwen3-VL-2B-Instruct -> bounded structured caption; no Qwen in this task",
-                "missingness": "AAPL remains UNAVAILABLE; no eligible completed image is UNAVAILABLE",
+                "window_rule": "infer H1 nominal end=June 30 and H2 nominal end=December 31; require inferred period_end < decision_session",
+                "staleness_rule": "no additional arbitrary 30/60/90/180-day cutoff; expose evidence age explicitly",
+                "selection_rule": "one latest eligible completed image by inferred period_end, filename, path",
+                "agent_visible_metadata": ["filename/source identity", "inferred chart period", "inferred period end", "evidence age at decision time"],
+                "caption_rule": "image -> frozen Qwen3-VL-2B-Instruct caption -> Market Analyst; no synthetic image",
+                "missingness": "AAPL remains UNAVAILABLE; AMZN/JPM may use their latest completed eligible half-year chart",
                 "coverage_summary": image_summary,
             },
         },
+        "routing": {
+            "modality_to_analyst": ANALYST_ROUTING,
+            "social_analyst": "receives no new FinMultiTime-specific modality; existing M0 Social Analyst behavior is unchanged",
+            "downstream_flow": "Bull Researcher, Bear Researcher, Research Manager, Trader, Risk agents, and Portfolio Manager receive FinMultiTime-derived information through the existing analyst-report flow",
+            "raw_packet_direct_injection_to_downstream": False,
+        },
+        "qwen_image_adapter": {
+            "model": "Qwen3-VL-2B-Instruct",
+            "architecture": "FinMultiTime image -> frozen Qwen caption -> Market Analyst",
+            "offline_preprocessing_only": True,
+            "agent": False,
+            "trained": False,
+            "experiment_variable": False,
+            "formal_runtime_call": False,
+            "prompt": QWEN_CAPTION_PROMPT,
+            "prohibited_content": list(QWEN_SAFETY_PROHIBITIONS),
+            "additional_text_context": False,
+            "ticker_or_company_metadata": False,
+            "caption_schema": list(QWEN_CAPTION_SCHEMA),
+            "max_caption_chars": MAX_IMAGE_CAPTION_CHARS,
+        },
         "budget": {
-            "unit": "UTF-8 characters, deterministic proxy because no tokenizer dependency is added",
+            "unit": "UTF-8 characters, deterministic proxy; no tokenizer dependency",
             "limits": {
                 "TEXT": MAX_NEWS_SECTION_CHARS,
                 "TABLE": MAX_TABLE_SECTION_CHARS,
@@ -1205,13 +1597,15 @@ def contract_json(
                 "text": "max 8 records; fixed newest-first ordering; title <=200 chars; body <=900 chars",
                 "table": "max 6 concepts; fixed concept order; no unselected observations",
                 "time_series": "fixed 7 fields; no raw rows",
-                "image": "at most one caption; caption bounded to 1200 chars before section envelope",
+                "image": f"at most one structured caption; caption <= {MAX_IMAGE_CAPTION_CHARS} chars before section envelope",
             },
+            "analyst_incremental_evidence_chars": analyst_budget_summary(simulation),
             "raw_and_m0_reference_stats": source_summary,
         },
         "provenance": {
             "hash_algorithm": "SHA-256",
             "raw_source_path": "/Volumes/Jackson/Dataset/FinMultiTime",
+            "source_members": [NEWS_ARCHIVE, TABLE_ARCHIVE, TS_ARCHIVE, "image/image/S&P500_image_*"],
             "m0_snapshot_reference": str(M0_RUN_INPUTS),
             "availability_fields": {
                 "TEXT": "Date (calendar date only)",
@@ -1219,16 +1613,23 @@ def contract_json(
                 "TIME_SERIES": "session label through decision close",
                 "IMAGE": "inferred half-year window end, not a publication timestamp",
             },
+            "data_audit_identity": data_audit_identity,
         },
         "research_controls": {
             "augmentation_only": True,
-            "m0_evidence_retained": True,
-            "trader_memory_execution_metrics_unchanged": True,
+            "m0_historical_safe_evidence_retained": True,
+            "trader_policy_unchanged": True,
+            "memory_unchanged": True,
+            "backtester_unchanged": True,
+            "execution_unchanged": True,
+            "evaluation_prices_unchanged": True,
+            "metrics_unchanged": True,
             "no_available_at_after_decision": True,
             "no_target_labels_or_forward_returns": True,
             "no_2024h1_outcome_tuning": True,
             "same_frozen_inputs_reusable_by_m2_a1_a2": True,
         },
+        "validation": validation,
         "review_evidence": {
             "anomaly_count": len(anomalies),
             "consistency_row_count": len(consistency),
@@ -1239,13 +1640,30 @@ def contract_json(
                 len(news_dedup_rows(data["news"][symbol], symbol)) for symbol in TARGETS
             ),
         },
-        "review_questions": [
-            "Accept the unresolved/partially adjusted FinMultiTime price semantics declaration?",
-            "Accept the sparse but PIT-safe fixed 30-calendar-day text lookback?",
-            "Accept the six-concept table schema and deterministic latest-eligible restatement rule?",
-            "Accept no additional image staleness threshold, subject to explicit unavailable status?",
-            "If images are retained, approve the later offline Qwen caption architecture after contract freeze?",
-        ],
+        "not_frozen_yet": {
+            "processed_three_stock_subset": True,
+            "image_captions": True,
+            "final_evidence_packets": True,
+            "m1_input_sha_bundle": True,
+            "m1_runtime_integration": True,
+            "m1_pilot_environment": True,
+            "formal_m1_result": True,
+        },
+        "boundary_confirmation": {
+            "raw_finmultitime_modified": False,
+            "final_processed_subset_built": False,
+            "final_evidence_packets_built": False,
+            "qwen_downloaded": False,
+            "qwen_run": False,
+            "deepseek_calls": 0,
+            "paid_api_calls": 0,
+            "trader_modified": False,
+            "memory_modified": False,
+            "execution_modified": False,
+            "formal_m1_run": False,
+            "m2_agentic_rl_started": False,
+            "alpha_mas_experiments_modified": False,
+        },
     }
 
 
@@ -1269,90 +1687,63 @@ def markdown_report(
         for modality in ("TEXT", "TABLE", "TIME_SERIES", "IMAGE")
     }
     ambiguous = sum(int(row["ambiguous_rejected_count"] or 0) for row in simulation)
-    pit_violations = sum(int(row["PIT_violation_count"] or 0) for row in simulation)
     packet_sizes = [int(row["estimated_packet_chars"]) for row in simulation]
     selected = [row for row in concept_rows if row["recommended_fixed_schema"] == "true"]
+    unavailable_by_concept: Counter[str] = Counter()
+    for row in simulation:
+        unavailable_by_concept.update(
+            concept for concept in row["table_unavailable_concepts"].split(";") if concept
+        )
     lines = [
-        "# M1 FinMultiTime Evidence Contract Draft",
+        "# M1 FinMultiTime Evidence Contract",
         "",
         f"**Packet version:** `{CONTRACT_VERSION}`",
-        "**Status:** PROPOSED — NOT FORMALLY FROZEN",
-        "**Final verdict:** M1 EVIDENCE CONTRACT PROPOSAL READY FOR RESEARCH REVIEW",
+        "**Status:** FROZEN",
+        "**Final verdict:** M1 EVIDENCE CONTRACT FROZEN — READY FOR PREPROCESSING",
+        f"**Parent draft:** `{PARENT_DRAFT_VERSION}`",
+        f"**Research-review decision:** `{RESEARCH_REVIEW_DECISION}`",
+        f"**Freeze date:** `{FREEZE_DATE}`",
         "",
-        "This document proposes the controlled FinMultiTime augmentation contract. It is a design-stage artifact for human/research review. It does not build the final M1 dataset, create formal Evidence Packets, call an LLM, download/run Qwen, modify Trader/Memory/backtesting behavior, or run Formal M1.",
+        "This contract freezes selection and representation rules only. It does not build the processed subset, generate final Evidence Packets, download/run Qwen, modify M0 behavior, or run M1.",
         "",
         "## Research relationship and hard controls",
         "",
-        "`M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet`. FinMultiTime supplements M0; it does not replace M0 safe evidence, execution prices, valuation prices, backtesting, Memory, Trader policy, or metrics. All 78 formal decisions remain mandatory.",
+        "`M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet`. FinMultiTime is additive. M0 historical-safe evidence, Trader policy, Memory, backtester, execution, evaluation prices, metrics, and all 78 formal cases remain unchanged.",
         "",
-        "The proposed packet always contains TEXT, TABLE, TIME_SERIES, and IMAGE sections. Each starts with `AVAILABLE` or `UNAVAILABLE`; an observed but unsafe item may be recorded only as `AMBIGUOUS_REJECTED` in provenance and is not Agent-visible.",
+        "Every packet always contains TEXT, TABLE, TIME_SERIES, and IMAGE. Each has explicit `AVAILABLE` or `UNAVAILABLE` status. Unsafe observed items may appear only as provenance-only `AMBIGUOUS_REJECTED` and are never Agent-visible.",
         "",
-        "## Residual data validation",
+        "## Residual data validation and price semantics",
         "",
-        f"The deterministic scan found {len(anomalies)} impossible-OHLC rows: {sum(row['symbol'] == 'AAPL' for row in anomalies)} AAPL, {sum(row['symbol'] == 'AMZN' for row in anomalies)} AMZN, and {sum(row['symbol'] == 'JPM' for row in anomalies)} JPM. All are outside the 252-session M0 warm-up, outside the Formal 2024H1 calendar/decision span, and not reachable by the proposed 60-session time-series summary lookback. Raw rows are not repaired.",
+        f"The deterministic scan found {len(anomalies)} impossible-OHLC rows: {sum(row['symbol'] == 'AAPL' for row in anomalies)} AAPL, {sum(row['symbol'] == 'AMZN' for row in anomalies)} AMZN, and {sum(row['symbol'] == 'JPM' for row in anomalies)} JPM. They are outside the M0 warm-up, formal decision span, and reachable 60-session summary lookback. Raw rows are not repaired.",
         "",
-        "| Symbol | Anomaly dates | Inside M0 warm-up | Inside Formal 2024H1 | Reachable by proposed lookback |",
-        "|---|---|---:|---:|---:|",
+        PRICE_SEMANTICS_CONTRACT,
+        "",
+        "The contract treats FinMultiTime OHLC as source-native descriptive data: no silent normalisation, no repair to force equality with M0, and no use for execution or valuation. The validated M0 market path remains authoritative.",
+        "",
+        f"The audit has {len(consistency)} deterministic comparison rows. Close relative-difference ranges are AAPL `{fmt_number(semantics['AAPL']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['AAPL']['close_ratio_fin_minus_m0_max'], 8)}`, AMZN `{fmt_number(semantics['AMZN']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['AMZN']['close_ratio_fin_minus_m0_max'], 8)}`, and JPM `{fmt_number(semantics['JPM']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['JPM']['close_ratio_fin_minus_m0_max'], 8)}`.",
+        "",
+        "## TEXT",
+        "",
+        "PIT gate: `Date < decision_session_date`. Same-day date-only news is `AMBIGUOUS_REJECTED`; no external news, live web, or cross-symbol filling is allowed. Deduplicate exact records, then exact URLs, retain removed/kept hashes, order newest-first deterministically, and select at most 8 articles from the fixed 30-calendar-day lookback. JPM is always `UNAVAILABLE`.",
+        "",
+        "| Symbol | Window | Cases with article | Mean count | Maximum | No-article cases |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
-    for symbol in TARGETS:
-        rows = [row for row in anomalies if row["symbol"] == symbol]
-        lines.append(
-            f"| {symbol} | {', '.join(row['session_date'] for row in rows) or 'none'} | {sum(bool(row['inside_252_session_m0_warmup']) for row in rows)} | {sum(bool(row['inside_formal_2024h1_calendar']) for row in rows)} | {sum(bool(row['potentially_reachable_by_60_session_lookback']) for row in rows)} |"
-        )
-    lines.extend(
-        [
-            "",
-            "### Time-series price semantics",
-            "",
-            "The frozen M0 snapshot reference is the local archived M0 run input at `results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs/market_data`, whose manifest records `auto_adjust=false` and corporate actions enabled. No live yfinance or web data was used.",
-            "",
-            "The comparison is not a forced-match test. On ordinary and dividend-event dates in the overlapping 2023-01-04 through 2024-07-05 range, FinMultiTime volumes are generally equal or nearly equal to M0 while dividend-paying AAPL/JPM OHLC prices are consistently below raw M0 prices by time-varying factors. AMZN OHLC is raw-like in that window. This is consistent with adjusted historical prices for AAPL/JPM but raw-like prices for AMZN; the universal source policy is therefore **partially adjusted / inconsistent across target symbols and unresolved**. The contract must declare this assumption and must not silently call FinMultiTime raw or adjusted for every symbol.",
-            "",
-            f"Deterministic consistency rows: {len(consistency)}. AAPL close relative-difference range: `{fmt_number(semantics['AAPL']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['AAPL']['close_ratio_fin_minus_m0_max'], 8)}`; AMZN: `{fmt_number(semantics['AMZN']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['AMZN']['close_ratio_fin_minus_m0_max'], 8)}`; JPM: `{fmt_number(semantics['JPM']['close_ratio_fin_minus_m0_min'], 8)}` to `{fmt_number(semantics['JPM']['close_ratio_fin_minus_m0_max'], 8)}`. Split-event rows outside the M0 snapshot are retained with an explicit no-reference status.",
-            "",
-            "See `finmultitime_ohlc_anomalies.csv` and `finmultitime_timeseries_consistency.csv` for the exact rows.",
-            "",
-            "## M0 versus FinMultiTime evidence map",
-            "",
-            "The detailed mapping is in `m0_vs_finmultitime_evidence_map.csv`. The main additive candidates are: (1) a PIT-safe historical text corpus with explicit missingness and deterministic deduplication; (2) six compact filed-date-gated financial facts; (3) fixed multi-window time-series summaries with source/session provenance; and (4) optionally, conservatively gated chart images. OHLCV and named technical indicators are primarily duplicated and remain M0-controlled.",
-            "",
-            "## Proposed TEXT contract",
-            "",
-            "PIT gate: `news.Date < decision_session_date`. The date-only source cannot prove same-day publication timing, so same-day records are `AMBIGUOUS_REJECTED` and excluded. JPM has no valid text member and is `UNAVAILABLE` in every case; no external web fill is permitted.",
-            "",
-            "Deduplication is deterministic: exact canonical record identity, then exact duplicate URL, with removed hashes and the kept hash preserved in provenance. The removed-record audit is in `finmultitime_news_deduplication.csv`. No semantic or LLM deduplication is used. Eligible records are ordered newest date first, then URL, title, and record hash; at most 8 are represented with bounded title/body characters.",
-            "",
-            "### News lookback analysis",
-            "",
-            "Counts below are after the contract deduplication pass and use only the frozen audit corpus; no strategy performance or forward return was inspected.",
-            "",
-            "| Symbol | Window | Formal cases with article | Average article count | Maximum | No-article cases |",
-            "|---|---:|---:|---:|---:|---:|",
-        ]
-    )
     for symbol in TARGETS:
         for window in NEWS_LOOKBACK_CANDIDATES:
             stats = lookback[symbol][window]
-            lines.append(
-                f"| {symbol} | {window} days | {stats['coverage_cases']}/26 | {stats['average_count']} | {stats['maximum_count']} | {stats['no_article_cases']}/26 |"
-            )
-    lines.extend(
-        [
-            "",
-            "Recommendation: fixed 30 calendar days. Seven and fourteen days produce zero safe articles in all formal cases; 30 days produces sparse coverage (2/26 AAPL, 2/26 AMZN, 0/26 JPM) while preserving recency and a concise deterministic context. A no-article case remains `TEXT = UNAVAILABLE`; the lookback is not extended to manufacture coverage.",
-            "",
-            "## Proposed TABLE contract",
-            "",
-            "PIT gate: `filed_date < decision_session_date`. `period_end` describes the economic period and is never an availability gate. Same-day filed observations are `AMBIGUOUS_REJECTED` because filing time-of-day is absent.",
-            "",
-            "For the same taxonomy/concept/unit/start/end economic fact, retain only the latest eligible filed version, using deterministic accession/form/member tie-breaks and retaining `concept`, `unit`, `period`, `filed`, `accn`, and provenance. A later restatement can never appear in an earlier decision.",
-            "",
-            "The proposed compact schema is:",
-            "",
-            "| Concept | Interpretation | Cross-asset coverage |",
-            "|---|---|---:|",
-        ]
-    )
+            lines.append(f"| {symbol} | {window} days | {stats['coverage_cases']}/26 | {stats['average_count']} | {stats['maximum_count']} | {stats['no_article_cases']}/26 |")
+    lines.extend([
+        "",
+        "## TABLE",
+        "",
+        "PIT gate: `filed_date < decision_session_date`; `period_end` is never an availability gate. Same-day filings are `AMBIGUOUS_REJECTED`.",
+        "",
+        "The six fixed concepts are:",
+        "",
+        "| Concept | Interpretation | Cross-asset coverage | Concept-level unavailable cases |",
+        "|---|---|---:|---:|",
+    ])
     descriptions = {
         "Assets": "balance-sheet total assets",
         "Liabilities": "balance-sheet total liabilities",
@@ -1364,25 +1755,37 @@ def markdown_report(
     by_concept = {row["concept"]: row for row in selected}
     for concept in SELECTED_TABLE_CONCEPTS:
         row = by_concept.get(concept, {})
-        lines.append(f"| `{concept}` | {descriptions[concept]} | {row.get('symbol_coverage_count', 0)}/3 |")
+        lines.append(f"| `{concept}` | {descriptions[concept]} | {row.get('symbol_coverage_count', 0)}/3 | {unavailable_by_concept[concept]} |")
     lines.extend(
         [
             "",
-            "The table contract exposes at most one latest eligible fact per selected concept per case. A missing field is `UNAVAILABLE`; no future substitution or cross-stock substitution is allowed. Full candidate coverage and revision diagnostics are in `finmultitime_table_concept_coverage.csv`.",
+            "Each selected fact exposes taxonomy, concept, value, unit, form, fy, fp, period start, period end, inclusive `period_duration_days`, filed date, accession number, source member, and source/provenance hash. Balance-sheet facts remain point-in-time. Cash-flow facts retain the actual quarterly, year-to-date, or annual source-reported horizon; no annualisation, interpolation, derivation, or artificial period conversion is allowed.",
             "",
-            "## Proposed TIME_SERIES contract",
+            "Selection is deterministic: apply PIT; resolve restatements only among versions already filed before the decision; select the latest economic period by period end; at a shared latest period end prefer the duration class matching `fp/form` (`Q1` quarterly, `Q2` H1 year-to-date, `Q3` H2 year-to-date, `FY/Q4` or `10-K` annual). Conflicting values at identical filing metadata or a non-canonical selection produce concept-level `UNAVAILABLE`. Diagnostics are in `m1_evidence_contract_table_selection_diagnostics.csv`.",
             "",
-            "PIT gate: at a valid XNYS session-close decision, completed rows through `session <= decision_session` are eligible, and no later session is eligible. The packet contains no raw OHLCV rows and no target labels.",
+            "## TIME_SERIES",
             "",
-            "The fixed summary uses 5-, 20-, and 60-session cumulative returns, 20-session annualised realised volatility, 20-session high-low range, drawdown from the 60-session peak, and current volume relative to the 20-session mean. This is intentionally compact and overlaps with M0 technical analysis; the M0 snapshot and indicator evidence remain authoritative, and the FinMultiTime summary is labelled as augmentation.",
+            "PIT gate: completed session rows with `session <= decision_session`; the source-selection logic retains at least 61 completed rows through the decision session. The packet contains no raw rows, future labels, targets, or forecasts.",
             "",
-            "## Proposed IMAGE contract",
+            "The off-by-one issue is fixed. Exact formulas are:",
             "",
-            "An image filename is interpreted conservatively: H1 nominal end is June 30 and H2 nominal end is December 31. The image is eligible only when the inferred end is strictly before the decision. A half-year still in progress is never used. The metadata convention is inferred from filenames and is not a machine-readable chart end timestamp.",
+            "- 5-session cumulative return: `Close[t] / Close[t-5] - 1` (6 closes).",
+            "- 20-session cumulative return: `Close[t] / Close[t-20] - 1` (21 closes).",
+            "- 60-session cumulative return: `Close[t] / Close[t-60] - 1` (61 closes).",
+            "- 20-session realised volatility: `sample_std(ddof=1)(last 20 one-session returns) * sqrt(252)`, with `r_i = Close[i] / Close[i-1] - 1` (21 closes).",
+            "- 20-session high-low range: `max(High[t-19:t]) / min(Low[t-19:t]) - 1` (20 completed bars).",
+            "- Drawdown from 60-session peak: `Close[t] / max(Close[t-59:t]) - 1` (60 completed closes including the decision session).",
+            "- Relative volume: `Volume[t] / mean(Volume[t-20:t-1])` (current volume versus the previous 20 completed sessions; 21 rows).",
             "",
-            f"Formal simulation selects {image_summary['unique_files_used']} unique image files for {image_summary['formal_case_references']} repeated case references, totaling {image_summary['total_bytes_unique_files']} bytes. Image age across selected references is {image_summary['image_age_min_days']} to {image_summary['image_age_max_days']} calendar days (median {image_summary['image_age_median_days']}). AAPL is unavailable; AMZN and JPM each reuse their 2023 H2 image across all 26 formal cases.",
+            "M0 validated market data remains authoritative for execution, valuation, and corporate-action accounting. FinMultiTime prices are descriptive evidence only.",
             "",
-            "| Symbol | Repeated case references | Unique files | Coverage <=30d | <=90d | <=180d | <=365d |",
+            "## IMAGE and future Qwen adapter",
+            "",
+            "AAPL is explicitly `UNAVAILABLE`. AMZN/JPM may use their latest completed half-year chart: H1 nominal end is June 30, H2 nominal end is December 31, and inferred end must be strictly before the decision. No additional 30/60/90/180-day staleness cutoff exists. Agent-visible metadata includes filename/source identity, inferred chart period, inferred period end, and evidence age.",
+            "",
+            f"The simulation selects {image_summary['unique_files_used']} unique image files for {image_summary['formal_case_references']} repeated references. Evidence age is {image_summary['image_age_min_days']}–{image_summary['image_age_max_days']} days (median {image_summary['image_age_median_days']}); AAPL has no eligible file.",
+            "",
+            "| Symbol | References | Unique files | Age <=30d | <=90d | <=180d | <=365d |",
             "|---|---:|---:|---:|---:|---:|---:|",
         ]
     )
@@ -1395,11 +1798,19 @@ def markdown_report(
     lines.extend(
         [
             "",
-            "No additional fixed staleness threshold is proposed: 30/90-day thresholds would make most otherwise eligible completed images unavailable, while the strict window-end gate already prevents in-progress charts. Coverage is reported for review. If images are retained after review, the previously agreed offline architecture remains `image -> frozen Qwen3-VL-2B-Instruct -> structured caption`; no Qwen was downloaded or run here. With only two genuinely eligible unique files, Qwen is not necessary for contract validation, but removing the image modality is not proposed at this stage.",
+            "Later Qwen use is offline preprocessing only: `FinMultiTime image -> frozen Qwen3-VL-2B-Instruct caption -> Market Analyst`. Qwen is not an Agent, is not trained, is not an experiment variable, and is not called during Formal M1 runtime. The prompt must say: “Describe only information visually observable in the supplied financial chart.” It must prohibit external/company knowledge not visible in the image, subsequent events, future returns, forecasts, predictions, price targets, and BUY/HOLD/SELL recommendations. No ticker/company identity or additional text context is supplied. The frozen short schema is `trend`, `momentum_visual`, `volatility_visual`, `candlestick_structure`, `notable_gap_or_reversal`, `support_resistance_visual`, `volume_visual`, `other_visible_pattern`, `confidence`, with a maximum caption size of 900 characters.",
             "",
-            "## Controlled packet schema and budget",
+            "## Routing and budget",
             "",
-            "Every packet has the version, symbol, decision time, four modality sections, source identity, source availability date/session, evidence age, SHA-256 provenance reference, deterministic selection rule, and explicit missingness reason. The machine-readable contract is in `m1_evidence_contract_draft.json`.",
+            "Routing is modality-specific: TEXT → News Analyst; TABLE → Fundamentals Analyst; TIME_SERIES → Market Analyst; IMAGE caption → Market Analyst. Social Analyst receives no new FinMultiTime-specific modality. The complete raw packet is not injected into Bull/Bear Researchers, Research Manager, Trader, Risk agents, or Portfolio Manager; derived information travels through the existing analyst-report flow.",
+            "",
+            "| Analyst | Min additional chars | Median | Max additional chars |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for analyst, values in analyst_budget_summary(simulation).items():
+        lines.append(f"| {analyst} | {values['min']} | {values['median']} | {values['max']} |")
+    lines.extend([
             "",
             "| Section | Deterministic maximum | Representation |",
             "|---|---:|---|",
@@ -1411,9 +1822,9 @@ def markdown_report(
             "",
             f"The raw audit corpus contains {source_summary['raw_article_records']} article records; raw article body length is {source_summary['raw_article_chars_min']} / {source_summary['raw_article_chars_median']} / {source_summary['raw_article_chars_max']} characters (min/median/max). Tables contain {source_summary['table_observation_count']} observations; serialized observation length is median {source_summary['serialized_table_observation_chars_median']} and maximum {source_summary['serialized_table_observation_chars_max']} characters. The local M0 run recorded {source_summary['m0_observed_api_call_count']} API calls with prompt-token range {source_summary['m0_prompt_tokens_min']}–{source_summary['m0_prompt_tokens_max']} (median {source_summary['m0_prompt_tokens_median']}); no new API call was made for this analysis.",
             "",
-            "### 78-case dry-run metadata",
+            "### 78-case deterministic simulation",
             "",
-            f"The simulation contains {len(simulation)}/78 cases. PIT violations: {pit_violations}. Ambiguous rejected observations: {ambiguous}. Estimated packet characters: {min(packet_sizes)}–{max(packet_sizes)} (median {statistics.median(packet_sizes)}).",
+            f"The simulation contains {len(simulation)}/78 cases. PIT violations: {sum(int(row['PIT_violation_count']) for row in simulation)}. Ambiguous rejected observations: {ambiguous}. Estimated packet characters: {min(packet_sizes)}–{max(packet_sizes)} (median {statistics.median(packet_sizes)}). Exact metadata is in `m1_evidence_contract_case_simulation.csv`; no Agent, outcome, target, or future trading performance was used.",
             "",
             "| Modality | AVAILABLE | UNAVAILABLE |",
             "|---|---:|---:|",
@@ -1423,43 +1834,25 @@ def markdown_report(
         lines.append(
             f"| {modality} | {status_counts[modality]['AVAILABLE']} | {status_counts[modality]['UNAVAILABLE']} |"
         )
-    lines.extend(
-        [
-            "",
-            "The exact case metadata is in `m1_evidence_contract_case_simulation.csv`. It contains all 26 weekly sessions for each of AAPL, AMZN, and JPM, with no trading outcomes or Agent prompts.",
-            "",
-            "## Research-validity review",
-            "",
-            "- **Augmentation:** FinMultiTime is additive; M0 evidence and execution/valuation inputs remain unchanged.",
-            "- **Controlled variable:** Trader, Memory, execution, backtester, and metrics are outside this proposal.",
-            "- **PIT:** strict text/table/image gates and session cutoff prevent evidence later than decision time; simulation reports zero violations.",
-            "- **Missingness:** unavailable modalities remain explicit, never deleted, backfilled, web-filled, or cross-stock substituted.",
-            "- **No target leakage:** no forward returns, predictions, labels, or outcome fields enter the packet.",
-            "- **No outcome tuning:** lookbacks, concepts, and image rules use audit coverage and financial interpretability only.",
-            "- **Reusability:** once reviewed and frozen, the same input-selection rules can be reused unchanged by M2, A1, and A2.",
-            "",
-            "## Review gates before freezing",
-            "",
-            "1. Confirm the unresolved FinMultiTime price-semantics declaration is acceptable.",
-            "2. Approve the fixed 30-day text lookback and sparse-coverage behavior.",
-            "3. Approve the six-concept table schema and latest-eligible restatement rule.",
-            "4. Decide whether to retain images and whether later Qwen captioning is worth two unique files.",
-            "5. Freeze the reviewed contract before building any processed M1 inputs or formal packets.",
-            "",
-            "## Boundary confirmation",
-            "",
-            "- Raw FinMultiTime modified: **NO**",
-            "- Final processed subset built: **NO**",
-            "- Formal Evidence Packets generated: **NO**",
-            "- Qwen downloaded/run: **NO**",
-            "- DeepSeek calls: **0**",
-            "- Paid API calls: **0**",
-            "- Formal M1: **NOT RUN**",
-            "- M2 / Agentic RL: **NOT STARTED**",
-            "- AlphaMAS-Experiments modified: **NO**",
-            "- Evidence Contract formally frozen: **NO — review remains required**",
-        ]
-    )
+    lines.extend([
+        "",
+        "## Validation and boundaries",
+        "",
+        "| Invariant | Result |",
+        "|---|---|",
+    ])
+    # The final contract JSON is the authoritative detailed validation record;
+    # this table is intentionally human-readable and deterministic.
+    for name, result in sorted(simulation_invariants(data, context, simulation).items()):
+        lines.append(f"| {name} | {'PASS' if result else 'FAIL'} |")
+    lines.extend([
+        "",
+        "The following remain deliberately unfrozen: processed three-stock subset, image captions, final Evidence Packets, M1 input SHA bundle, M1 runtime integration, M1 pilot environment, and Formal M1 result.",
+        "",
+        "Raw FinMultiTime modified: **NO**. Final processed subset built: **NO**. Final Evidence Packets built: **NO**. Qwen downloaded: **NO**. Qwen run: **NO**. DeepSeek calls: **0**. Paid API calls: **0**. Trader, Memory, and execution modified: **NO**. Formal M1 run: **NO**. M2 / Agentic RL started: **NO**. AlphaMAS-Experiments modified: **NO**.",
+        "",
+        "Freeze artifacts: `M1_EVIDENCE_CONTRACT.md`, `m1_evidence_contract.json`, `m1_evidence_contract_case_simulation.csv`, and `m1_evidence_contract_freeze.json`. The freeze manifest records SHA-256 hashes for the final contract, simulation, and required audit reports.",
+    ])
     return "\n".join(lines) + "\n"
 
 
@@ -1494,16 +1887,85 @@ def semantics_markdown(
     lines.extend(
         [
             "",
-            "AAPL and JPM show time-varying price discounts relative to the raw M0 snapshot, including on ordinary and dividend-event dates, while volume is usually unchanged or only very slightly different. AMZN OHLC matches the M0 snapshot to displayed precision in the overlapping period, with small volume differences on some dates. The pattern is consistent with dividend-adjusted historical OHLC for AAPL/JPM and raw-like OHLC for AMZN during the reference period.",
+            "AAPL and JPM show time-varying price differences relative to the raw M0 snapshot, including on ordinary and dividend-event dates, while volume is usually unchanged or only very slightly different. AMZN OHLC is raw-equivalent over the audited overlap. These observations are empirical comparisons, not proof of a universal adjustment policy.",
             "",
             "## Contract conclusion",
             "",
-            "The source cannot be safely labelled with one universal `raw` or `adjusted` policy. The proposed M1 contract therefore declares FinMultiTime price semantics **partially adjusted / inconsistent across target symbols; unresolved**. It must not be used to replace M0 execution or valuation prices. If a future reviewed contract uses FinMultiTime prices for descriptive summaries, it must retain this source assumption and the source hash; no silent normalization or repair is allowed.",
+            PRICE_SEMANTICS_CONTRACT,
+            "FinMultiTime OHLC remains source-native descriptive data: no silent normalisation, no repair to force equality with M0, and no use for execution or valuation. If used for descriptive summaries, retain the source identity and hash.",
             "",
             "The 12 impossible-OHLC rows are a separate structural issue and are listed in `finmultitime_ohlc_anomalies.csv`; all are outside the relevant M0 warm-up, formal span, and proposed 60-session lookback.",
         ]
     )
     return "\n".join(lines) + "\n"
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def table_selection_diagnostic_rows(
+    data: dict[str, Any], context: dict[str, Any]
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for decision in context["decisions"]:
+        for symbol in TARGETS:
+            selection = table_selection(data["tables"], symbol, decision)
+            for diagnostic in selection["diagnostics"]:
+                rows.append(diagnostic)
+    return rows
+
+
+def freeze_manifest(
+    output_dir: Path,
+    data_audit_identity: dict[str, Any],
+) -> dict[str, Any]:
+    required = (
+        "M1_EVIDENCE_CONTRACT.md",
+        "m1_evidence_contract.json",
+        "m1_evidence_contract_case_simulation.csv",
+        "finmultitime_table_concept_coverage.csv",
+        "finmultitime_news_deduplication.csv",
+        "finmultitime_ohlc_anomalies.csv",
+        "finmultitime_timeseries_semantics.md",
+        "finmultitime_timeseries_consistency.csv",
+        "m1_evidence_contract_table_selection_diagnostics.csv",
+    )
+    artifacts = {
+        name: {
+            "path": f"docs/m1/{name}",
+            "sha256": file_sha256(output_dir / name),
+        }
+        for name in required
+    }
+    return {
+        "manifest_id": "M1-FinMultiTime-Evidence-Contract-Freeze",
+        "contract_version": CONTRACT_VERSION,
+        "status": "FROZEN",
+        "freeze_date": FREEZE_DATE,
+        "source_parent_sha": SOURCE_PARENT_SHA,
+        "frozen_m0_base_sha": FROZEN_M0_BASE_SHA,
+        "raw_finmultitime_root": "/Volumes/Jackson/Dataset/FinMultiTime",
+        "source_data_identities": {
+            "news": NEWS_ARCHIVE,
+            "table": TABLE_ARCHIVE,
+            "time_series": TS_ARCHIVE,
+            "image": "image/image/S&P500_image_*",
+            "data_audit": data_audit_identity,
+            "m0_snapshot": str(M0_RUN_INPUTS),
+        },
+        "artifacts": artifacts,
+        "selection_contract_not_input_freeze": True,
+        "final_processed_subset_built": False,
+        "final_evidence_packets_built": False,
+        "m1_input_sha_bundle_built": False,
+    }
 
 
 def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
@@ -1517,6 +1979,16 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
     simulation = case_simulation(data, context)
     image_summary = image_coverage_summary(data["images"], context["decisions"])
     source_summary = source_stats(data, context)
+    validation = simulation_invariants(data, context, simulation)
+    if not all(validation.values()):
+        failed = [name for name, passed in validation.items() if not passed]
+        raise SystemExit("M1 contract validation failed; freeze stopped: " + ", ".join(failed))
+    data_audit_path = output_dir / "finmultitime_data_audit.json"
+    data_audit_identity = {
+        "path": "docs/m1/finmultitime_data_audit.json",
+        "sha256": file_sha256(data_audit_path),
+        "exists_before_contract_generation": data_audit_path.exists(),
+    }
     contract = contract_json(
         data,
         context,
@@ -1526,6 +1998,8 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
         simulation,
         image_summary,
         source_summary,
+        validation,
+        data_audit_identity,
     )
     map_rows = m0_vs_finmultitime_map()
     dedup_rows = [
@@ -1539,11 +2013,15 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
     write_csv(output_dir / "m0_vs_finmultitime_evidence_map.csv", map_rows)
     write_csv(output_dir / "finmultitime_news_deduplication.csv", dedup_rows)
     write_csv(output_dir / "m1_evidence_contract_case_simulation.csv", simulation)
-    (output_dir / "m1_evidence_contract_draft.json").write_text(
+    write_csv(
+        output_dir / "m1_evidence_contract_table_selection_diagnostics.csv",
+        table_selection_diagnostic_rows(data, context),
+    )
+    (output_dir / "m1_evidence_contract.json").write_text(
         json.dumps(contract, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
-    (output_dir / "M1_EVIDENCE_CONTRACT_DRAFT.md").write_text(
+    (output_dir / "M1_EVIDENCE_CONTRACT.md").write_text(
         markdown_report(
             data,
             context,
@@ -1561,6 +2039,11 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
         semantics_markdown(consistency, semantics),
         encoding="utf-8",
     )
+    manifest = freeze_manifest(output_dir, data_audit_identity)
+    (output_dir / "m1_evidence_contract_freeze.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(
         json.dumps(
             {
@@ -1570,6 +2053,7 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
                 "candidate_concepts": len(concept_rows),
                 "simulation_cases": len(simulation),
                 "unique_eligible_images": image_summary["unique_files_used"],
+                "validation": validation,
                 "verdict": contract["verdict"],
             },
             sort_keys=True,

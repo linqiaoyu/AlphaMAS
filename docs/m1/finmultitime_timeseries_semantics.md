@@ -20,10 +20,11 @@ The resulting table has 69 rows. Exact values, action fields, and per-field rela
 | AMZN | 4 | -0 to -0 | -0.00022107 |
 | JPM | 24 | -0.06224199 to -0.0172508 | 0 |
 
-AAPL and JPM show time-varying price discounts relative to the raw M0 snapshot, including on ordinary and dividend-event dates, while volume is usually unchanged or only very slightly different. AMZN OHLC matches the M0 snapshot to displayed precision in the overlapping period, with small volume differences on some dates. The pattern is consistent with dividend-adjusted historical OHLC for AAPL/JPM and raw-like OHLC for AMZN during the reference period.
+AAPL and JPM show time-varying price differences relative to the raw M0 snapshot, including on ordinary and dividend-event dates, while volume is usually unchanged or only very slightly different. AMZN OHLC is raw-equivalent over the audited overlap. These observations are empirical comparisons, not proof of a universal adjustment policy.
 
 ## Contract conclusion
 
-The source cannot be safely labelled with one universal `raw` or `adjusted` policy. The proposed M1 contract therefore declares FinMultiTime price semantics **partially adjusted / inconsistent across target symbols; unresolved**. It must not be used to replace M0 execution or valuation prices. If a future reviewed contract uses FinMultiTime prices for descriptive summaries, it must retain this source assumption and the source hash; no silent normalization or repair is allowed.
+FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. The M1 contract therefore treats FinMultiTime OHLC as source-native descriptive data with adjustment semantics not contractually guaranteed.
+FinMultiTime OHLC remains source-native descriptive data: no silent normalisation, no repair to force equality with M0, and no use for execution or valuation. If used for descriptive summaries, retain the source identity and hash.
 
 The 12 impossible-OHLC rows are a separate structural issue and are listed in `finmultitime_ohlc_anomalies.csv`; all are outside the relevant M0 warm-up, formal span, and proposed 60-session lookback.

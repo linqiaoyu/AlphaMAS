@@ -1,0 +1,396 @@
+{
+  "contract_id": "M1-FinMultiTime-Evidence-Contract",
+  "packet_version": "M1-FINMULTITIME-v1.0",
+  "parent_draft_version": "M1-FINMULTITIME-DRAFT-0.1",
+  "status": "FROZEN",
+  "verdict": "M1 EVIDENCE CONTRACT FROZEN — READY FOR PREPROCESSING",
+  "research_review": {
+    "decision": "M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS",
+    "required_revisions_applied": true
+  },
+  "freeze_metadata": {
+    "freeze_date": "2026-08-12",
+    "timestamp_policy": "run timestamps are excluded from deterministic artifacts; PIT uses source availability dates/session labels and strict comparison rules",
+    "source_parent_sha": "9f722d71d52d17432e8cc3d0391721d02aaf259d",
+    "frozen_m0_base_sha": "2535896c8b1070b19c06fa6a936663babb4356f7"
+  },
+  "formal_relationship": "M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet",
+  "scope": {
+    "symbols": [
+      "AAPL",
+      "AMZN",
+      "JPM"
+    ],
+    "formal_cases": 78,
+    "calendar": "XNYS",
+    "decision_time": "valid XNYS session close",
+    "raw_dataset_read_only": true,
+    "final_processed_dataset_built": false,
+    "formal_packets_generated": false
+  },
+  "required_sections": [
+    "TEXT",
+    "TABLE",
+    "TIME_SERIES",
+    "IMAGE"
+  ],
+  "statuses": {
+    "AVAILABLE": "PIT-safe evidence selected under the fixed rule",
+    "UNAVAILABLE": "source absent, no eligible evidence, or canonical selection cannot be made",
+    "AMBIGUOUS_REJECTED": "observed but excluded because date/time availability cannot be proven; provenance-only and never Agent-visible"
+  },
+  "common_fields": [
+    "status",
+    "source_identity",
+    "source_available_date_or_session",
+    "evidence_age_calendar_days",
+    "provenance_hash_reference",
+    "selection_rule",
+    "missingness_reason"
+  ],
+  "modalities": {
+    "TEXT": {
+      "source_identity": "text/sp500_news.zip::sp500_news/<SYMBOL>.jsonl",
+      "pit_rule": "Date < decision_session_date; same-day date-only records are AMBIGUOUS_REJECTED",
+      "lookback_calendar_days": 30,
+      "deduplication": [
+        "exact canonical record identity",
+        "duplicate exact URL after exact-record pass",
+        "retain removed-record hashes and kept-record hash in provenance"
+      ],
+      "selection_order": "newest eligible Date descending, then Url, Article_title, record hash",
+      "max_articles": 8,
+      "max_title_chars": 200,
+      "max_article_body_chars": 900,
+      "representation": "date, title, URL, bounded article text, record hash; no LLM semantic deduplication",
+      "missingness": "JPM remains UNAVAILABLE; no eligible article remains UNAVAILABLE; no external news filling"
+    },
+    "TABLE": {
+      "source_identity": "table/SP500_tabular.zip::financial_reports/<symbol>/*.json",
+      "pit_rule": "filed_date < decision_session_date; period_end is never availability",
+      "same_day_rule": "same-day filed observations are AMBIGUOUS_REJECTED",
+      "fixed_concepts": [
+        "Assets",
+        "Liabilities",
+        "StockholdersEquity",
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInInvestingActivities",
+        "NetCashProvidedByUsedInFinancingActivities"
+      ],
+      "selected_fact_fields": [
+        "taxonomy",
+        "concept",
+        "value",
+        "unit",
+        "form",
+        "fy",
+        "fp",
+        "period_start",
+        "period_end",
+        "period_duration_days",
+        "filed_date",
+        "accession_number",
+        "source_provenance_hash"
+      ],
+      "duration_semantics": "point-in-time balance-sheet facts have no period start/duration; cash-flow facts retain the source-reported start/end and inclusive calendar period_duration_days; values are never annualised, interpolated, derived, or converted into artificial comparable periods",
+      "duration_selection_rule": "after PIT and eligible-version resolution, select the latest economic period by period_end; when multiple durations share that end, prefer the duration class matching fp/form: Q1=quarterly, Q2=year_to_date_h1, Q3=year_to_date_h2, FY/Q4 or 10-K=annual; retain the actual source-reported period metadata",
+      "restatement_rule": "for each exact taxonomy/concept/unit/start/end economic fact, select only the latest filed version whose filed_date is before the decision; a later restatement cannot appear in an earlier decision",
+      "canonical_selection_failure": "if identical filing metadata contains conflicting values, or no canonical period-end fact exists, mark that concept UNAVAILABLE rather than guess",
+      "representation": "one bounded fact per selected concept with full source-reported duration and filing metadata plus provenance hash",
+      "missingness": "concept-level UNAVAILABLE if no eligible or canonical fact; never substitute a later value or another symbol"
+    },
+    "TIME_SERIES": {
+      "source_identity": "time_series/S&P500_time_series.zip::S&P500_time_series/<symbol>.csv",
+      "pit_rule": "completed session rows with session <= decision_session; no later session is eligible",
+      "required_completed_rows": 61,
+      "summary_fields": [
+        "cumulative_return_5d",
+        "cumulative_return_20d",
+        "cumulative_return_60d",
+        "realised_volatility_20d_annualised",
+        "high_low_range_20d",
+        "drawdown_from_60d_peak",
+        "relative_volume_vs_20d_mean"
+      ],
+      "formulas": {
+        "cumulative_return_5d": "Close[t] / Close[t-5] - 1; requires 6 close observations",
+        "cumulative_return_20d": "Close[t] / Close[t-20] - 1; requires 21 close observations",
+        "cumulative_return_60d": "Close[t] / Close[t-60] - 1; requires 61 close observations",
+        "realised_volatility_20d_annualised": "sample_std(last 20 one-session returns, ddof=1) * sqrt(252), where r_i = Close[i] / Close[i-1] - 1; requires 21 closes",
+        "high_low_range_20d": "max(High[t-19:t]) / min(Low[t-19:t]) - 1; most recent 20 completed bars",
+        "drawdown_from_60d_peak": "Close[t] / max(Close[t-59:t]) - 1; most recent 60 completed closes including decision session",
+        "relative_volume_vs_20d_mean": "Volume[t] / mean(Volume[t-20:t-1]); current completed-session volume divided by previous 20 completed-session volumes; requires 21 rows"
+      },
+      "off_by_one_fixed": true,
+      "raw_rows_in_packet": 0,
+      "price_semantics": "FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. The M1 contract therefore treats FinMultiTime OHLC as source-native descriptive data with adjustment semantics not contractually guaranteed.",
+      "price_use_for_execution": false,
+      "price_use_for_valuation": false,
+      "m0_market_path_authoritative": true,
+      "representation": "fixed numeric summary plus through_session and source hash; no target/forward labels",
+      "missingness": "UNAVAILABLE if required completed history or required numeric inputs are absent; invalid raw rows are never repaired"
+    },
+    "IMAGE": {
+      "source_identity": "image/image/S&P500_image_*/<symbol>/<symbol>_YYYY_H[1|2]_candlestick.png",
+      "window_rule": "infer H1 nominal end=June 30 and H2 nominal end=December 31; require inferred period_end < decision_session",
+      "staleness_rule": "no additional arbitrary 30/60/90/180-day cutoff; expose evidence age explicitly",
+      "selection_rule": "one latest eligible completed image by inferred period_end, filename, path",
+      "agent_visible_metadata": [
+        "filename/source identity",
+        "inferred chart period",
+        "inferred period end",
+        "evidence age at decision time"
+      ],
+      "caption_rule": "image -> frozen Qwen3-VL-2B-Instruct caption -> Market Analyst; no synthetic image",
+      "missingness": "AAPL remains UNAVAILABLE; AMZN/JPM may use their latest completed eligible half-year chart",
+      "coverage_summary": {
+        "by_symbol": {
+          "AAPL": {
+            "formal_case_references": 0,
+            "unique_files_used": 0,
+            "coverage_by_max_age_days": {
+              "30": 0,
+              "90": 0,
+              "180": 0,
+              "365": 0
+            }
+          },
+          "AMZN": {
+            "formal_case_references": 26,
+            "unique_files_used": 1,
+            "coverage_by_max_age_days": {
+              "30": 4,
+              "90": 13,
+              "180": 26,
+              "365": 26
+            }
+          },
+          "JPM": {
+            "formal_case_references": 26,
+            "unique_files_used": 1,
+            "coverage_by_max_age_days": {
+              "30": 4,
+              "90": 13,
+              "180": 26,
+              "365": 26
+            }
+          }
+        },
+        "formal_case_references": 52,
+        "unique_files_used": 2,
+        "total_bytes_unique_files": 88838,
+        "image_age_min_days": 5,
+        "image_age_median_days": 92.0,
+        "image_age_max_days": 180,
+        "used_files": [
+          {
+            "symbol": "AMZN",
+            "filename": "amzn_2023_H2_candlestick.png",
+            "period_end_inferred": "2023-12-31",
+            "bytes": 45042,
+            "sha256": "215c01f8a03dc55719558644992b14c28d8b9f604d44e3504ef7df0f99997bb8"
+          },
+          {
+            "symbol": "JPM",
+            "filename": "jpm_2023_H2_candlestick.png",
+            "period_end_inferred": "2023-12-31",
+            "bytes": 43796,
+            "sha256": "b9e218ab002a8bfd6c0cbf86dd53abe9bcfeda4744a785754cb1b9173cc85611"
+          }
+        ]
+      }
+    }
+  },
+  "routing": {
+    "modality_to_analyst": {
+      "TEXT": "News Analyst",
+      "TABLE": "Fundamentals Analyst",
+      "TIME_SERIES": "Market Analyst",
+      "IMAGE": "Market Analyst"
+    },
+    "social_analyst": "receives no new FinMultiTime-specific modality; existing M0 Social Analyst behavior is unchanged",
+    "downstream_flow": "Bull Researcher, Bear Researcher, Research Manager, Trader, Risk agents, and Portfolio Manager receive FinMultiTime-derived information through the existing analyst-report flow",
+    "raw_packet_direct_injection_to_downstream": false
+  },
+  "qwen_image_adapter": {
+    "model": "Qwen3-VL-2B-Instruct",
+    "architecture": "FinMultiTime image -> frozen Qwen caption -> Market Analyst",
+    "offline_preprocessing_only": true,
+    "agent": false,
+    "trained": false,
+    "experiment_variable": false,
+    "formal_runtime_call": false,
+    "prompt": "Describe only information visually observable in the supplied financial chart. Return only the constrained schema fields: trend, momentum_visual, volatility_visual, candlestick_structure, notable_gap_or_reversal, support_resistance_visual, volume_visual, other_visible_pattern, and confidence. Use short phrases, do not infer causes, and do not add any narrative. Do not use external market knowledge, company-specific facts not visible in the chart, subsequent events, future returns, forecasts, predictions, price targets, or investment recommendations such as BUY/HOLD/SELL.",
+    "prohibited_content": [
+      "external market knowledge",
+      "company-specific factual knowledge not visible in the chart",
+      "subsequent events",
+      "future returns",
+      "forecasts or predictions",
+      "price targets",
+      "BUY/HOLD/SELL recommendations"
+    ],
+    "additional_text_context": false,
+    "ticker_or_company_metadata": false,
+    "caption_schema": [
+      "trend",
+      "momentum_visual",
+      "volatility_visual",
+      "candlestick_structure",
+      "notable_gap_or_reversal",
+      "support_resistance_visual",
+      "volume_visual",
+      "other_visible_pattern",
+      "confidence"
+    ],
+    "max_caption_chars": 900
+  },
+  "budget": {
+    "unit": "UTF-8 characters, deterministic proxy; no tokenizer dependency",
+    "limits": {
+      "TEXT": 12000,
+      "TABLE": 3200,
+      "TIME_SERIES": 3200,
+      "IMAGE": 1600,
+      "total_packet": 22000
+    },
+    "truncation": {
+      "text": "max 8 records; fixed newest-first ordering; title <=200 chars; body <=900 chars",
+      "table": "max 6 concepts; fixed concept order; no unselected observations",
+      "time_series": "fixed 7 fields; no raw rows",
+      "image": "at most one structured caption; caption <= 900 chars before section envelope"
+    },
+    "analyst_incremental_evidence_chars": {
+      "News Analyst": {
+        "min": 19,
+        "median": 19.0,
+        "max": 8841,
+        "source_fields": [
+          "routed_news_analyst_chars"
+        ]
+      },
+      "Fundamentals Analyst": {
+        "min": 2482,
+        "median": 2952.0,
+        "max": 2977,
+        "source_fields": [
+          "routed_fundamentals_analyst_chars"
+        ]
+      },
+      "Market Analyst": {
+        "min": 527,
+        "median": 573.5,
+        "max": 587,
+        "source_fields": [
+          "routed_market_analyst_chars"
+        ]
+      },
+      "Social Analyst": {
+        "min": 0,
+        "median": 0.0,
+        "max": 0,
+        "source_fields": [
+          "routed_social_analyst_chars"
+        ]
+      }
+    },
+    "raw_and_m0_reference_stats": {
+      "raw_article_records": 14871,
+      "raw_article_chars_min": 133,
+      "raw_article_chars_median": 4073,
+      "raw_article_chars_max": 32767,
+      "table_observation_count": 183906,
+      "serialized_table_observation_chars_median": 432,
+      "serialized_table_observation_chars_max": 480,
+      "m0_observed_api_call_count": 2262,
+      "m0_prompt_tokens_min": 661,
+      "m0_prompt_tokens_median": 9609,
+      "m0_prompt_tokens_max": 25309,
+      "raw_dataset_read_only": true,
+      "m0_snapshot_reference": "/Users/yulinqiao/Desktop/FTIPFinal/AlphaMAS/results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs",
+      "formal_case_count": 78
+    }
+  },
+  "provenance": {
+    "hash_algorithm": "SHA-256",
+    "raw_source_path": "/Volumes/Jackson/Dataset/FinMultiTime",
+    "source_members": [
+      "text/sp500_news.zip",
+      "table/SP500_tabular.zip",
+      "time_series/S&P500_time_series.zip",
+      "image/image/S&P500_image_*"
+    ],
+    "m0_snapshot_reference": "/Users/yulinqiao/Desktop/FTIPFinal/AlphaMAS/results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs",
+    "availability_fields": {
+      "TEXT": "Date (calendar date only)",
+      "TABLE": "filed (calendar date only)",
+      "TIME_SERIES": "session label through decision close",
+      "IMAGE": "inferred half-year window end, not a publication timestamp"
+    },
+    "data_audit_identity": {
+      "path": "docs/m1/finmultitime_data_audit.json",
+      "sha256": "f0f84e5e7b80e8d94ee33d5b380fb4fb3824352aaddd653f336dce851cee68ef",
+      "exists_before_contract_generation": true
+    }
+  },
+  "research_controls": {
+    "augmentation_only": true,
+    "m0_historical_safe_evidence_retained": true,
+    "trader_policy_unchanged": true,
+    "memory_unchanged": true,
+    "backtester_unchanged": true,
+    "execution_unchanged": true,
+    "evaluation_prices_unchanged": true,
+    "metrics_unchanged": true,
+    "no_available_at_after_decision": true,
+    "no_target_labels_or_forward_returns": true,
+    "no_2024h1_outcome_tuning": true,
+    "same_frozen_inputs_reusable_by_m2_a1_a2": true
+  },
+  "validation": {
+    "formal_cases_are_78": true,
+    "future_pit_violations_are_zero": true,
+    "no_same_day_date_only_news_admitted": true,
+    "no_same_day_filed_table_fact_admitted": true,
+    "no_unfinished_half_year_image_admitted": true,
+    "no_future_label_or_target_included": true,
+    "no_later_restatement_visible_early": true,
+    "no_raw_finmultitime_row_modified": true,
+    "no_m0_execution_or_evaluation_input_replaced": true,
+    "every_modality_has_explicit_status": true,
+    "routing_follows_frozen_analyst_map": true,
+    "time_series_has_required_history": true
+  },
+  "review_evidence": {
+    "anomaly_count": 12,
+    "consistency_row_count": 69,
+    "candidate_concept_count": 24,
+    "selected_concept_count": 6,
+    "simulation_case_count": 78,
+    "news_deduplication_rows": 307
+  },
+  "not_frozen_yet": {
+    "processed_three_stock_subset": true,
+    "image_captions": true,
+    "final_evidence_packets": true,
+    "m1_input_sha_bundle": true,
+    "m1_runtime_integration": true,
+    "m1_pilot_environment": true,
+    "formal_m1_result": true
+  },
+  "boundary_confirmation": {
+    "raw_finmultitime_modified": false,
+    "final_processed_subset_built": false,
+    "final_evidence_packets_built": false,
+    "qwen_downloaded": false,
+    "qwen_run": false,
+    "deepseek_calls": 0,
+    "paid_api_calls": 0,
+    "trader_modified": false,
+    "memory_modified": false,
+    "execution_modified": false,
+    "formal_m1_run": false,
+    "m2_agentic_rl_started": false,
+    "alpha_mas_experiments_modified": false
+  }
+}
