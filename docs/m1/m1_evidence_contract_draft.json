@@ -1,0 +1,233 @@
+{
+  "contract_id": "M1-FinMultiTime-Evidence-Contract",
+  "packet_version": "M1-FINMULTITIME-DRAFT-0.1",
+  "status": "PROPOSED_NOT_FROZEN",
+  "verdict": "M1 EVIDENCE CONTRACT PROPOSAL READY FOR RESEARCH REVIEW",
+  "formal_relationship": "M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet",
+  "scope": {
+    "symbols": [
+      "AAPL",
+      "AMZN",
+      "JPM"
+    ],
+    "formal_cases": 78,
+    "calendar": "XNYS",
+    "decision_time": "valid XNYS session close",
+    "raw_dataset_read_only": true,
+    "final_processed_dataset_built": false,
+    "formal_packets_generated": false
+  },
+  "required_sections": [
+    "TEXT",
+    "TABLE",
+    "TIME_SERIES",
+    "IMAGE"
+  ],
+  "statuses": {
+    "AVAILABLE": "PIT-safe evidence selected under the fixed rule",
+    "UNAVAILABLE": "source absent or no eligible evidence in the fixed window",
+    "AMBIGUOUS_REJECTED": "observed but excluded because date/time availability cannot be proven"
+  },
+  "common_fields": [
+    "status",
+    "source_identity",
+    "source_available_date_or_session",
+    "evidence_age_calendar_days",
+    "provenance_hash_reference",
+    "selection_rule",
+    "missingness_reason"
+  ],
+  "modalities": {
+    "TEXT": {
+      "source_identity": "text/sp500_news.zip::sp500_news/<SYMBOL>.jsonl",
+      "pit_rule": "Date < decision_session_date; same-day date-only records are AMBIGUOUS_REJECTED",
+      "lookback_calendar_days": 30,
+      "candidate_lookbacks_days": [
+        7,
+        14,
+        30
+      ],
+      "deduplication": [
+        "exact canonical record identity",
+        "duplicate exact URL after exact-record pass",
+        "retain removed-record hashes and kept-record hash in provenance"
+      ],
+      "selection_order": "newest eligible Date descending, then Url, Article_title, record hash",
+      "max_articles": 8,
+      "max_title_chars": 200,
+      "max_article_body_chars": 900,
+      "representation": "date, title, URL, bounded article text, record hash; no LLM semantic deduplication",
+      "missingness": "JPM is UNAVAILABLE; AAPL/AMZN with no record in [decision-30d, decision) are UNAVAILABLE"
+    },
+    "TABLE": {
+      "source_identity": "table/SP500_tabular.zip::financial_reports/<symbol>/*.json",
+      "pit_rule": "filed_date < decision_session_date; period_end is never availability",
+      "same_day_rule": "same-day filed observations are AMBIGUOUS_REJECTED",
+      "restatement_rule": "for each exact taxonomy/concept/unit/start/end economic fact, select latest eligible filed version; retain accn/filed/form/member",
+      "fixed_concepts": [
+        "Assets",
+        "Liabilities",
+        "StockholdersEquity",
+        "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInInvestingActivities",
+        "NetCashProvidedByUsedInFinancingActivities"
+      ],
+      "selection_rule": "select latest eligible version for each exact period, then latest economic period by end, start, filed, accession, form",
+      "representation": "one bounded fact per selected concept with value, unit, period, filed, accession, form, provenance hash",
+      "missingness": "field-level UNAVAILABLE if no eligible fact; never substitute a later value or another symbol"
+    },
+    "TIME_SERIES": {
+      "source_identity": "time_series/S&P500_time_series.zip::S&P500_time_series/<symbol>.csv",
+      "pit_rule": "completed session rows with session <= decision_session",
+      "windows_sessions": [
+        5,
+        20,
+        60
+      ],
+      "summary_fields": [
+        "cumulative_return_5d",
+        "cumulative_return_20d",
+        "cumulative_return_60d",
+        "realised_volatility_20d_annualised",
+        "high_low_range_20d",
+        "drawdown_from_60d_peak",
+        "relative_volume_vs_20d_mean"
+      ],
+      "raw_rows_in_packet": 0,
+      "price_semantics": "declared unresolved source policy; comparison indicates partially adjusted/inconsistent behavior across target symbols",
+      "representation": "fixed numeric summary plus through_session and source hash; no target/forward labels",
+      "missingness": "UNAVAILABLE if required completed history is absent; invalid raw rows are never repaired"
+    },
+    "IMAGE": {
+      "source_identity": "image/image/S&P500_image_*/<symbol>/<symbol>_YYYY_H[1|2]_candlestick.png",
+      "window_rule": "infer H1 end=June 30 and H2 end=December 31; require inferred period_end < decision_session",
+      "staleness_rule": "no additional fixed maximum threshold proposed; report threshold coverage for review",
+      "selection_rule": "one latest eligible image by inferred period_end, filename, path",
+      "caption_rule": "if later approved, image -> frozen Qwen3-VL-2B-Instruct -> bounded structured caption; no Qwen in this task",
+      "missingness": "AAPL remains UNAVAILABLE; no eligible completed image is UNAVAILABLE",
+      "coverage_summary": {
+        "by_symbol": {
+          "AAPL": {
+            "formal_case_references": 0,
+            "unique_files_used": 0,
+            "coverage_by_max_age_days": {
+              "30": 0,
+              "90": 0,
+              "180": 0,
+              "365": 0
+            }
+          },
+          "AMZN": {
+            "formal_case_references": 26,
+            "unique_files_used": 1,
+            "coverage_by_max_age_days": {
+              "30": 4,
+              "90": 13,
+              "180": 26,
+              "365": 26
+            }
+          },
+          "JPM": {
+            "formal_case_references": 26,
+            "unique_files_used": 1,
+            "coverage_by_max_age_days": {
+              "30": 4,
+              "90": 13,
+              "180": 26,
+              "365": 26
+            }
+          }
+        },
+        "formal_case_references": 52,
+        "unique_files_used": 2,
+        "total_bytes_unique_files": 88838,
+        "image_age_min_days": 5,
+        "image_age_median_days": 92.0,
+        "image_age_max_days": 180,
+        "used_files": [
+          {
+            "symbol": "AMZN",
+            "filename": "amzn_2023_H2_candlestick.png",
+            "period_end_inferred": "2023-12-31",
+            "bytes": 45042,
+            "sha256": "215c01f8a03dc55719558644992b14c28d8b9f604d44e3504ef7df0f99997bb8"
+          },
+          {
+            "symbol": "JPM",
+            "filename": "jpm_2023_H2_candlestick.png",
+            "period_end_inferred": "2023-12-31",
+            "bytes": 43796,
+            "sha256": "b9e218ab002a8bfd6c0cbf86dd53abe9bcfeda4744a785754cb1b9173cc85611"
+          }
+        ]
+      }
+    }
+  },
+  "budget": {
+    "unit": "UTF-8 characters, deterministic proxy because no tokenizer dependency is added",
+    "limits": {
+      "TEXT": 12000,
+      "TABLE": 3200,
+      "TIME_SERIES": 3200,
+      "IMAGE": 1600,
+      "total_packet": 22000
+    },
+    "truncation": {
+      "text": "max 8 records; fixed newest-first ordering; title <=200 chars; body <=900 chars",
+      "table": "max 6 concepts; fixed concept order; no unselected observations",
+      "time_series": "fixed 7 fields; no raw rows",
+      "image": "at most one caption; caption bounded to 1200 chars before section envelope"
+    },
+    "raw_and_m0_reference_stats": {
+      "raw_article_records": 14871,
+      "raw_article_chars_min": 133,
+      "raw_article_chars_median": 4073,
+      "raw_article_chars_max": 32767,
+      "table_observation_count": 183906,
+      "serialized_table_observation_chars_median": 432,
+      "serialized_table_observation_chars_max": 480,
+      "m0_observed_api_call_count": 2262,
+      "m0_prompt_tokens_min": 661,
+      "m0_prompt_tokens_median": 9609,
+      "m0_prompt_tokens_max": 25309,
+      "raw_dataset_read_only": true,
+      "m0_snapshot_reference": "/Users/yulinqiao/Desktop/FTIPFinal/AlphaMAS/results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs",
+      "formal_case_count": 78
+    }
+  },
+  "provenance": {
+    "hash_algorithm": "SHA-256",
+    "raw_source_path": "/Volumes/Jackson/Dataset/FinMultiTime",
+    "m0_snapshot_reference": "/Users/yulinqiao/Desktop/FTIPFinal/AlphaMAS/results/backtests/M0_original_prompt_2024H1/runs/20260812T082530978211Z_2535896c/inputs",
+    "availability_fields": {
+      "TEXT": "Date (calendar date only)",
+      "TABLE": "filed (calendar date only)",
+      "TIME_SERIES": "session label through decision close",
+      "IMAGE": "inferred half-year window end, not a publication timestamp"
+    }
+  },
+  "research_controls": {
+    "augmentation_only": true,
+    "m0_evidence_retained": true,
+    "trader_memory_execution_metrics_unchanged": true,
+    "no_available_at_after_decision": true,
+    "no_target_labels_or_forward_returns": true,
+    "no_2024h1_outcome_tuning": true,
+    "same_frozen_inputs_reusable_by_m2_a1_a2": true
+  },
+  "review_evidence": {
+    "anomaly_count": 12,
+    "consistency_row_count": 69,
+    "candidate_concept_count": 24,
+    "selected_concept_count": 6,
+    "simulation_case_count": 78,
+    "news_deduplication_rows": 307
+  },
+  "review_questions": [
+    "Accept the unresolved/partially adjusted FinMultiTime price semantics declaration?",
+    "Accept the sparse but PIT-safe fixed 30-calendar-day text lookback?",
+    "Accept the six-concept table schema and deterministic latest-eligible restatement rule?",
+    "Accept no additional image staleness threshold, subject to explicit unavailable status?",
+    "If images are retained, approve the later offline Qwen caption architecture after contract freeze?"
+  ]
+}

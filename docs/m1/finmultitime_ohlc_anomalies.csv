@@ -1,0 +1,13 @@
+symbol,session_date,Open,High,Low,Close,Volume,Dividends,Stock Splits,violated_invariant,inside_252_session_m0_warmup,inside_formal_2024h1_calendar,inside_formal_decision_span,potentially_reachable_by_60_session_lookback,raw_row_action
+AAPL,2008-03-19,4.0060587602,4.0412678608,3.902235508,3.902235508,10105368,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2002-03-25,17.9990903202,18.4695201434,17.8712558746,17.8712558746,84449,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2002-08-14,12.7360321059,13.1222887039,12.1984051499,13.1222887039,153458,0,0,"High < max(Open, Close, Low)",false,false,false,false,NOT_REPAIRED
+JPM,2002-12-20,12.6405679479,13.2088632584,12.5662119876,13.2088632584,155175,0,0,"High < max(Open, Close, Low)",false,false,false,false,NOT_REPAIRED
+JPM,2003-02-12,11.85246858,11.9709928958,11.5884819031,11.5884819031,95677,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2003-10-20,20.1449993885,20.3957653046,20.0446921718,20.3957653046,74034,0,0,"High < max(Open, Close, Low)",false,false,false,false,NOT_REPAIRED
+JPM,2006-06-26,24.7900952431,25.2960166931,24.753524177,25.2960166931,111833,0,0,"High < max(Open, Close, Low)",false,false,false,false,NOT_REPAIRED
+JPM,2007-08-09,28.4935293324,29.0628923577,27.9431419373,27.9431419373,392782,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2009-05-22,23.6308958467,23.6577040575,23.0612354279,23.0612354279,392272,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2009-10-21,30.9247854364,31.1935782062,30.0041656494,30.0041656494,329916,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
+JPM,2009-12-24,28.0083492543,28.1494655609,27.8941104132,28.1494655609,79565,0,0,"High < max(Open, Close, Low)",false,false,false,false,NOT_REPAIRED
+JPM,2011-08-02,27.4266161261,27.6181254516,27.2487888336,27.2487888336,42119,0,0,"Low > min(Open, Close, High)",false,false,false,false,NOT_REPAIRED
