@@ -1,0 +1,8 @@
+modality,dataset_partition,source_path,container,file_count,compressed_bytes,uncompressed_bytes,archive_bytes,extensions,notes
+text,S&P500,text/sp500_news.zip,zip,4694,3604324369,13948476648,3605043317,"{"".jsonl"": 4694}",ZIP central-directory inventory; members were not extracted
+text,HS300,text/hs300news_summary.zip,zip,892,56712410,433628563,56886812,"{"".jsonl"": 892}",ZIP central-directory inventory; members were not extracted
+table,S&P500,table/SP500_tabular.zip,zip,8028,3307197313,90235785721,3309800083,"{"".json"": 8028}",ZIP central-directory inventory; members were not extracted
+table,HS300,table/hs300_tabular.zip,zip,2430,58581007,595799355,59172469,"{"".jsonl"": 2430}",ZIP central-directory inventory; members were not extracted
+time_series,S&P500,time_series/S&P500_time_series.zip,zip,4213,482332479,1967347946,483028209,"{"".csv"": 4213}",ZIP central-directory inventory; members were not extracted
+time_series,HS300,time_series/HS300_time_series.zip,zip,810,100873358,362623012,101014468,"{"".csv"": 810}",ZIP central-directory inventory; members were not extracted
+image,S&P500 extracted + HS300 archive,image/image,expanded_shards_plus_zip_sibling,142470,,8180563723,2153994024,see filesystem_inventory.extension_counts_excluding_macos_sidecars,Includes extracted S&P500 shards and non-sidecar HS300_image.zip as physically stored

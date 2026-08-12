@@ -1,0 +1,6 @@
+source_type,field_or_path,observed,classification,finding
+time_series,future_return / next_return / return_5d / target / label / direction / forecast / prediction / horizon result,false,prohibited_if_present,"No such target field appears in the target CSV headers; the only columns are Date, Open, High, Low, Close, Volume, Dividends, Stock Splits."
+table,facts.*.*.units.*[].val,false,safe_candidate_after_filed_gate,"SEC fact values are historical observations, not forecast labels; they remain PIT-sensitive and must be gated by filed date."
+table,facts.*.*.units.*[].end / start,false,metadata_only_for_availability,Period dates describe the reporting period and are not availability timestamps.
+text,Article,false,safe_candidate_content_but_not_label,"No explicit target/label field exists; article prose may discuss future outcomes, which is ordinary text content rather than a dataset-derived target."
+image,*_YYYY_H[1|2]_candlestick.png,false,safe_only_after_window_end_gate,Filename/title encodes a chart period but no target/prediction label; the entire chart is prohibited until its inferred window end is no later than the decision.
