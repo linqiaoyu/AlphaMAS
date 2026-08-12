@@ -24,7 +24,7 @@ AAPL and JPM show time-varying price differences relative to the raw M0 snapshot
 
 ## Contract conclusion
 
-FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. The M1 contract therefore treats FinMultiTime OHLC as source-native descriptive data with adjustment semantics not contractually guaranteed.
+FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. FinMultiTime OHLC is therefore treated as source-native descriptive data with adjustment semantics not contractually guaranteed.
 FinMultiTime OHLC remains source-native descriptive data: no silent normalisation, no repair to force equality with M0, and no use for execution or valuation. If used for descriptive summaries, retain the source identity and hash.
 
 The 12 impossible-OHLC rows are a separate structural issue and are listed in `finmultitime_ohlc_anomalies.csv`; all are outside the relevant M0 warm-up, formal span, and proposed 60-session lookback.

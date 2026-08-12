@@ -1,11 +1,13 @@
 # M1 FinMultiTime Evidence Contract
 
-**Packet version:** `M1-FINMULTITIME-v1.0`
+**Packet version:** `M1-FINMULTITIME-v1.0.1`
 **Status:** FROZEN
-**Final verdict:** M1 EVIDENCE CONTRACT FROZEN — READY FOR PREPROCESSING
+**Final verdict:** M1 EVIDENCE CONTRACT ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING
 **Parent draft:** `M1-FINMULTITIME-DRAFT-0.1`
 **Research-review decision:** `M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS`
-**Freeze date:** `2026-08-12`
+**Freeze date:** `2026-08-13`
+
+This patch-level erratum supersedes `M1-FINMULTITIME-v1.0` without erasing it. Reason: Rename year_to_date_h1/year_to_date_h2 to the precise year_to_date_6m/year_to_date_9m duration classes; selection behaviour is unchanged. The deterministic equivalence report records no research-relevant change.
 
 This contract freezes selection and representation rules only. It does not build the processed subset, generate final Evidence Packets, download/run Qwen, modify M0 behavior, or run M1.
 
@@ -19,7 +21,7 @@ Every packet always contains TEXT, TABLE, TIME_SERIES, and IMAGE. Each has expli
 
 The deterministic scan found 12 impossible-OHLC rows: 1 AAPL, 0 AMZN, and 11 JPM. They are outside the M0 warm-up, formal decision span, and reachable 60-session summary lookback. Raw rows are not repaired.
 
-FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. The M1 contract therefore treats FinMultiTime OHLC as source-native descriptive data with adjustment semantics not contractually guaranteed.
+FinMultiTime does not explicitly document the adjustment semantics of the target OHLC series. Empirical comparison is consistent with dividend-adjusted historical prices for AAPL/JPM and raw-equivalent OHLC for AMZN over the audited period. FinMultiTime OHLC is therefore treated as source-native descriptive data with adjustment semantics not contractually guaranteed.
 
 The contract treats FinMultiTime OHLC as source-native descriptive data: no silent normalisation, no repair to force equality with M0, and no use for execution or valuation. The validated M0 market path remains authoritative.
 
@@ -58,7 +60,9 @@ The six fixed concepts are:
 
 Each selected fact exposes taxonomy, concept, value, unit, form, fy, fp, period start, period end, inclusive `period_duration_days`, filed date, accession number, source member, and source/provenance hash. Balance-sheet facts remain point-in-time. Cash-flow facts retain the actual quarterly, year-to-date, or annual source-reported horizon; no annualisation, interpolation, derivation, or artificial period conversion is allowed.
 
-Selection is deterministic: apply PIT; resolve restatements only among versions already filed before the decision; select the latest economic period by period end; at a shared latest period end prefer the duration class matching `fp/form` (`Q1` quarterly, `Q2` H1 year-to-date, `Q3` H2 year-to-date, `FY/Q4` or `10-K` annual). Conflicting values at identical filing metadata or a non-canonical selection produce concept-level `UNAVAILABLE`. Diagnostics are in `m1_evidence_contract_table_selection_diagnostics.csv`.
+Duration classes use inclusive calendar-day ranges with tolerance for 13-week quarters and 52/53-week fiscal calendars: `quarterly` = 45–120 days, `year_to_date_6m` = 121–210, `year_to_date_9m` = 211–300, `annual` = 301+, `point_in_time` = no source period start, and `other_duration` = 1–44 days.
+
+Selection is deterministic: apply PIT; resolve restatements only among versions already filed before the decision; select the latest economic period by period end; at a shared latest period end prefer the duration class matching `fp/form` (`Q1` → `quarterly`, `Q2` → `year_to_date_6m`, `Q3` → `year_to_date_9m`, `FY/Q4/10-K` → `annual`). Conflicting values at identical filing metadata or a non-canonical selection produce concept-level `UNAVAILABLE`. Diagnostics are in `m1_evidence_contract_table_selection_diagnostics.csv`.
 
 ## TIME_SERIES
 
@@ -88,7 +92,7 @@ The simulation selects 2 unique image files for 52 repeated references. Evidence
 | AMZN | 26 | 1 | 4/26 | 13/26 | 26/26 | 26/26 |
 | JPM | 26 | 1 | 4/26 | 13/26 | 26/26 | 26/26 |
 
-Later Qwen use is offline preprocessing only: `FinMultiTime image -> frozen Qwen3-VL-2B-Instruct caption -> Market Analyst`. Qwen is not an Agent, is not trained, is not an experiment variable, and is not called during Formal M1 runtime. The prompt must say: “Describe only information visually observable in the supplied financial chart.” It must prohibit external/company knowledge not visible in the image, subsequent events, future returns, forecasts, predictions, price targets, and BUY/HOLD/SELL recommendations. No ticker/company identity or additional text context is supplied. The frozen short schema is `trend`, `momentum_visual`, `volatility_visual`, `candlestick_structure`, `notable_gap_or_reversal`, `support_resistance_visual`, `volume_visual`, `other_visible_pattern`, `confidence`, with a maximum caption size of 900 characters.
+Later Qwen use is offline preprocessing only: `FinMultiTime image -> frozen Qwen3-VL-2B-Instruct caption -> Market Analyst`. Qwen is not an Agent, is not trained, is not an experiment variable, and is not called during Formal M1 runtime. The prompt must say: “Describe only information visually observable in the supplied financial chart.” It must prohibit external/company knowledge not visible in the image, subsequent events, future returns, forecasts, predictions, price targets, and BUY/HOLD/SELL recommendations. No ticker/company identity or additional text context is supplied. The frozen short schema is `trend`, `momentum_visual`, `volatility_visual`, `candlestick_structure`, `notable_gap_or_reversal`, `support_resistance_visual`, `volume_visual`, `other_visible_pattern`, `confidence`, with a maximum caption size of 900 characters. The exact model revision and runtime/generation environment remain intentionally unfrozen until caption preprocessing.
 
 ## Routing and budget
 
@@ -143,4 +147,4 @@ The following remain deliberately unfrozen: processed three-stock subset, image 
 
 Raw FinMultiTime modified: **NO**. Final processed subset built: **NO**. Final Evidence Packets built: **NO**. Qwen downloaded: **NO**. Qwen run: **NO**. DeepSeek calls: **0**. Paid API calls: **0**. Trader, Memory, and execution modified: **NO**. Formal M1 run: **NO**. M2 / Agentic RL started: **NO**. AlphaMAS-Experiments modified: **NO**.
 
-Freeze artifacts: `M1_EVIDENCE_CONTRACT.md`, `m1_evidence_contract.json`, `m1_evidence_contract_case_simulation.csv`, and `m1_evidence_contract_freeze.json`. The freeze manifest records SHA-256 hashes for the final contract, simulation, and required audit reports.
+Freeze artifacts include `M1_EVIDENCE_CONTRACT.md`, `m1_evidence_contract.json`, `m1_evidence_contract_case_simulation.csv`, `m1_evidence_contract_table_selection_diagnostics.csv`, `m1_contract_erratum_equivalence.json`, and `m1_evidence_contract_freeze.json`. The freeze manifest records SHA-256 hashes for the final contract, simulation, equivalence evidence, and required audit/semantics reports.

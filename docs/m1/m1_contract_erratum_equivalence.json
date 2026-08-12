@@ -1,0 +1,25 @@
+{
+  "report_id": "M1-Evidence-Contract-v1.0-to-v1.0.1-Erratum-Equivalence",
+  "previous_contract_version": "M1-FINMULTITIME-v1.0",
+  "current_contract_version": "M1-FINMULTITIME-v1.0.1",
+  "source_parent_sha": "0b34a278b43e64204ce6805cec94728874b50131",
+  "cases_compared": 78,
+  "comparison_scope": "all 53 simulation columns; packet_version and the explicit duration-class label mapping are ignored",
+  "terminology_mapping": {
+    "quarterly": "quarterly",
+    "year_to_date_h1": "year_to_date_6m",
+    "year_to_date_h2": "year_to_date_9m",
+    "annual": "annual"
+  },
+  "expected_terminology_only_differences": {
+    "cases_with_renamed_duration_classes": 20,
+    "year_to_date_h1_occurrences": 48,
+    "year_to_date_h2_occurrences": 72,
+    "packet_version_changes": 78,
+    "terminology_derived_source_hash_changes": 20
+  },
+  "research_relevant_difference_count": 0,
+  "research_relevant_differences": [],
+  "selected_fact_or_value_change_count": 0,
+  "verdict": "PASS — no research-relevant behavioural change"
+}
