@@ -204,6 +204,20 @@ class TradingAgentsStrategy(BaseStrategy):
             "equity": snapshot.equity, "average_entry_price": snapshot.average_entry_price,
         }
         graph_config = getattr(self.graph, "config", {})
+        finmultitime_store = getattr(self.graph, "finmultitime_evidence_store", None)
+        finmultitime_enabled = bool(
+            graph_config.get("finmultitime_evidence_enabled", False)
+        )
+        finmultitime_case = None
+        if finmultitime_store is not None:
+            decision_session = kwargs.get("decision_session")
+            if decision_session is None:
+                raise ValueError(
+                    "FinMultiTime cache identity requires an exact decision_session"
+                )
+            finmultitime_case = finmultitime_store.case_identity(
+                kwargs["symbol"], str(decision_session)
+            )
         history_payload = kwargs["market_history"].to_csv(
             lineterminator="\n", float_format="%.12g"
         )
@@ -240,6 +254,23 @@ class TradingAgentsStrategy(BaseStrategy):
             ).hexdigest(),
             "market_history_sha256": hashlib.sha256(history_payload.encode()).hexdigest(),
             "memory_namespace_version": self.cache_config.get("memory_namespace_version", "v1"),
+            "finmultitime_evidence_enabled": finmultitime_enabled,
+            "finmultitime_input_bundle_identity": (
+                finmultitime_case["input_bundle_identity"]
+                if finmultitime_case else None
+            ),
+            "finmultitime_contract_sha256": (
+                finmultitime_case["contract_sha256"] if finmultitime_case else None
+            ),
+            "finmultitime_case_id": (
+                finmultitime_case["case_id"] if finmultitime_case else None
+            ),
+            "finmultitime_packet_json_sha256": (
+                finmultitime_case["packet_json_sha256"] if finmultitime_case else None
+            ),
+            "finmultitime_route_sha256": (
+                finmultitime_case["route_sha256"] if finmultitime_case else None
+            ),
             # This rolling chain covers all earlier successful Agent cases in
             # the attempt, including prior symbols. A repaired failed point
             # therefore invalidates every obsolete downstream cache entry.

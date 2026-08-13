@@ -8,9 +8,13 @@ from tradingagents.agents.utils.agent_utils import (
     get_temporal_prompt_instruction,
     get_verified_market_snapshot,
 )
+from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
+from tradingagents.evidence.prompt import build_analyst_local_messages
 
 
-def create_market_analyst(llm):
+def create_market_analyst(
+    llm, evidence_provider: FrozenFinMultiTimeEvidenceStore | None = None
+):
 
     def market_analyst_node(state):
         current_date = state["trade_date"]
@@ -83,7 +87,9 @@ Write a very detailed and nuanced report of the trends you observe. Provide spec
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        result = chain.invoke(
+            build_analyst_local_messages(state, evidence_provider, "market")
+        )
 
         report = ""
 

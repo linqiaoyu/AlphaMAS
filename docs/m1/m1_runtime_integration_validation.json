@@ -1,0 +1,46 @@
+{
+  "report_id": "M1-Runtime-Integration",
+  "contract_version": "M1-FINMULTITIME-v1.0.2",
+  "contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+  "archive_commit": "3750fa50224ba46ab1d4bf5511cb5e8fa514445b",
+  "input_bundle_identity": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+  "packet_manifest_sha256": "05f10129b430475bad3d5dee9dfceffba463f8a99cdd3f087ff4b755a869d63d",
+  "packet_count": 78,
+  "formal_m1_executed": false,
+  "agent_runs": 0,
+  "llm_calls": 0,
+  "memory_updates": 0,
+  "aws_resources_created": 0,
+  "targeted_ruff": "PASS",
+  "full_pytest": "818 passed, 2 skipped",
+  "full_repository_ruff": "PRE_EXISTING_BASELINE_ISSUES_OUTSIDE_RUNTIME_CHANGE",
+  "routing": {
+    "news": ["TEXT"],
+    "fundamentals": ["TABLE"],
+    "market": ["TIME_SERIES", "IMAGE"],
+    "social": "NO_FINMULTITIME_ROUTE"
+  },
+  "representative_cases": {
+    "AAPL:2024-01-05": {
+      "packet_json_sha256": "fa645f18040da61765076d3531a8a1bb1b6fdb80f5dd0a009241ddb04e296049",
+      "news_route_sha256": "fd7b94722bb5b7383fe50de8554482d09565a568d665c7d1dcecfcb041c49954",
+      "fundamentals_route_sha256": "028db0676ae17c99cd9c0e4a1b7df37d35afa18581ea857ce007c46b8317444a",
+      "market_route_sha256": "186046fdad0fd6aec3da864bdaf2e190edc8180cd94dfa3ba7cafc018d893c15",
+      "social_route": "NO_FINMULTITIME_ROUTE"
+    },
+    "AMZN:2024-01-05": {
+      "packet_json_sha256": "5adbc63d9e2fde7921fd9b4030fd8060c17d98b5198d535551396eda0f129c70",
+      "news_route_sha256": "422b02e8be1699c37c663fa47cc50631cd60824560800ab6f5b690e532136a8a",
+      "fundamentals_route_sha256": "fa81a15c6b466f107a9d0d9b5a5d99e1fe93a9f0abdc7c377bc5d3eaa283a5ec",
+      "market_route_sha256": "0d4f1bd199edf56e59dd83e35d505ae5de9d85f1498b1b4d6434de171e28f6fd",
+      "social_route": "NO_FINMULTITIME_ROUTE"
+    },
+    "JPM:2024-01-05": {
+      "packet_json_sha256": "bd690a20f2b7530adfe2d9cb5a1e4c6a65815c9088ba14ead2639c8c05fd617a",
+      "news_route_sha256": "4af0fa82ef7ef2da6f34d1fad468ef636881884749a45f28bd389cf2459a01ef",
+      "fundamentals_route_sha256": "6e7550b60f8a847ffa1f7f4a3810b3f871e2e1d0477fe264afc0912f9046f6d6",
+      "market_route_sha256": "be4bbfdff00f197fd8765db20587f59dad01fb739917d12f45839ec5c6eb7294",
+      "social_route": "NO_FINMULTITIME_ROUTE"
+    }
+  }
+}

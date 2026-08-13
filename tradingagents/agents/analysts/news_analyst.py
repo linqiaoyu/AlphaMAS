@@ -9,6 +9,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_prediction_markets,
     get_temporal_prompt_instruction,
 )
+from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
+from tradingagents.evidence.prompt import build_analyst_local_messages
 
 
 def build_news_analyst_system_message(asset_label: str) -> str:
@@ -29,7 +31,9 @@ def build_news_analyst_system_message(asset_label: str) -> str:
     )
 
 
-def create_news_analyst(llm):
+def create_news_analyst(
+    llm, evidence_provider: FrozenFinMultiTimeEvidenceStore | None = None
+):
     def news_analyst_node(state):
         current_date = state["trade_date"]
         asset_type = state.get("asset_type", "stock")
@@ -76,7 +80,9 @@ def create_news_analyst(llm):
         prompt = prompt.partial(instrument_context=instrument_context)
 
         chain = prompt | llm.bind_tools(tools)
-        result = chain.invoke(state["messages"])
+        result = chain.invoke(
+            build_analyst_local_messages(state, evidence_provider, "news")
+        )
 
         report = ""
 

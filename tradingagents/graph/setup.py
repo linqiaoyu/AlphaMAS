@@ -21,6 +21,7 @@ from tradingagents.agents import (
     create_trader,
 )
 from tradingagents.agents.utils.agent_states import AgentState
+from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
 
 from .analyst_execution import build_analyst_execution_plan
 from .conditional_logic import ConditionalLogic
@@ -51,12 +52,14 @@ class GraphSetup:
         deep_thinking_llm: Any,
         tool_nodes: dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
+        evidence_provider: FrozenFinMultiTimeEvidenceStore | None = None,
     ):
         """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
+        self.evidence_provider = evidence_provider
 
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals")
@@ -73,10 +76,16 @@ class GraphSetup:
         plan = build_analyst_execution_plan(selected_analysts)
 
         analyst_factories = {
-            "market": lambda: create_market_analyst(self.quick_thinking_llm),
+            "market": lambda: create_market_analyst(
+                self.quick_thinking_llm, self.evidence_provider
+            ),
             "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
-            "news": lambda: create_news_analyst(self.quick_thinking_llm),
-            "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
+            "news": lambda: create_news_analyst(
+                self.quick_thinking_llm, self.evidence_provider
+            ),
+            "fundamentals": lambda: create_fundamentals_analyst(
+                self.quick_thinking_llm, self.evidence_provider
+            ),
         }
 
         # Create researcher and manager nodes

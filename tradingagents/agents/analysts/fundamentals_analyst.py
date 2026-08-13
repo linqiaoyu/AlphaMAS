@@ -9,9 +9,13 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_temporal_prompt_instruction,
 )
+from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
+from tradingagents.evidence.prompt import build_analyst_local_messages
 
 
-def create_fundamentals_analyst(llm):
+def create_fundamentals_analyst(
+    llm, evidence_provider: FrozenFinMultiTimeEvidenceStore | None = None
+):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = get_instrument_context_from_state(state)
@@ -57,7 +61,9 @@ def create_fundamentals_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        result = chain.invoke(
+            build_analyst_local_messages(state, evidence_provider, "fundamentals")
+        )
 
         report = ""
 

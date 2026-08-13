@@ -1,0 +1,60 @@
+{
+  "report_id": "M1-Runtime-Controlled-Difference",
+  "m0_base_sha": "2535896c8b1070b19c06fa6a936663babb4356f7",
+  "starting_m1_sha": "7b905ed4d0b756dd5faff9f3a3ac7d00c50560a8",
+  "allowed_change_classes": [
+    "frozen FinMultiTime evidence-store adapter",
+    "explicit M1 configuration",
+    "analyst-local evidence injection",
+    "cache/checkpoint evidence identity",
+    "runtime provenance/audit plumbing",
+    "deterministic probe, regression tests, and documentation"
+  ],
+  "changed_runtime_files": {
+    "evidence_store": [
+      "tradingagents/evidence/__init__.py",
+      "tradingagents/evidence/finmultitime.py",
+      "tradingagents/evidence/prompt.py"
+    ],
+    "configuration": [
+      "tradingagents/default_config.py",
+      "tradingagents/backtesting/config.py"
+    ],
+    "analyst_local_injection": [
+      "tradingagents/agents/analysts/fundamentals_analyst.py",
+      "tradingagents/agents/analysts/market_analyst.py",
+      "tradingagents/agents/analysts/news_analyst.py",
+      "tradingagents/graph/setup.py"
+    ],
+    "cache_checkpoint_identity": [
+      "tradingagents/backtesting/strategies.py",
+      "tradingagents/graph/trading_graph.py"
+    ],
+    "provenance": [
+      "tradingagents/runtime/run_context.py"
+    ]
+  },
+  "validation_only_files": [
+    "scripts/finmultitime/probe_m1_runtime_integration.py",
+    "tests/test_m1_runtime_evidence.py",
+    "docs/m1/M1_RUNTIME_INTEGRATION.md",
+    "docs/m1/m1_runtime_integration_validation.json",
+    "docs/m1/m1_runtime_controlled_difference.json"
+  ],
+  "unchanged_scientific_components": [
+    "Trader",
+    "Memory learning/maturity/outcome algorithm",
+    "execution engine",
+    "valuation",
+    "portfolio accounting",
+    "transaction costs",
+    "metrics",
+    "formal schedule",
+    "BUY/HOLD/SELL action mapping",
+    "debate and risk rounds",
+    "LLM provider/model settings"
+  ],
+  "raw_finmultitime_source_modified": false,
+  "formal_m1_run": false,
+  "verdict": "PASS — runtime changes are additive and limited to the approved M1 evidence interface, identity, provenance, tests, and documentation"
+}

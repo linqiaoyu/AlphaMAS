@@ -33,6 +33,7 @@ from tradingagents.agents.utils.memory import TradingMemoryLog
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.llm_clients.openai_client import validate_deepseek_thinking
 from tradingagents.reporting import write_report_tree
@@ -195,6 +196,14 @@ class TradingAgentsGraph:
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
 
+        # M1 is an explicit opt-in.  Validation happens before any graph is
+        # constructed so a configured M1 run can never silently degrade to M0.
+        self.finmultitime_evidence_store = (
+            FrozenFinMultiTimeEvidenceStore.from_config(self.config)
+            if self.config.get("finmultitime_evidence_enabled", False)
+            else None
+        )
+
         # Initialize LLMs with provider-specific thinking configuration
         llm_kwargs = self._get_provider_kwargs()
 
@@ -235,6 +244,7 @@ class TradingAgentsGraph:
             self.deep_thinking_llm,
             self.tool_nodes,
             self.conditional_logic,
+            self.finmultitime_evidence_store,
         )
 
         self.propagator = Propagator(
@@ -572,7 +582,12 @@ class TradingAgentsGraph:
         identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
-    def _run_signature(self, asset_type: str) -> str:
+    def _run_signature(
+        self,
+        asset_type: str,
+        ticker: str | None = None,
+        trade_date: str | None = None,
+    ) -> str:
         """Graph-shape inputs that must invalidate a checkpoint if changed.
 
         Keyed into the checkpoint thread ID so a resume under a different analyst
@@ -591,6 +606,26 @@ class TradingAgentsGraph:
                 context.memory_lineage_id
                 or self.config.get("historical_memory_lineage_id")
                 or ""
+            ),
+            "graph_config=" + str(self.config.get("graph_config_sha256") or ""),
+            "finmultitime_enabled=" + str(
+                bool(self.config.get("finmultitime_evidence_enabled", False))
+            ),
+            "finmultitime_bundle=" + str(
+                getattr(
+                    getattr(self, "finmultitime_evidence_store", None),
+                    "bundle_identity",
+                    "",
+                )
+            ),
+            "finmultitime_packet=" + (
+                self.finmultitime_evidence_store.case_identity(
+                    ticker, str(trade_date)
+                )["packet_json_sha256"]
+                if ticker is not None
+                and trade_date is not None
+                and getattr(self, "finmultitime_evidence_store", None) is not None
+                else ""
             ),
         ])
 
@@ -734,7 +769,7 @@ class TradingAgentsGraph:
 
                     step = checkpoint_step(
                         self.config["data_cache_dir"], company_name, str(trade_date),
-                        self._run_signature(asset_type),
+                        self._run_signature(asset_type, company_name, str(trade_date)),
                     )
                     if step is not None:
                         logger.info(
@@ -789,7 +824,11 @@ class TradingAgentsGraph:
         # Inject thread_id so same ticker+date+graph-shape resumes; a different
         # date or graph shape starts fresh (#1089).
         if self.config.get("checkpoint_enabled"):
-            tid = thread_id(company_name, str(trade_date), self._run_signature(asset_type))
+            tid = thread_id(
+                company_name,
+                str(trade_date),
+                self._run_signature(asset_type, company_name, str(trade_date)),
+            )
             args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = tid
 
         if self.debug:
@@ -831,7 +870,7 @@ class TradingAgentsGraph:
         if self.config.get("checkpoint_enabled"):
             clear_checkpoint(
                 self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
+                self._run_signature(asset_type, company_name, str(trade_date)),
             )
 
         return final_state, self.process_signal(final_state["final_trade_decision"])

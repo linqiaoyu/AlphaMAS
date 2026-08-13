@@ -154,8 +154,9 @@ class AuditTrail:
         latest_event_time: Any = None,
         latest_available_time: Any = None,
         reason: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        self.records.append({
+        record = {
             "source_name": source_name,
             "mode": self.context.mode,
             "requested_start": _iso(requested_start),
@@ -167,7 +168,10 @@ class AuditTrail:
             "latest_available_time": _iso(latest_available_time),
             "reason": reason,
             "generated_at": self.context.generated_at.isoformat(),
-        })
+        }
+        if metadata is not None:
+            record["metadata"] = metadata
+        self.records.append(record)
 
     def as_dict(self) -> dict[str, Any]:
         return {

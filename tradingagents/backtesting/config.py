@@ -126,6 +126,16 @@ GRAPH_RESEARCH_KEYS = (
     "checkpoint_enabled",
     "point_in_time",
     "execution_data_source",
+    # Frozen M1 evidence identity is research-affecting. The input path is
+    # excluded below, while the byte identity and exact case packet hash are
+    # bound into cache/checkpoint identities by the runtime.
+    "finmultitime_evidence_enabled",
+    "finmultitime_expected_contract_version",
+    "finmultitime_expected_contract_sha256",
+    "finmultitime_expected_packet_manifest_sha256",
+    "finmultitime_expected_input_bundle_identity",
+    "finmultitime_archive_commit",
+    "finmultitime_verify_full_bundle_on_start",
 )
 
 GRAPH_HASH_EXCLUDED_KEYS = frozenset({
@@ -138,6 +148,7 @@ GRAPH_HASH_EXCLUDED_KEYS = frozenset({
     "historical_memory_dir",
     "historical_memory_lineage_id",
     "historical_audit_path",
+    "finmultitime_input_root",
 })
 
 _SECRET_KEYS = frozenset({
@@ -191,7 +202,20 @@ def validate_formal_m0_config(config: dict[str, Any]) -> None:
         raise ValueError(f"formal M0 config contract mismatch: {mismatches}")
     if resolve_research_rounds(config["research_depth"]) != 3:
         raise ValueError("formal M0 medium research depth must resolve to 3 rounds")
-    derived_graph_keys = {"memory_holding_horizon_sessions", "execution_data_source"}
+    # These M1 controls deliberately default to the disabled M0-compatible
+    # values. They become explicit in a future M1 formal config without
+    # changing the frozen M0 config contract.
+    derived_graph_keys = {
+        "memory_holding_horizon_sessions",
+        "execution_data_source",
+        "finmultitime_evidence_enabled",
+        "finmultitime_expected_contract_version",
+        "finmultitime_expected_contract_sha256",
+        "finmultitime_expected_packet_manifest_sha256",
+        "finmultitime_expected_input_bundle_identity",
+        "finmultitime_archive_commit",
+        "finmultitime_verify_full_bundle_on_start",
+    }
     missing_graph = [
         key for key in GRAPH_RESEARCH_KEYS
         if key not in derived_graph_keys and key not in config

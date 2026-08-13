@@ -1,5 +1,13 @@
 import os
 
+from tradingagents.evidence.finmultitime import (
+    DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
+    DEFAULT_FINMULTITIME_CONTRACT_SHA256,
+    DEFAULT_FINMULTITIME_CONTRACT_VERSION,
+    DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
+    DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256,
+)
+
 _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
 
 # Single source of truth for env-var → config-key overrides. To expose
@@ -26,6 +34,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_OPENAI_REASONING_EFFORT": "openai_reasoning_effort",
     "TRADINGAGENTS_ANTHROPIC_EFFORT":        "anthropic_effort",
     "TRADINGAGENTS_DEEPSEEK_THINKING":        "deepseek_thinking",
+    "TRADINGAGENTS_FINMULTITIME_EVIDENCE_ENABLED": "finmultitime_evidence_enabled",
+    "TRADINGAGENTS_FINMULTITIME_INPUT_ROOT": "finmultitime_input_root",
 }
 
 
@@ -126,6 +136,18 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
+    # Frozen M1 FinMultiTime evidence is an explicit opt-in.  When enabled,
+    # TradingAgentsGraph validates the complete configured bundle before graph
+    # execution; when disabled, no frozen packet is read and M0 behavior is
+    # unchanged.
+    "finmultitime_evidence_enabled": False,
+    "finmultitime_input_root": None,
+    "finmultitime_expected_contract_version": DEFAULT_FINMULTITIME_CONTRACT_VERSION,
+    "finmultitime_expected_contract_sha256": DEFAULT_FINMULTITIME_CONTRACT_SHA256,
+    "finmultitime_expected_packet_manifest_sha256": DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256,
+    "finmultitime_expected_input_bundle_identity": DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
+    "finmultitime_archive_commit": DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
+    "finmultitime_verify_full_bundle_on_start": True,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",
