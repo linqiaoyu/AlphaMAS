@@ -139,6 +139,13 @@ GRAPH_RESEARCH_KEYS = (
     "finmultitime_verify_full_bundle_on_start",
 )
 
+# Runtime values that must follow a backtest config into the Graph without
+# becoming part of its research identity. Equivalent frozen bytes may be
+# mounted at different absolute paths on different machines.
+GRAPH_OPERATIONAL_KEYS = (
+    "finmultitime_input_root",
+)
+
 GRAPH_HASH_EXCLUDED_KEYS = frozenset({
     "graph_config_sha256",
     "project_dir",
@@ -274,6 +281,9 @@ def resolve_graph_config(
 
     graph = copy.deepcopy(DEFAULT_CONFIG)
     for key in GRAPH_RESEARCH_KEYS:
+        if key in backtest_config:
+            graph[key] = copy.deepcopy(backtest_config[key])
+    for key in GRAPH_OPERATIONAL_KEYS:
         if key in backtest_config:
             graph[key] = copy.deepcopy(backtest_config[key])
     graph.update({

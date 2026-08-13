@@ -13,6 +13,7 @@ import scripts.run_weekly_backtest as weekly_runner
 from tradingagents.backtesting.config import (
     FIXED_BACKTEST_CONTRACT,
     FORMAL_M0_CONTRACT,
+    GRAPH_OPERATIONAL_KEYS,
     GRAPH_RESEARCH_KEYS,
     compute_graph_config_sha256,
     resolve_graph_config,
@@ -186,6 +187,29 @@ def test_graph_config_hash_is_path_stable_and_research_sensitive(tmp_path: Path)
 
     assert compute_graph_config_sha256(first) == compute_graph_config_sha256(second)
     assert compute_graph_config_sha256(first) != compute_graph_config_sha256(changed)
+
+
+def test_finmultitime_input_root_is_propagated_but_not_research_identity(
+    tmp_path: Path,
+) -> None:
+    config = {
+        **load_formal_config(),
+        "finmultitime_input_root": Path("/tmp/example/pilot"),
+    }
+    graph = resolve_graph_config(
+        config,
+        results_dir=tmp_path / "results",
+        data_cache_dir=tmp_path / "cache",
+        historical_memory_dir=tmp_path / "memory",
+    )
+    relocated = {
+        **graph,
+        "finmultitime_input_root": Path("/machine/b/identical-inputs"),
+    }
+
+    assert GRAPH_OPERATIONAL_KEYS == ("finmultitime_input_root",)
+    assert graph["finmultitime_input_root"] == Path("/tmp/example/pilot")
+    assert compute_graph_config_sha256(graph) == compute_graph_config_sha256(relocated)
 
 
 def test_every_declared_graph_research_field_changes_identity(tmp_path: Path) -> None:

@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from tradingagents.backtesting.cache import cache_key
+from tradingagents.backtesting.config import resolve_graph_config
 from tradingagents.backtesting.models import PortfolioSnapshot
 from tradingagents.backtesting.strategies import TradingAgentsStrategy
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -30,6 +31,10 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT_ROOT = REPO_ROOT.parent.parent / "AlphaMAS-Experiments/experiments/M1/inputs"
+DEFAULT_PILOT_INPUT_ROOT = (
+    REPO_ROOT.parent.parent
+    / "AlphaMAS-Experiments/experiments/M1/pilot/inputs/aapl_2023q4_4w_v1"
+)
 
 
 @pytest.fixture(scope="session")
@@ -39,6 +44,16 @@ def frozen_input_root() -> Path:
     ).resolve()
     if not root.is_dir():
         pytest.skip(f"frozen M1 input archive not available: {root}")
+    return root
+
+
+@pytest.fixture(scope="session")
+def pilot_input_root() -> Path:
+    root = Path(
+        os.environ.get("ALPHAMAS_M1_PILOT_INPUT_ROOT", DEFAULT_PILOT_INPUT_ROOT)
+    ).resolve()
+    if not root.is_dir():
+        pytest.skip(f"frozen M1 pilot input archive not available: {root}")
     return root
 
 
@@ -130,6 +145,118 @@ def test_graph_validates_enabled_bundle_before_constructing_llm(tmp_path: Path) 
     ):
         TradingAgentsGraph(config=config)
     create_client.assert_not_called()
+
+
+def test_resolved_pilot_graph_loads_store_before_provider_construction(
+    pilot_input_root: Path, tmp_path: Path,
+) -> None:
+    pilot_config = json.loads(
+        (REPO_ROOT / "configs" / "m1_pilot_aapl_2023q4.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    backtest_config = json.loads(
+        (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    backtest_config.update(pilot_config)
+    backtest_config["finmultitime_input_root"] = pilot_input_root
+    resolved = resolve_graph_config(
+        backtest_config,
+        results_dir=tmp_path / "results",
+        data_cache_dir=tmp_path / "cache",
+        historical_memory_dir=tmp_path / "memory",
+    )
+    captured = {}
+    original_from_config = FrozenFinMultiTimeEvidenceStore.from_config
+
+    class ProviderConstructionBlocked(Exception):
+        pass
+
+    def load_store(config):
+        store = original_from_config(config)
+        captured["store"] = store
+        return store
+
+    with (
+        patch(
+            "tradingagents.graph.trading_graph."
+            "FrozenFinMultiTimeEvidenceStore.from_config",
+            side_effect=load_store,
+        ),
+        patch(
+            "tradingagents.graph.trading_graph.create_llm_client",
+            side_effect=ProviderConstructionBlocked,
+        ) as create_client,
+        pytest.raises(ProviderConstructionBlocked),
+    ):
+        TradingAgentsGraph(config=resolved)
+
+    assert resolved["finmultitime_input_root"] == pilot_input_root
+    assert captured["store"].bundle_scope == "PILOT"
+    assert captured["store"].bundle_identity == (
+        "bd8dfafdbeb259fc8bac7ee3cdbfeebdc13f8abde8b1b420e494fa4ae8651ba3"
+    )
+    assert len(captured["store"]._packet_entries) == 4
+    create_client.assert_called_once()
+
+
+def test_resolved_enabled_graph_without_input_root_still_fails_closed(
+    tmp_path: Path,
+) -> None:
+    backtest_config = json.loads(
+        (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    backtest_config["finmultitime_evidence_enabled"] = True
+    resolved = resolve_graph_config(
+        backtest_config,
+        results_dir=tmp_path / "results",
+        data_cache_dir=tmp_path / "cache",
+        historical_memory_dir=tmp_path / "memory",
+    )
+
+    with (
+        patch("tradingagents.graph.trading_graph.create_llm_client") as create_client,
+        pytest.raises(FrozenEvidenceError, match="input_root is missing"),
+    ):
+        TradingAgentsGraph(config=resolved)
+    create_client.assert_not_called()
+
+
+def test_resolved_disabled_graph_does_not_require_finmultitime_root(
+    tmp_path: Path,
+) -> None:
+    backtest_config = json.loads(
+        (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    resolved = resolve_graph_config(
+        backtest_config,
+        results_dir=tmp_path / "results",
+        data_cache_dir=tmp_path / "cache",
+        historical_memory_dir=tmp_path / "memory",
+    )
+
+    class ProviderConstructionBlocked(Exception):
+        pass
+
+    with (
+        patch(
+            "tradingagents.graph.trading_graph."
+            "FrozenFinMultiTimeEvidenceStore.from_config"
+        ) as from_config,
+        patch(
+            "tradingagents.graph.trading_graph.create_llm_client",
+            side_effect=ProviderConstructionBlocked,
+        ),
+        pytest.raises(ProviderConstructionBlocked),
+    ):
+        TradingAgentsGraph(config=resolved)
+    from_config.assert_not_called()
 
 
 def test_wrong_packet_manifest_identity_fails_closed(frozen_input_root: Path) -> None:

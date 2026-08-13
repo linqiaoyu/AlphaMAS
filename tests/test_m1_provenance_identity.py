@@ -60,6 +60,18 @@ def test_archive_commit_is_part_of_graph_research_identity(tmp_path: Path) -> No
     )
 
 
+def test_input_bundle_identity_is_part_of_graph_research_identity(tmp_path: Path) -> None:
+    pilot = _m1_config()
+    changed = {
+        **pilot,
+        "finmultitime_expected_input_bundle_identity": "0" * 64,
+    }
+
+    assert _graph_identity(pilot, tmp_path / "pinned") != _graph_identity(
+        changed, tmp_path / "changed"
+    )
+
+
 def test_invalid_archive_pin_is_absent_from_active_source_tree() -> None:
     invalid = "376a214c267ba8e731cd6b595dbd250ba1" + "a4d0a9"
     matches = []
