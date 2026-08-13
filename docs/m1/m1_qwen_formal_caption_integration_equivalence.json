@@ -1,0 +1,44 @@
+{
+  "allowed_differences": [
+    "two frozen caption artefacts",
+    "caption manifest",
+    "caption hashes and references",
+    "PENDING to GENERATED for 52 cases",
+    "caption-related Qwen input manifest fields",
+    "processed file inventory and checksums"
+  ],
+  "caption_reference_sha_counts": {
+    "131c2904cd82c850f94b00cc58e2b97b2ef69c7e805fa562ef2c8f2e00a568fe": 26,
+    "44e980fa7768c0cf36961d6c42ea769157e4b989d02b60b37618256028b04d70": 26
+  },
+  "caption_status_counts": {
+    "GENERATED": 52,
+    "NOT_APPLICABLE": 26,
+    "PENDING": 0
+  },
+  "caption_validation": "PASS",
+  "cases_compared": 78,
+  "critical_file_differences": [],
+  "critical_files_compared": [
+    "text/selected_records.json",
+    "table/selected_facts.json",
+    "time_series/AAPL.json",
+    "time_series/AMZN.json",
+    "time_series/JPM.json",
+    "manifests/source_manifest.json",
+    "image/amzn_2023_H2_candlestick.png",
+    "image/jpm_2023_H2_candlestick.png"
+  ],
+  "final_evidence_packets": "NOT_GENERATED",
+  "input_bundle_frozen": false,
+  "non_caption_case_differences": [],
+  "non_caption_research_differences": 0,
+  "processed_checksum_count": 90,
+  "processed_checksum_failures": [],
+  "qwen_non_caption_fields_equal": true,
+  "root_manifest_non_caption_fields_equal": true,
+  "schema_version": "1.0",
+  "unique_formal_images": 2,
+  "unique_official_captions": 2,
+  "verdict": "PASS"
+}
