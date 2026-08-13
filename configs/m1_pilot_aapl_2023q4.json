@@ -1,0 +1,37 @@
+{
+  "pilot_only": true,
+  "formal_run": false,
+  "experiment_id": "M1_pilot_aapl_2023q4_4w_v1",
+  "symbol": "AAPL",
+  "dates": [
+    "2023-10-06",
+    "2023-10-13",
+    "2023-10-20",
+    "2023-10-27"
+  ],
+  "finmultitime_evidence_enabled": true,
+  "finmultitime_bundle_scope": "PILOT",
+  "finmultitime_input_root": "AlphaMAS-Experiments/experiments/M1/pilot/inputs/aapl_2023q4_4w_v1",
+  "finmultitime_expected_contract_version": "M1-FINMULTITIME-v1.0.2",
+  "finmultitime_expected_contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+  "finmultitime_expected_packet_manifest_sha256": "ea38129127446348a28bb5c1d52897125674ac55908a3b5dc09c3242dfc46645",
+  "finmultitime_expected_input_bundle_identity": "653f85e2d73f5f3af6aead45edfe997c96156e90478d83d65e942da015b8cb1e",
+  "finmultitime_archive_commit": "FILLED_AFTER_EXPERIMENT_ARCHIVE_COMMIT",
+  "finmultitime_verify_full_bundle_on_start": true,
+  "memory_mode": "experiment",
+  "quick_think_llm": "deepseek-v4-flash",
+  "deep_think_llm": "deepseek-v4-flash",
+  "llm_provider": "deepseek",
+  "deepseek_thinking": "disabled",
+  "temperature": 0.0,
+  "research_depth": "medium",
+  "max_debate_rounds": 3,
+  "max_risk_discuss_rounds": 3,
+  "selected_analysts": [
+    "market",
+    "social",
+    "news",
+    "fundamentals"
+  ],
+  "output_language": "English"
+}

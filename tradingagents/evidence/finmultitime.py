@@ -32,6 +32,20 @@ DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY = (
 DEFAULT_FINMULTITIME_ARCHIVE_COMMIT = (
     "3750fa50224ba46ab1d4bf5511cb5e8fa514445b"
 )
+DEFAULT_FINMULTITIME_BUNDLE_SCOPE = "FORMAL"
+PILOT_FINMULTITIME_DATASET_ID = "finmultitime_m1_pilot_aapl_2023q4_4w_v1"
+PILOT_FINMULTITIME_SESSIONS = (
+    "2023-10-06",
+    "2023-10-13",
+    "2023-10-20",
+    "2023-10-27",
+)
+# These are populated once the separately archived pilot bundle is committed.
+# PILOT mode fails closed while they are unset; it never derives an identity
+# from the directory it was pointed at.
+DEFAULT_PILOT_PACKET_MANIFEST_SHA256: str | None = None
+DEFAULT_PILOT_INPUT_BUNDLE_IDENTITY: str | None = None
+EVIDENCE_BUNDLE_SCOPES = frozenset({"FORMAL", "PILOT"})
 
 EXPECTED_PACKET_COUNT = 78
 EXPECTED_SYMBOLS = frozenset({"AAPL", "AMZN", "JPM"})
@@ -67,6 +81,7 @@ class RoutedEvidence:
     bundle_identity: str
     contract_version: str
     contract_sha256: str
+    bundle_scope: str
 
 
 def _sha256_file(path: Path) -> str:
@@ -121,10 +136,11 @@ class FrozenFinMultiTimeEvidenceStore:
         self,
         input_root: str | Path,
         *,
+        bundle_scope: str = DEFAULT_FINMULTITIME_BUNDLE_SCOPE,
         expected_contract_version: str = DEFAULT_FINMULTITIME_CONTRACT_VERSION,
         expected_contract_sha256: str = DEFAULT_FINMULTITIME_CONTRACT_SHA256,
-        expected_packet_manifest_sha256: str = DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256,
-        expected_input_bundle_identity: str = DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
+        expected_packet_manifest_sha256: str | None = None,
+        expected_input_bundle_identity: str | None = None,
         expected_archive_commit: str = DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
         verify_full_bundle_on_start: bool = True,
     ) -> None:
@@ -132,6 +148,25 @@ class FrozenFinMultiTimeEvidenceStore:
             raise FrozenEvidenceError(
                 "FinMultiTime evidence is enabled but finmultitime_input_root is missing"
             )
+        normalized_scope = str(bundle_scope).strip().upper()
+        _require(
+            normalized_scope in EVIDENCE_BUNDLE_SCOPES,
+            f"unsupported FinMultiTime bundle scope: {bundle_scope!r}",
+        )
+        if normalized_scope == "FORMAL":
+            expected_packet_manifest_sha256 = (
+                expected_packet_manifest_sha256 or DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256
+            )
+            expected_input_bundle_identity = (
+                expected_input_bundle_identity or DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY
+            )
+        else:
+            if not expected_packet_manifest_sha256 or not expected_input_bundle_identity:
+                raise FrozenEvidenceError(
+                    "PILOT scope requires explicitly configured packet-manifest and "
+                    "input-bundle identities"
+                )
+        self.bundle_scope = normalized_scope
         self.root = Path(input_root).expanduser().resolve()
         _require(self.root.is_dir(), f"frozen FinMultiTime input root is missing: {self.root}")
         self.expected_contract_version = expected_contract_version
@@ -164,8 +199,20 @@ class FrozenFinMultiTimeEvidenceStore:
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> FrozenFinMultiTimeEvidenceStore:
         """Construct the store from explicit runtime configuration."""
+        scope = str(
+            config.get("finmultitime_bundle_scope", DEFAULT_FINMULTITIME_BUNDLE_SCOPE)
+        ).strip().upper()
+        packet_manifest_default = (
+            DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256
+            if scope == "FORMAL" else DEFAULT_PILOT_PACKET_MANIFEST_SHA256
+        )
+        bundle_identity_default = (
+            DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY
+            if scope == "FORMAL" else DEFAULT_PILOT_INPUT_BUNDLE_IDENTITY
+        )
         return cls(
             config.get("finmultitime_input_root"),
+            bundle_scope=scope,
             expected_contract_version=config.get(
                 "finmultitime_expected_contract_version",
                 DEFAULT_FINMULTITIME_CONTRACT_VERSION,
@@ -176,11 +223,11 @@ class FrozenFinMultiTimeEvidenceStore:
             ),
             expected_packet_manifest_sha256=config.get(
                 "finmultitime_expected_packet_manifest_sha256",
-                DEFAULT_FINMULTITIME_PACKET_MANIFEST_SHA256,
+                packet_manifest_default,
             ),
             expected_input_bundle_identity=config.get(
                 "finmultitime_expected_input_bundle_identity",
-                DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
+                bundle_identity_default,
             ),
             expected_archive_commit=config.get(
                 "finmultitime_archive_commit",
@@ -206,6 +253,29 @@ class FrozenFinMultiTimeEvidenceStore:
         checksum_manifest_sha = _sha256_file(checksum_manifest_path)
         processed_manifest_path = self.root / "manifests/processed_sha256.json"
         processed_manifest_sha = _sha256_file(processed_manifest_path)
+
+        if self.bundle_scope == "FORMAL":
+            _require(
+                manifest.get("bundle_scope") in (None, "FORMAL"),
+                "bundle scope mismatch: FORMAL runtime cannot load a PILOT bundle",
+            )
+            _require(
+                bundle_manifest.get("bundle_scope") in (None, "FORMAL"),
+                "input bundle scope mismatch: FORMAL runtime cannot load a PILOT bundle",
+            )
+        else:
+            _require(
+                manifest.get("bundle_scope") == "PILOT"
+                and manifest.get("pilot_only") is True
+                and manifest.get("formal_eligible") is False,
+                "bundle scope mismatch: PILOT runtime requires an explicit pilot bundle",
+            )
+            _require(
+                bundle_manifest.get("bundle_scope") == "PILOT"
+                and bundle_manifest.get("pilot_only") is True
+                and bundle_manifest.get("formal_eligible") is False,
+                "input bundle scope mismatch: PILOT metadata is incomplete",
+            )
 
         _require(
             manifest.get("input_bundle_frozen") is True,
@@ -261,15 +331,34 @@ class FrozenFinMultiTimeEvidenceStore:
             bundle_manifest.get("status", {}).get("formal_m1_run") is False,
             "input bundle manifest represents a formal M1 run",
         )
-        _require(
-            manifest.get("final_evidence_packet_count") == EXPECTED_PACKET_COUNT
-            and manifest.get("formal_case_count") == EXPECTED_PACKET_COUNT,
-            "frozen FinMultiTime bundle must contain exactly 78 formal cases",
-        )
-        _require(
-            bundle_manifest.get("packets", {}).get("count") == EXPECTED_PACKET_COUNT,
-            "input bundle manifest packet count mismatch",
-        )
+        if self.bundle_scope == "FORMAL":
+            _require(
+                manifest.get("final_evidence_packet_count") == EXPECTED_PACKET_COUNT
+                and manifest.get("formal_case_count") == EXPECTED_PACKET_COUNT,
+                "frozen FinMultiTime bundle must contain exactly 78 formal cases",
+            )
+            _require(
+                bundle_manifest.get("packets", {}).get("count") == EXPECTED_PACKET_COUNT,
+                "input bundle manifest packet count mismatch",
+            )
+        else:
+            _require(
+                manifest.get("dataset_id") == PILOT_FINMULTITIME_DATASET_ID
+                and manifest.get("pilot_case_count") == 4
+                and manifest.get("final_evidence_packet_count") == 4
+                and manifest.get("formal_case_count") == 0,
+                "PILOT bundle identity/count metadata mismatch",
+            )
+            _require(
+                bundle_manifest.get("dataset", {}).get("dataset_id")
+                == PILOT_FINMULTITIME_DATASET_ID
+                and bundle_manifest.get("dataset", {}).get("symbols") == ["AAPL"]
+                and bundle_manifest.get("dataset", {}).get("pilot_sessions")
+                == list(PILOT_FINMULTITIME_SESSIONS)
+                and bundle_manifest.get("dataset", {}).get("case_count") == 4
+                and bundle_manifest.get("packets", {}).get("count") == 4,
+                "PILOT bundle schedule/packet metadata mismatch",
+            )
         _require(
             self.checksum_manifest.get("bundle_manifest_sha256") == bundle_manifest_sha,
             "checksum inventory does not bind the input bundle manifest",
@@ -299,22 +388,35 @@ class FrozenFinMultiTimeEvidenceStore:
             self.packet_manifest.get("contract_version") == self.expected_contract_version,
             "packet manifest contract version mismatch",
         )
+        expected_count = EXPECTED_PACKET_COUNT if self.bundle_scope == "FORMAL" else 4
         _require(
-            self.packet_manifest.get("packet_count") == EXPECTED_PACKET_COUNT
+            self.packet_manifest.get("packet_count") == expected_count
             and isinstance(packets, list)
-            and len(packets) == EXPECTED_PACKET_COUNT,
-            "packet manifest must contain exactly 78 entries",
+            and len(packets) == expected_count,
+            f"packet manifest must contain exactly {expected_count} entries",
         )
+        if self.bundle_scope == "PILOT":
+            _require(
+                self.packet_manifest.get("bundle_scope") == "PILOT"
+                and self.packet_manifest.get("pilot_only") is True
+                and self.packet_manifest.get("formal_eligible") is False
+                and self.packet_manifest.get("symbols") == ["AAPL"]
+                and self.packet_manifest.get("pilot_sessions") == list(PILOT_FINMULTITIME_SESSIONS),
+                "pilot packet manifest scope/schedule metadata mismatch",
+            )
         entries: dict[tuple[str, str], dict[str, Any]] = {}
         counts: dict[str, int] = {}
         for entry in packets:
             _require(isinstance(entry, dict), "packet manifest entry must be an object")
             symbol = entry.get("symbol")
             session = entry.get("decision_session")
-            _require(
-                isinstance(symbol, str) and symbol in EXPECTED_SYMBOLS,
-                f"unexpected frozen packet symbol: {symbol!r}",
-            )
+            if self.bundle_scope == "FORMAL":
+                _require(
+                    isinstance(symbol, str) and symbol in EXPECTED_SYMBOLS,
+                    f"unexpected frozen packet symbol: {symbol!r}",
+                )
+            else:
+                _require(symbol == "AAPL", f"unexpected pilot packet symbol: {symbol!r}")
             _require(
                 isinstance(session, str) and _DATE_RE.fullmatch(session),
                 f"invalid frozen packet decision session: {session!r}",
@@ -335,10 +437,22 @@ class FrozenFinMultiTimeEvidenceStore:
                 and len(entry["json_sha256"]) == 64,
                 "packet manifest JSON SHA is invalid",
             )
+            if self.bundle_scope == "PILOT":
+                _require(
+                    entry.get("packet_status") == "PILOT_FROZEN"
+                    and entry.get("pilot_only") is True
+                    and entry.get("formal_eligible") is False
+                    and isinstance(entry.get("text_sha256"), str)
+                    and len(entry["text_sha256"]) == 64,
+                    "pilot packet manifest entry metadata is invalid",
+                )
             entries[key] = entry
             counts[symbol] = counts.get(symbol, 0) + 1
-        _require(counts == dict.fromkeys(sorted(EXPECTED_SYMBOLS), 26),
-                 f"frozen packet symbol/date structure mismatch: {counts}")
+        if self.bundle_scope == "FORMAL":
+            _require(counts == dict.fromkeys(sorted(EXPECTED_SYMBOLS), 26),
+                     f"frozen packet symbol/date structure mismatch: {counts}")
+        else:
+            _require(counts == {"AAPL": 4}, f"pilot packet symbol/date structure mismatch: {counts}")
         return entries
 
     def _verify_packet_files(self) -> None:
@@ -352,11 +466,20 @@ class FrozenFinMultiTimeEvidenceStore:
                 actual_sha == entry["json_sha256"],
                 f"frozen packet SHA mismatch for {symbol}:{session}",
             )
+            if self.bundle_scope == "PILOT":
+                _require(
+                    _sha256_file(text_path) == entry["text_sha256"],
+                    f"pilot packet text SHA mismatch for {symbol}:{session}",
+                )
 
     def _verify_checksum_inventory(self) -> None:
         files = self.checksum_manifest.get("files")
-        _require(isinstance(files, list) and len(files) == 251,
-                 "frozen checksum inventory must contain 251 files")
+        if self.bundle_scope == "FORMAL":
+            _require(isinstance(files, list) and len(files) == 251,
+                     "frozen checksum inventory must contain 251 files")
+        else:
+            _require(isinstance(files, list) and files,
+                     "pilot checksum inventory must contain files")
         listed: set[str] = set()
         for item in files:
             _require(isinstance(item, dict), "checksum inventory entry must be an object")
@@ -373,10 +496,9 @@ class FrozenFinMultiTimeEvidenceStore:
             for path in self.root.rglob("*")
             if path.is_file()
         }
-        expected_unlisted = {
-            "manifest.json",
-            "manifests/input_bundle_checksums.json",
-        }
+        expected_unlisted = {"manifests/input_bundle_checksums.json"}
+        if self.bundle_scope == "FORMAL":
+            expected_unlisted.add("manifest.json")
         _require(
             actual == listed | expected_unlisted,
             "frozen input bundle contains missing or unexpected files",
@@ -390,7 +512,13 @@ class FrozenFinMultiTimeEvidenceStore:
         actual_sha = _sha256_file(path)
         _require(actual_sha == entry["json_sha256"], f"frozen packet SHA mismatch for {key[0]}:{key[1]}")
         packet = _read_json(path)
-        _require(packet.get("packet_status") == "FINAL_FROZEN", f"packet is not FINAL_FROZEN: {key}")
+        expected_status = "FINAL_FROZEN" if self.bundle_scope == "FORMAL" else "PILOT_FROZEN"
+        _require(packet.get("packet_status") == expected_status, f"packet status mismatch: {key}")
+        if self.bundle_scope == "PILOT":
+            _require(
+                packet.get("pilot_only") is True and packet.get("formal_eligible") is False,
+                f"pilot packet scope metadata mismatch: {key}",
+            )
         _require(packet.get("symbol") == key[0], f"packet symbol mismatch: {key}")
         _require(packet.get("decision_session") == key[1], f"packet decision session mismatch: {key}")
         _require(packet.get("contract_version") == self.expected_contract_version, f"packet contract mismatch: {key}")
@@ -415,6 +543,7 @@ class FrozenFinMultiTimeEvidenceStore:
             routes[analyst_key] = hashlib.sha256(route["text"].encode("utf-8")).hexdigest()
         return {
             "finmultitime_enabled": True,
+            "bundle_scope": self.bundle_scope,
             "contract_version": self.expected_contract_version,
             "contract_sha256": self.expected_contract_sha256,
             "input_bundle_identity": self.bundle_identity,
@@ -455,6 +584,7 @@ class FrozenFinMultiTimeEvidenceStore:
             reason="exact frozen routed projection delivered to analyst-local prompt",
             metadata={
                 "finmultitime_enabled": True,
+                "bundle_scope": self.bundle_scope,
                 "contract_version": self.expected_contract_version,
                 "contract_sha256": self.expected_contract_sha256,
                 "input_bundle_identity": self.bundle_identity,
@@ -475,4 +605,5 @@ class FrozenFinMultiTimeEvidenceStore:
             bundle_identity=self.bundle_identity,
             contract_version=self.expected_contract_version,
             contract_sha256=self.expected_contract_sha256,
+            bundle_scope=self.bundle_scope,
         )

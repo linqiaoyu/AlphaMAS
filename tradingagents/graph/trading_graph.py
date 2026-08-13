@@ -611,6 +611,20 @@ class TradingAgentsGraph:
             "finmultitime_enabled=" + str(
                 bool(self.config.get("finmultitime_evidence_enabled", False))
             ),
+            "finmultitime_scope=" + str(
+                getattr(
+                    getattr(self, "finmultitime_evidence_store", None),
+                    "bundle_scope",
+                    self.config.get("finmultitime_bundle_scope", "FORMAL"),
+                )
+            ),
+            "finmultitime_contract=" + str(
+                getattr(
+                    getattr(self, "finmultitime_evidence_store", None),
+                    "expected_contract_sha256",
+                    self.config.get("finmultitime_expected_contract_sha256", ""),
+                )
+            ),
             "finmultitime_bundle=" + str(
                 getattr(
                     getattr(self, "finmultitime_evidence_store", None),
@@ -674,9 +688,30 @@ class TradingAgentsGraph:
                         "experiment memory requires a historical memory lineage"
                     )
                 lineage = safe_ticker_component(str(lineage_value), max_len=128)
-                path = (
-                    root / experiment / graph_hash / lineage / f"{safe_symbol}.md"
+                bundle_scope = getattr(
+                    getattr(self, "finmultitime_evidence_store", None),
+                    "bundle_scope",
+                    config.get("finmultitime_bundle_scope", "FORMAL"),
                 )
+                bundle_identity = getattr(
+                    getattr(self, "finmultitime_evidence_store", None),
+                    "bundle_identity",
+                    config.get("finmultitime_expected_input_bundle_identity", ""),
+                )
+                if config.get("finmultitime_evidence_enabled"):
+                    if bundle_scope not in {"FORMAL", "PILOT"} or not bundle_identity:
+                        raise ValueError(
+                            "experiment memory requires an explicit FinMultiTime bundle identity"
+                        )
+                    namespace = safe_ticker_component(
+                        f"finmultitime-{bundle_scope.lower()}-{bundle_identity[:16]}",
+                        max_len=128,
+                    )
+                    path = (
+                        root / namespace / experiment / graph_hash / lineage / f"{safe_symbol}.md"
+                    )
+                else:
+                    path = root / experiment / graph_hash / lineage / f"{safe_symbol}.md"
                 config["historical_memory_lineage_id"] = lineage
             else:
                 path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"

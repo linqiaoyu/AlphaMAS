@@ -2,6 +2,7 @@ import os
 
 from tradingagents.evidence.finmultitime import (
     DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
+    DEFAULT_FINMULTITIME_BUNDLE_SCOPE,
     DEFAULT_FINMULTITIME_CONTRACT_SHA256,
     DEFAULT_FINMULTITIME_CONTRACT_VERSION,
     DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
@@ -36,6 +37,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_DEEPSEEK_THINKING":        "deepseek_thinking",
     "TRADINGAGENTS_FINMULTITIME_EVIDENCE_ENABLED": "finmultitime_evidence_enabled",
     "TRADINGAGENTS_FINMULTITIME_INPUT_ROOT": "finmultitime_input_root",
+    "TRADINGAGENTS_FINMULTITIME_BUNDLE_SCOPE": "finmultitime_bundle_scope",
 }
 
 
@@ -141,6 +143,7 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # execution; when disabled, no frozen packet is read and M0 behavior is
     # unchanged.
     "finmultitime_evidence_enabled": False,
+    "finmultitime_bundle_scope": DEFAULT_FINMULTITIME_BUNDLE_SCOPE,
     "finmultitime_input_root": None,
     "finmultitime_expected_contract_version": DEFAULT_FINMULTITIME_CONTRACT_VERSION,
     "finmultitime_expected_contract_sha256": DEFAULT_FINMULTITIME_CONTRACT_SHA256,

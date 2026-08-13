@@ -255,6 +255,9 @@ class TradingAgentsStrategy(BaseStrategy):
             "market_history_sha256": hashlib.sha256(history_payload.encode()).hexdigest(),
             "memory_namespace_version": self.cache_config.get("memory_namespace_version", "v1"),
             "finmultitime_evidence_enabled": finmultitime_enabled,
+            "finmultitime_bundle_scope": (
+                finmultitime_case["bundle_scope"] if finmultitime_case else None
+            ),
             "finmultitime_input_bundle_identity": (
                 finmultitime_case["input_bundle_identity"]
                 if finmultitime_case else None
