@@ -61,11 +61,11 @@
   "input_bundle_checksums": {
     "file_count": 251,
     "path": "manifests/input_bundle_checksums.json",
-    "sha256": "fd925a20a31cad78d9e59a4a7d6a46d0eb8d526311c2c3eb8d27343df130e841"
+    "sha256": "77b445c38415afb5a1c3b575ce737012cdabf945e73bb50883b55f748223bd73"
   },
   "input_bundle_manifest": {
     "path": "manifests/input_bundle_manifest.json",
-    "sha256": "13eed535c7aa3ae18e36444519de8dc40690b039525cede37b5b03e0152e3d44"
+    "sha256": "2991a916f0b61900b863011178535cc112d32355e24c93a08a36c7133abcb0c2"
   },
   "modality_status_counts": {
     "IMAGE": {
