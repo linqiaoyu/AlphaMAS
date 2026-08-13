@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0",
+  "status": "FROZEN",
+  "aws_worker": {
+    "instance_id": "i-02cac9d10df278889",
+    "instance_type": "g5.xlarge",
+    "region": "eu-west-2",
+    "availability_zone": "eu-west-2a",
+    "ami_id": "ami-0bd0039f023204bd2",
+    "ami_name": "Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.12 (Ubuntu 24.04) 20260725",
+    "os": "Ubuntu 24.04.4 LTS",
+    "kernel": "6.17.0-1019-aws",
+    "gpu": "NVIDIA A10G",
+    "vram_mib": 23028,
+    "nvidia_driver": "595.71.05",
+    "driver_reported_cuda": "13.2",
+    "root_ebs_gib": 50
+  },
+  "qwen": {
+    "repo_id": "Qwen/Qwen3-VL-2B-Instruct",
+    "revision": "89644892e4d85e24eaac8bacfd4f463576704203",
+    "resolved_api_revision": "89644892e4d85e24eaac8bacfd4f463576704203",
+    "local_snapshot_path": "/home/ubuntu/.cache/huggingface/hub/models--Qwen--Qwen3-VL-2B-Instruct/snapshots/89644892e4d85e24eaac8bacfd4f463576704203",
+    "snapshot_bytes": 4266640306,
+    "model_class": "Qwen3VLForConditionalGeneration",
+    "processor_class": "Qwen3VLProcessor",
+    "image_processor_class": "Qwen2VLImageProcessorFast",
+    "processor_config": {
+      "shortest_edge": 65536,
+      "longest_edge": 16777216,
+      "patch_size": 16,
+      "temporal_patch_size": 2,
+      "merge_size": 2,
+      "image_mean": [0.5, 0.5, 0.5],
+      "image_std": [0.5, 0.5, 0.5]
+    },
+    "quantized": false,
+    "attention_implementation": "sdpa",
+    "qwen_vl_utils_used": false,
+    "files": {
+      "config.json": {
+        "bytes": 1505,
+        "sha256": "bec4b3d446efa05807365c9e1cec03ac590836879d02f3a6da879971154bdd3b"
+      },
+      "generation_config.json": {
+        "bytes": 269,
+        "sha256": "1e241830b48b397cb0900101421df5450baddc7adf01e5fc86b5615865f3bae4"
+      },
+      "model.safetensors": {
+        "bytes": 4255140312,
+        "sha256": "7de1838c87a5349b016c26a1c3f7d2bc400a3d485f95ef39a7059ffd734977a0"
+      },
+      "preprocessor_config.json": {
+        "bytes": 390,
+        "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516"
+      },
+      "tokenizer.json": {
+        "bytes": 7032403,
+        "sha256": "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7"
+      }
+    }
+  },
+  "environment": {
+    "python": "3.13.14",
+    "environment_path": "/opt/pytorch",
+    "torch": "2.12.1+cu130",
+    "pytorch_cuda_runtime": "13.0",
+    "transformers": "4.57.6",
+    "huggingface_hub": "0.36.2",
+    "safetensors": "0.8.0",
+    "pillow": "12.3.0",
+    "torchvision": "0.27.1+cu130",
+    "accelerate": "1.14.0",
+    "tokenizers": "0.22.2",
+    "regex": "2026.7.19",
+    "hf_xet": "1.6.0",
+    "qwen_vl_utils": "NOT_INSTALLED",
+    "package_freeze_path": "docs/m1/m1_qwen_aws_package_freeze.txt",
+    "package_freeze_sha256": "e4b16b0179dab01f2d541b31986de6ff4a658c61b4d60c3222c30fd76778afc2",
+    "package_freeze_lines": 300
+  },
+  "generation": {
+    "device": "cuda",
+    "gpu": "NVIDIA A10G",
+    "device_capability": [8, 6],
+    "dtype": "bfloat16",
+    "batch_size": 1,
+    "do_sample": false,
+    "num_beams": 1,
+    "max_new_tokens": 256,
+    "python_seed": 0,
+    "torch_seed": 0,
+    "cuda_seed": 0,
+    "cudnn_benchmark": false,
+    "cudnn_deterministic": true,
+    "torch_deterministic_algorithms": "enabled_warn_only",
+    "pinned_model_generation_config": {
+      "do_sample": true,
+      "top_p": 0.8,
+      "top_k": 20,
+      "temperature": 0.7,
+      "repetition_penalty": 1.0
+    },
+    "override_note": "Runner explicitly sets do_sample=false and num_beams=1; Transformers reports the pinned sampling-only top_p/top_k/temperature values as ignored."
+  },
+  "contract": {
+    "contract_version": "M1-FINMULTITIME-v1.0.1",
+    "contract_sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3",
+    "prompt_sha256": "284c6e52763796a47f7d30fd2e44cfe68d9211db6831d89ec5ed436920c34df9",
+    "schema_sha256": "bf8f04330ffb1bd8468b9bf01eb96bec6b35bb4bad29c8e3f1ad6c47cf0ca8e4",
+    "max_caption_chars": 900
+  },
+  "transfer": {
+    "archive_bytes": 321325,
+    "archive_sha256": "41ea1f2294de415cecc94115fac605a9db32b2750d2a2d5ba46503734f7a3680",
+    "extracted_bytes": 2852693,
+    "case_count": 78,
+    "processed_checksum_count": 87,
+    "processed_checksums_valid": true,
+    "formal_unique_image_count": 2,
+    "formal_generated_caption_count": 0
+  },
+  "smoke": {
+    "synthetic_image_sha256": "6ffb3fd7da6e769117acc480911a7de1e7c81cf02a75b4ed14a9909a47f02f4b",
+    "synthetic_image_bytes": 4152,
+    "synthetic_image_dimensions": [640, 400],
+    "runs": [
+      {
+        "run": 1,
+        "started_at_utc": "2026-08-13T14:53:59.938426+00:00",
+        "ended_at_utc": "2026-08-13T14:54:12.424462+00:00",
+        "duration_seconds": 12.486025,
+        "peak_gpu_memory_bytes": 4335733760,
+        "raw_output": "trend: upward\nmomentum_visual: increasing\nvolatility_visual: moderate\ncandlestick_structure: mostly green with some red\nnotable_gap_or_reversal: none\nsupport_resistance_visual: none\nvolume_visual: low\nother_visible_pattern: none\nconfidence: high",
+        "raw_output_sha256": "09807960d0f82b69d2f10da316d11f092f0b51adef7bc0dc0ca7f13bfaadf045",
+        "canonical_caption": "{\"trend\":\"upward\",\"momentum_visual\":\"increasing\",\"volatility_visual\":\"moderate\",\"candlestick_structure\":\"mostly green with some red\",\"notable_gap_or_reversal\":\"none\",\"support_resistance_visual\":\"none\",\"volume_visual\":\"low\",\"other_visible_pattern\":\"none\",\"confidence\":\"high\"}",
+        "canonical_caption_sha256": "3549cf3cdce93a0088fc17b7dc88c10399f78114ddfa813e39ce0d75f91eff94",
+        "caption_length_chars": 274,
+        "schema_valid": true
+      },
+      {
+        "run": 2,
+        "started_at_utc": "2026-08-13T14:54:31.736905+00:00",
+        "ended_at_utc": "2026-08-13T14:54:34.319639+00:00",
+        "duration_seconds": 2.582725,
+        "peak_gpu_memory_bytes": 4335733760,
+        "raw_output": "trend: upward\nmomentum_visual: increasing\nvolatility_visual: moderate\ncandlestick_structure: mostly green with some red\nnotable_gap_or_reversal: none\nsupport_resistance_visual: none\nvolume_visual: low\nother_visible_pattern: none\nconfidence: high",
+        "raw_output_sha256": "09807960d0f82b69d2f10da316d11f092f0b51adef7bc0dc0ca7f13bfaadf045",
+        "canonical_caption": "{\"trend\":\"upward\",\"momentum_visual\":\"increasing\",\"volatility_visual\":\"moderate\",\"candlestick_structure\":\"mostly green with some red\",\"notable_gap_or_reversal\":\"none\",\"support_resistance_visual\":\"none\",\"volume_visual\":\"low\",\"other_visible_pattern\":\"none\",\"confidence\":\"high\"}",
+        "canonical_caption_sha256": "3549cf3cdce93a0088fc17b7dc88c10399f78114ddfa813e39ce0d75f91eff94",
+        "caption_length_chars": 274,
+        "schema_valid": true
+      }
+    ],
+    "raw_outputs_identical": true,
+    "canonical_outputs_identical": true,
+    "schema_compliance": true,
+    "prohibited_content_absent": true
+  },
+  "formal": {
+    "captions_generated": false,
+    "amzn_official_caption": "NOT_GENERATED",
+    "jpm_official_caption": "NOT_GENERATED",
+    "captioning_code_sha_policy": "FORMAL mode requires the supplied captioning_code_sha to equal the running Git HEAD"
+  }
+}
