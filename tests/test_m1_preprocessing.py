@@ -24,6 +24,7 @@ from scripts.finmultitime.preprocess_m1_inputs import (
     ts_case_section,
     write_json,
 )
+from scripts.finmultitime.text_source_integrity import load_integrity_policy
 
 
 def _news_record(day: str, *, title: str, url: str = "https://example.test/a") -> dict:
@@ -95,6 +96,63 @@ def test_text_preprocessing_deduplicates_and_rejects_same_day() -> None:
     assert section["selected_records"][0]["duplicate_provenance"]
     assert all(len(item["title"]) <= 200 for item in section["selected_records"])
     assert all(len(item["body"]) <= 900 for item in section["selected_records"])
+
+
+def test_corrupted_symbol_fixture_is_fail_closed_without_replacement() -> None:
+    decision = date(2024, 1, 5)
+    corrupted = {
+        "records": [{
+            "Date": "2023-12-16",
+            "Article_title": "Apple earnings outlook",
+            "Url": "https://www.nasdaq.com/articles/apple-earnings-outlook",
+            "Article": "HubSpot reported unrelated second-quarter 2017 earnings.",
+            "Stock_symbol": "AAPL",
+        }]
+    }
+    policy = {
+        "AAPL": {
+            "audit_status": "VERIFIED_MISMATCH",
+            "formal_text_policy": "UNAVAILABLE",
+            "formal_use_record_count": 1,
+            "reason": "synthetic headline/URL/body mismatch",
+        }
+    }
+
+    section = preprocess.text_case_section(corrupted, "AAPL", decision, policy)
+
+    assert section["status"] == "UNAVAILABLE"
+    assert section["selected_records"] == []
+    assert section["integrity_status"] == "VERIFIED_MISMATCH"
+    assert section["integrity_policy"] == "UNAVAILABLE"
+    assert "replacement" not in json.dumps(section).lower()
+
+
+def test_frozen_integrity_policy_is_hash_pinned_and_symbol_level() -> None:
+    contract = json.loads(
+        (DEFAULT_CONTRACT_DIR / "m1_evidence_contract.json").read_text(encoding="utf-8")
+    )
+    policy = load_integrity_policy(contract)
+
+    assert policy["AAPL"]["formal_text_policy"] == "UNAVAILABLE"
+    assert policy["AMZN"]["formal_text_policy"] == "AVAILABLE"
+    assert policy["JPM"]["formal_text_policy"] == "UNAVAILABLE"
+
+
+def test_text_integrity_audit_covers_complete_legacy_formal_use_set() -> None:
+    audit = json.loads(
+        (DEFAULT_CONTRACT_DIR / "m1_text_source_integrity_audit.json").read_text(encoding="utf-8")
+    )
+
+    assert audit["formal_use_set"]["unique_record_count"] == 16
+    assert audit["formal_use_set"]["unique_record_counts_by_symbol"] == {
+        "AAPL": 8,
+        "AMZN": 8,
+    }
+    assert audit["record_status_counts"] == {
+        "VERIFIED_MATCH": 8,
+        "VERIFIED_MISMATCH": 8,
+    }
+    assert all(record["raw_row_fidelity"]["status"] == "PASS" for record in audit["records"])
 
 
 def test_table_preprocessing_is_pit_safe_and_exposes_unavailable_concepts() -> None:

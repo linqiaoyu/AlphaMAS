@@ -43,7 +43,8 @@ from scripts.finmultitime.design_m1_contract import (  # noqa: E402
 DATASET_ID = "finmultitime_3stocks_2024h1_v1"
 TARGET_SYMBOLS = ("AAPL", "AMZN", "JPM")
 CASE_COUNT = 78
-EXPECTED_SOURCE_PARENT_SHA = "0e9ebcb2d3b293d4f4071951e5d897428a2e1d20"
+EXPECTED_SOURCE_PARENT_SHA = "2617dafe0f6a690113f10fe1c0d4775810a576ac"
+CONTRACT_PATH = REPO_ROOT / "docs/m1/m1_evidence_contract.json"
 CAPTION_STATUSES = ("GENERATED", "NOT_APPLICABLE", "PENDING")
 REQUIRED_SECTIONS = ("TEXT", "TABLE", "TIME_SERIES", "IMAGE")
 ROUTING = {
@@ -468,7 +469,7 @@ def validate_processed_subset(root: Path) -> tuple[list[dict[str, Any]], dict[st
     if manifest.get("frozen_evidence_contract_version") != CONTRACT_VERSION:
         raise PacketValidationError("processed contract version mismatch")
     contract_sha256 = manifest.get("evidence_contract_sha256")
-    if contract_sha256 != "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3":
+    if contract_sha256 != sha256_file(CONTRACT_PATH):
         raise PacketValidationError("processed contract SHA mismatch")
     checksum_manifest = read_json(root / "manifests/processed_sha256.json")
     for item in checksum_manifest.get("files", []):

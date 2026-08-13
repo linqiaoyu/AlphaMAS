@@ -38,6 +38,10 @@ from scripts.finmultitime.audit_finmultitime import (  # noqa: E402
     TS_ARCHIVE,
     TS_MEMBERS,
 )
+from scripts.finmultitime.text_source_integrity import (  # noqa: E402
+    load_integrity_policy,
+    unavailable_text_section,
+)
 from scripts.finmultitime.design_m1_contract import (  # noqa: E402
     CONTRACT_VERSION,
     MAX_ARTICLE_BODY_CHARS,
@@ -138,6 +142,7 @@ def enforce_frozen_contract(contract_dir: Path = DEFAULT_CONTRACT_DIR) -> dict[s
         raise ValueError("M1 contract freeze is not marked FROZEN")
     if freeze.get("frozen_m0_base_sha") != DEFAULT_M0_BASE_SHA:
         raise ValueError("frozen M0 base SHA does not match the required identity")
+    text_integrity_policy = load_integrity_policy(contract, audit_path=contract_dir / "m1_text_source_integrity_audit.json")
     return {
         "packet_version": CONTRACT_VERSION,
         "contract_sha256": actual_contract_sha,
@@ -157,6 +162,7 @@ def enforce_frozen_contract(contract_dir: Path = DEFAULT_CONTRACT_DIR) -> dict[s
                 "coverage_summary", {}
             ).get("used_files", [])
         },
+        "text_integrity_policy": text_integrity_policy,
     }
 
 
@@ -315,7 +321,22 @@ def selected_text_record(record: dict[str, Any], removed_by_kept: dict[str, list
     }
 
 
-def text_case_section(raw: dict[str, Any] | None, symbol: str, decision: date) -> dict[str, Any]:
+def text_case_section(
+    raw: dict[str, Any] | None,
+    symbol: str,
+    decision: date,
+    integrity_policy: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if integrity_policy is not None:
+        policy = integrity_policy.get(symbol)
+        if policy is None:
+            raise ValueError(f"TEXT source-integrity policy is missing for {symbol}")
+        if policy["formal_text_policy"] == "UNAVAILABLE":
+            return unavailable_text_section(
+                symbol,
+                NEWS_MEMBERS[symbol] if raw is not None else None,
+                policy,
+            )
     selected = selected_news(raw, decision)
     removed_by_kept: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in selected.get("dedup", {}).get("removed", []):
@@ -418,7 +439,8 @@ def case_id(symbol: str, decision: date) -> str:
 def build_case_records(
     data: dict[str, Any], context: dict[str, Any], contract: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    simulation = case_simulation(data, context)
+    text_integrity_policy = contract.get("text_integrity_policy")
+    simulation = case_simulation(data, context, text_integrity_policy)
     simulation_by_key = {
         (row["symbol"], row["decision_session"]): json_safe(row) for row in simulation
     }
@@ -426,13 +448,18 @@ def build_case_records(
     ts_selections: dict[str, dict[str, Any]] = {}
     for event, decision in zip(context["events"], context["decisions"], strict=True):
         for symbol in TARGETS:
-            text = text_case_section(data["news"][symbol], symbol, decision)
+            text = text_case_section(
+                data["news"][symbol], symbol, decision, text_integrity_policy
+            )
             table = table_case_section(data["tables"], symbol, decision)
             ts = ts_case_section(data["series"], symbol, decision)
             image = image_selection(data["images"], symbol, decision)
             image_section = image_case_section(image.get("item"), decision)
             key = (symbol, decision.isoformat())
             projection = simulation_by_key[key]
+            text_for_hash = selected_news(data["news"][symbol], decision)
+            if text["status"] == "UNAVAILABLE":
+                text_for_hash = {"records": []}
             raw_case = {
                 "record_type": "preprocessed_case_record",
                 "contract_version": contract["packet_version"],
@@ -447,7 +474,7 @@ def build_case_records(
                 "TIME_SERIES": ts,
                 "IMAGE": image_section,
                 "source_hash_reference": compact_source_hashes(
-                    selected_news(data["news"][symbol], decision),
+                    text_for_hash,
                     table_selection(data["tables"], symbol, decision),
                     time_series_selection(data["series"], symbol, decision),
                     image,
@@ -606,6 +633,34 @@ def load_simulation_rows(path: Path) -> dict[tuple[str, str], dict[str, str]]:
         return {(row["symbol"], row["decision_session"]): row for row in csv.DictReader(handle)}
 
 
+def frozen_formal_context(simulation_path: Path) -> dict[str, Any]:
+    """Load the already-frozen schedule projection without importing pandas.
+
+    The formal schedule is itself a frozen contract input.  Reusing its
+    serialized event identities keeps preprocessing independent of the
+    heavyweight calendar import and prevents an environment-only import
+    stall from changing the research data path.
+    """
+
+    rows = load_simulation_rows(simulation_path)
+    schedule_rows = sorted(
+        (row for (symbol, _), row in rows.items() if symbol == "AAPL"),
+        key=lambda row: row["decision_session"],
+    )
+    if len(schedule_rows) != 26:
+        raise ValueError("frozen formal schedule projection must contain 26 AAPL rows")
+    decisions = [date.fromisoformat(row["decision_session"]) for row in schedule_rows]
+    events = [
+        {
+            "decision_close_utc": row["decision_time_utc"],
+            "decision_close_ny": row["decision_close_ny"],
+            "execution_session": row["execution_session"],
+        }
+        for row in schedule_rows
+    ]
+    return {"events": events, "decisions": decisions}
+
+
 def contract_equivalence(records: list[dict[str, Any]], simulation_path: Path) -> dict[str, Any]:
     expected = load_simulation_rows(simulation_path)
     differences: list[dict[str, Any]] = []
@@ -700,7 +755,7 @@ def _build_to_directory(
 ) -> dict[str, Any]:
     contract = enforce_frozen_contract(contract_dir)
     qwen = load_frozen_qwen_config(contract_dir)
-    context = formal_context()
+    context = frozen_formal_context(contract_dir / CASE_SIMULATION_NAME)
     if len(context["decisions"]) != 26:
         raise ValueError("formal schedule is not the frozen 26-decision schedule")
     if not raw_root.is_dir():

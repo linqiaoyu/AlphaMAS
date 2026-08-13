@@ -1,17 +1,17 @@
 {
   "manifest_id": "M1-FinMultiTime-Evidence-Contract-Freeze",
-  "contract_version": "M1-FINMULTITIME-v1.0.1",
+  "contract_version": "M1-FINMULTITIME-v1.0.2",
   "lineage": {
-    "previous_contract_version": "M1-FINMULTITIME-v1.0",
-    "previous_contract_sha256": "cd3ef3f127551c1775bc4aa803556cf071b264e72cde52072a901213c93a29b6",
-    "erratum_reason": "Rename year_to_date_h1/year_to_date_h2 to the precise year_to_date_6m/year_to_date_9m duration classes; selection behaviour is unchanged.",
-    "new_contract_version": "M1-FINMULTITIME-v1.0.1",
-    "new_contract_sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3",
-    "behaviour_equivalence": "PASS — no research-relevant behavioural change"
+    "previous_contract_version": "M1-FINMULTITIME-v1.0.1",
+    "previous_contract_sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3",
+    "erratum_reason": "Pre-formal TEXT source-integrity audit found clustered headline/URL/body corruption in the AAPL FinMultiTime member; AAPL TEXT is fail-closed UNAVAILABLE symbol-wide.",
+    "new_contract_version": "M1-FINMULTITIME-v1.0.2",
+    "new_contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+    "behaviour_equivalence": "EXPECTED TEXT-ONLY CORRECTION — AAPL TEXT unavailable; TABLE/TIME_SERIES/IMAGE and protocol unchanged"
   },
   "status": "FROZEN",
   "freeze_date": "2026-08-13",
-  "source_parent_sha": "0b34a278b43e64204ce6805cec94728874b50131",
+  "source_parent_sha": "2617dafe0f6a690113f10fe1c0d4775810a576ac",
   "frozen_m0_base_sha": "2535896c8b1070b19c06fa6a936663babb4356f7",
   "raw_finmultitime_root": "/Volumes/Jackson/Dataset/FinMultiTime",
   "source_data_identities": {
@@ -29,19 +29,23 @@
   "artifacts": {
     "M1_EVIDENCE_CONTRACT.md": {
       "path": "docs/m1/M1_EVIDENCE_CONTRACT.md",
-      "sha256": "d2d975e8180b3e3d5540c7303c74ab1038934a6e376b575f20b84fc88354bcb8"
+      "sha256": "a5ba59a25674a1893ee22f5254b3c8e2fcb4e940eaad33314319252af9afed3d"
     },
     "m1_evidence_contract.json": {
       "path": "docs/m1/m1_evidence_contract.json",
-      "sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3"
+      "sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08"
     },
     "m1_evidence_contract_case_simulation.csv": {
       "path": "docs/m1/m1_evidence_contract_case_simulation.csv",
-      "sha256": "29556d622656b63225e42a07f3815fa1ab6175636ec6a755fddfdc7e1cc50617"
+      "sha256": "830963754ccc7d853677ed42587596ab8ec6b63fb2b4b9d0418c08b6370580a9"
     },
     "m1_contract_erratum_equivalence.json": {
       "path": "docs/m1/m1_contract_erratum_equivalence.json",
       "sha256": "be647665ecdcdc316cad96d97fb95af40a2d75bf6b30e51cc3f9ff5a66517b4e"
+    },
+    "m1_text_source_integrity_audit.json": {
+      "path": "docs/m1/m1_text_source_integrity_audit.json",
+      "sha256": "abcc33b4e68a85ca7aceae3ab268f91b957ca931466257bb55b1e20fa3c5f397"
     },
     "finmultitime_table_concept_coverage.csv": {
       "path": "docs/m1/finmultitime_table_concept_coverage.csv",
@@ -66,6 +70,14 @@
     "m1_evidence_contract_table_selection_diagnostics.csv": {
       "path": "docs/m1/m1_evidence_contract_table_selection_diagnostics.csv",
       "sha256": "0dd6308c21ccf342c4e5c852b597f741eca4d375a990c762b9eaa3131ca16126"
+    },
+    "m1_input_correctness_erratum_equivalence.json": {
+      "path": "docs/m1/m1_input_correctness_erratum_equivalence.json",
+      "sha256": "03577cd560e7fd97205384cbd2d18a7b32ce890c5cd325c96df76c8dea22d2ab"
+    },
+    "m0_m1_controlled_difference_audit.json": {
+      "path": "docs/m1/m0_m1_controlled_difference_audit.json",
+      "sha256": "fa8d64ae1df55feecbd2d4bc51d7fce036fa77b232fc1a20eb29b209ceae3c99"
     }
   },
   "selection_contract_not_input_freeze": true,

@@ -1,13 +1,15 @@
 # M1 FinMultiTime Evidence Contract
 
-**Packet version:** `M1-FINMULTITIME-v1.0.1`
+**Packet version:** `M1-FINMULTITIME-v1.0.2`
 **Status:** FROZEN
-**Final verdict:** M1 EVIDENCE CONTRACT ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING
+**Final verdict:** M1 EVIDENCE CONTRACT CORRECTNESS ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING
 **Parent draft:** `M1-FINMULTITIME-DRAFT-0.1`
 **Research-review decision:** `M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS`
 **Freeze date:** `2026-08-13`
 
-This patch-level erratum supersedes `M1-FINMULTITIME-v1.0` without erasing it. Reason: Rename year_to_date_h1/year_to_date_h2 to the precise year_to_date_6m/year_to_date_9m duration classes; selection behaviour is unchanged. The deterministic equivalence report records no research-relevant change.
+This patch-level correctness erratum supersedes `M1-FINMULTITIME-v1.0.1` without erasing it. The pre-formal TEXT audit confirmed clustered headline/URL/body corruption in the raw AAPL member. AAPL TEXT is therefore fail-closed `UNAVAILABLE` for every formal case; AMZN remains source-native under the fixed rule; JPM remains unavailable because its member is absent. No external article was substituted, no outcome was inspected, and Formal M1 had not run.
+
+The complete audit is recorded in `m1_text_source_integrity_records.csv` and `m1_text_source_integrity_audit.json`. The contract pins the audit SHA and applies its symbol-level policy before deterministic selection.
 
 This contract freezes selection and representation rules only. It does not build the processed subset, generate final Evidence Packets, download/run Qwen, modify M0 behavior, or run M1.
 
@@ -29,13 +31,13 @@ The audit has 69 deterministic comparison rows. Close relative-difference ranges
 
 ## TEXT
 
-PIT gate: `Date < decision_session_date`. Same-day date-only news is `AMBIGUOUS_REJECTED`; no external news, live web, or cross-symbol filling is allowed. Deduplicate exact records, then exact URLs, retain removed/kept hashes, order newest-first deterministically, and select at most 8 articles from the fixed 30-calendar-day lookback. JPM is always `UNAVAILABLE`.
+PIT gate: `Date < decision_session_date`. Same-day date-only news is `AMBIGUOUS_REJECTED`; no external news, live web, or cross-symbol filling is allowed. Deduplicate exact records, then exact URLs, retain removed/kept hashes, order newest-first deterministically, and select at most 8 articles from the fixed 30-calendar-day lookback. AAPL is fail-closed `UNAVAILABLE` after the source-integrity erratum; AMZN remains source-native; JPM is `UNAVAILABLE` because its member is absent.
 
 | Symbol | Window | Cases with article | Mean count | Maximum | No-article cases |
 |---|---:|---:|---:|---:|---:|
 | AAPL | 7 days | 0/26 | 0.0 | 0 | 26/26 |
 | AAPL | 14 days | 0/26 | 0.0 | 0 | 26/26 |
-| AAPL | 30 days | 2/26 | 11.115 | 212 | 24/26 |
+| AAPL | 30 days | 0/26 | 0.0 | 0 | 26/26 |
 | AMZN | 7 days | 0/26 | 0.0 | 0 | 26/26 |
 | AMZN | 14 days | 0/26 | 0.0 | 0 | 26/26 |
 | AMZN | 30 days | 2/26 | 14.115 | 261 | 24/26 |
@@ -121,7 +123,7 @@ The simulation contains 78/78 cases. PIT violations: 0. Ambiguous rejected obser
 
 | Modality | AVAILABLE | UNAVAILABLE |
 |---|---:|---:|
-| TEXT | 4 | 74 |
+| TEXT | 2 | 76 |
 | TABLE | 78 | 0 |
 | TIME_SERIES | 78 | 0 |
 | IMAGE | 52 | 26 |
@@ -147,4 +149,4 @@ The following remain deliberately unfrozen: processed three-stock subset, image 
 
 Raw FinMultiTime modified: **NO**. Final processed subset built: **NO**. Final Evidence Packets built: **NO**. Qwen downloaded: **NO**. Qwen run: **NO**. DeepSeek calls: **0**. Paid API calls: **0**. Trader, Memory, and execution modified: **NO**. Formal M1 run: **NO**. M2 / Agentic RL started: **NO**. AlphaMAS-Experiments modified: **NO**.
 
-Freeze artifacts include `M1_EVIDENCE_CONTRACT.md`, `m1_evidence_contract.json`, `m1_evidence_contract_case_simulation.csv`, `m1_evidence_contract_table_selection_diagnostics.csv`, `m1_contract_erratum_equivalence.json`, and `m1_evidence_contract_freeze.json`. The freeze manifest records SHA-256 hashes for the final contract, simulation, equivalence evidence, and required audit/semantics reports.
+Freeze artifacts include `M1_EVIDENCE_CONTRACT.md`, `m1_evidence_contract.json`, `m1_evidence_contract_case_simulation.csv`, `m1_evidence_contract_table_selection_diagnostics.csv`, the historical `m1_contract_erratum_equivalence.json`, the active `m1_input_correctness_erratum_equivalence.json`, and `m1_evidence_contract_freeze.json`. The freeze manifest records SHA-256 hashes for the final contract, simulation, source-integrity audit, equivalence evidence, and required audit/semantics reports.

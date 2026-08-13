@@ -17,8 +17,8 @@
   "character_budgets": {
     "complete_packet_agent_text": {
       "max": 12929,
-      "median": 3036.0,
-      "min": 2914
+      "median": 3034.0,
+      "min": 2995
     },
     "contract_limits": {
       "IMAGE": 1600,
@@ -39,11 +39,11 @@
     },
     "news_routed": {
       "max": 9969,
-      "median": 97.0,
-      "min": 85
+      "median": 132.0,
+      "min": 97
     }
   },
-  "contract_version": "M1-FINMULTITIME-v1.0.1",
+  "contract_version": "M1-FINMULTITIME-v1.0.2",
   "dataset_id": "finmultitime_3stocks_2024h1_v1",
   "deterministic_build": {
     "json_hash_mismatches": 0,
@@ -61,11 +61,11 @@
   "input_bundle_checksums": {
     "file_count": 251,
     "path": "manifests/input_bundle_checksums.json",
-    "sha256": "402442dbe9287c69b5eba94ecc358c4dfe570092a37cceec43ffd0ad7d5288a5"
+    "sha256": "fd925a20a31cad78d9e59a4a7d6a46d0eb8d526311c2c3eb8d27343df130e841"
   },
   "input_bundle_manifest": {
     "path": "manifests/input_bundle_manifest.json",
-    "sha256": "e64067054c717fda4462fcf2bb8411aa016933d1c893d1eb5d82987678861f94"
+    "sha256": "13eed535c7aa3ae18e36444519de8dc40690b039525cede37b5b03e0152e3d44"
   },
   "modality_status_counts": {
     "IMAGE": {
@@ -76,8 +76,8 @@
       "AVAILABLE": 78
     },
     "TEXT": {
-      "AVAILABLE": 4,
-      "UNAVAILABLE": 74
+      "AVAILABLE": 2,
+      "UNAVAILABLE": 76
     },
     "TIME_SERIES": {
       "AVAILABLE": 78
@@ -86,7 +86,7 @@
   "packet_count": 78,
   "packet_manifest": {
     "path": "manifests/evidence_packet_manifest.json",
-    "sha256": "b52feb5798cc444ed4f458e3a2bbecbc0810bceb7d65e88014748fafb8a7ed2a"
+    "sha256": "05f10129b430475bad3d5dee9dfceffba463f8a99cdd3f087ff4b755a869d63d"
   },
   "pit_violations": 0,
   "schema_version": "1.0",

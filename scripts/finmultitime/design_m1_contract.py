@@ -45,20 +45,24 @@ from scripts.finmultitime.audit_finmultitime import (  # noqa: E402
     read_table_files,
     read_time_series,
 )
+from scripts.finmultitime.text_source_integrity import (  # noqa: E402
+    load_integrity_policy,
+)
 
-CONTRACT_VERSION = "M1-FINMULTITIME-v1.0.1"
-PREVIOUS_CONTRACT_VERSION = "M1-FINMULTITIME-v1.0"
-PREVIOUS_CONTRACT_SHA256 = "cd3ef3f127551c1775bc4aa803556cf071b264e72cde52072a901213c93a29b6"
+CONTRACT_VERSION = "M1-FINMULTITIME-v1.0.2"
+PREVIOUS_CONTRACT_VERSION = "M1-FINMULTITIME-v1.0.1"
+PREVIOUS_CONTRACT_SHA256 = "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3"
 PARENT_DRAFT_VERSION = "M1-FINMULTITIME-DRAFT-0.1"
 RESEARCH_REVIEW_DECISION = "M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS"
-SOURCE_PARENT_SHA = "0b34a278b43e64204ce6805cec94728874b50131"
+SOURCE_PARENT_SHA = "2617dafe0f6a690113f10fe1c0d4775810a576ac"
 FROZEN_M0_BASE_SHA = "2535896c8b1070b19c06fa6a936663babb4356f7"
 FREEZE_DATE = "2026-08-13"
 ERRATUM_REASON = (
-    "Rename year_to_date_h1/year_to_date_h2 to the precise "
-    "year_to_date_6m/year_to_date_9m duration classes; selection behaviour is unchanged."
+    "Pre-formal TEXT source-integrity audit found clustered headline/URL/body "
+    "corruption in the AAPL FinMultiTime member. Freeze AAPL TEXT unavailable "
+    "symbol-wide; retain source-native AMZN TEXT and absent JPM TEXT unavailable."
 )
-FINAL_VERDICT = "M1 EVIDENCE CONTRACT ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING"
+FINAL_VERDICT = "M1 EVIDENCE CONTRACT CORRECTNESS ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING"
 NEWS_LOOKBACK_CANDIDATES = (7, 14, 30)
 RECOMMENDED_NEWS_LOOKBACK = 30
 IMAGE_AGE_REPORTING_THRESHOLDS = (30, 90, 180, 365)
@@ -1077,13 +1081,37 @@ def routed_context_sizes(sizes: dict[str, int]) -> dict[str, int]:
     }
 
 
+def policy_news_selection(
+    data: dict[str, Any], symbol: str, decision: date,
+    text_integrity_policy: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    news = selected_news(data["news"][symbol], decision)
+    if text_integrity_policy is None:
+        return news
+    policy = text_integrity_policy.get(symbol)
+    if policy is None:
+        raise ValueError(f"TEXT source-integrity policy is missing for {symbol}")
+    if policy["formal_text_policy"] == "UNAVAILABLE":
+        return {
+            "status": "UNAVAILABLE",
+            "reason": policy["reason"],
+            "records": [],
+            "same_day_count": 0,
+            "dedup_removed_count": 0,
+            "latest_safe_date": None,
+            "ambiguous_records": [],
+        }
+    return news
+
+
 def case_simulation(
-    data: dict[str, Any], context: dict[str, Any]
+    data: dict[str, Any], context: dict[str, Any],
+    text_integrity_policy: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for event, decision in zip(context["events"], context["decisions"], strict=True):
         for symbol in TARGETS:
-            news = selected_news(data["news"][symbol], decision)
+            news = policy_news_selection(data, symbol, decision, text_integrity_policy)
             table = table_selection(data["tables"], symbol, decision)
             ts = time_series_selection(data["series"], symbol, decision)
             image = image_selection(data["images"], symbol, decision)
@@ -1388,7 +1416,8 @@ def analyst_budget_summary(simulation: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def simulation_invariants(
-    data: dict[str, Any], context: dict[str, Any], simulation: list[dict[str, Any]]
+    data: dict[str, Any], context: dict[str, Any], simulation: list[dict[str, Any]],
+    text_integrity_policy: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     checks: dict[str, bool] = {
         "formal_cases_are_78": len(simulation) == 78,
@@ -1417,7 +1446,7 @@ def simulation_invariants(
     for row in simulation:
         decision = date.fromisoformat(row["decision_session"])
         symbol = row["symbol"]
-        news = selected_news(data["news"][symbol], decision)
+        news = policy_news_selection(data, symbol, decision, text_integrity_policy)
         table = table_selection(data["tables"], symbol, decision)
         ts = time_series_selection(data["series"], symbol, decision)
         image = image_selection(data["images"], symbol, decision)
@@ -1458,6 +1487,8 @@ def contract_json(
     source_summary: dict[str, Any],
     validation: dict[str, Any],
     data_audit_identity: dict[str, Any],
+    text_integrity_policy: dict[str, dict[str, Any]],
+    text_integrity_audit_sha256: str,
 ) -> dict[str, Any]:
     selected_concept_rows = [
         row for row in concept_rows
@@ -1478,8 +1509,16 @@ def contract_json(
             "previous_contract_version": PREVIOUS_CONTRACT_VERSION,
             "previous_contract_sha256": PREVIOUS_CONTRACT_SHA256,
             "reason": ERRATUM_REASON,
-            "behaviour_equivalence_report": "docs/m1/m1_contract_erratum_equivalence.json",
-            "behaviour_equivalent": True,
+            "behaviour_equivalence_report": "docs/m1/m1_input_correctness_erratum_equivalence.json",
+            "behaviour_equivalent": False,
+            "pre_formal_correctness_only": True,
+            "formal_m1_run_before_erratum": False,
+        },
+        "text_source_integrity": {
+            "audit_artifact": "docs/m1/m1_text_source_integrity_audit.json",
+            "audit_sha256": text_integrity_audit_sha256,
+            "policy_rule": "If a symbol's relevant FinMultiTime member has any verified source-integrity corruption or lacks a member, freeze that symbol's entire TEXT modality UNAVAILABLE. VERIFIED_MATCH symbols retain the fixed deterministic selection; no external replacement is allowed.",
+            "policy_by_symbol": text_integrity_policy,
         },
         "freeze_metadata": {
             "freeze_date": FREEZE_DATE,
@@ -1523,7 +1562,7 @@ def contract_json(
                 "max_title_chars": MAX_ARTICLE_TITLE_CHARS,
                 "max_article_body_chars": MAX_ARTICLE_BODY_CHARS,
                 "representation": "date, title, URL, bounded article text, record hash; no LLM semantic deduplication",
-                "missingness": "JPM remains UNAVAILABLE; no eligible article remains UNAVAILABLE; no external news filling",
+                "missingness": "AAPL is fail-closed UNAVAILABLE after the source-integrity erratum; AMZN remains source-native under the fixed rule; JPM is UNAVAILABLE because its member is absent; no external news filling",
             },
             "TABLE": {
                 "source_identity": "table/SP500_tabular.zip::financial_reports/<symbol>/*.json",
@@ -2058,6 +2097,99 @@ def erratum_equivalence_report(
     return report
 
 
+def input_correctness_erratum_report(
+    previous: list[dict[str, str]], current: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Prove that v1.0.2 changes only the audited TEXT projection.
+
+    The v1.0.1 simulation is retained as the comparison baseline.  AAPL TEXT
+    is expected to change because the source-integrity audit is a deliberate
+    correctness correction; every other modality and every other symbol must
+    remain equivalent apart from the packet-version field and the historical
+    duration-label spelling migration.
+    """
+
+    previous_by_case = {(row["symbol"], row["decision_session"]): row for row in previous}
+    current_by_case = {
+        (str(row["symbol"]), str(row["decision_session"])): {
+            key: csv_value(value) for key, value in row.items()
+        }
+        for row in current
+    }
+    if set(previous_by_case) != set(current_by_case):
+        raise SystemExit("M1 input-correction equivalence failed: formal case keys changed")
+
+    expected_aapl_text_fields = {
+        "TEXT_status",
+        "selected_news_count",
+        "selected_news_latest_date",
+        "selected_news_oldest_date",
+        "text_latest_safe_age_calendar_days",
+        "source_hash_reference",
+        "estimated_text_chars",
+        "estimated_packet_chars",
+        "estimated_packet_bytes_utf8",
+        "routed_news_analyst_chars",
+    }
+    unexpected: list[dict[str, Any]] = []
+    expected: list[dict[str, Any]] = []
+    packet_version_changes = 0
+    duration_label_changes = 0
+    for case_key in sorted(previous_by_case):
+        old = previous_by_case[case_key]
+        new = current_by_case[case_key]
+        differing_columns: list[str] = []
+        for column in old:
+            if column == "packet_version":
+                if old[column] != new.get(column, ""):
+                    packet_version_changes += 1
+                continue
+            if _normalise_erratum_terminology(old[column]) == new.get(column, ""):
+                continue
+            if column == "source_hash_reference" and (
+                "year_to_date_h1" in old[column] or "year_to_date_h2" in old[column]
+            ):
+                duration_label_changes += 1
+                continue
+            differing_columns.append(column)
+        if not differing_columns:
+            continue
+        item = {
+            "symbol": case_key[0],
+            "decision_session": case_key[1],
+            "differing_columns": differing_columns,
+        }
+        if case_key[0] == "AAPL" and set(differing_columns) <= expected_aapl_text_fields:
+            expected.append(item)
+        else:
+            unexpected.append(item)
+
+    return {
+        "report_id": "M1-FinMultiTime-v1.0.1-to-v1.0.2-Input-Correctness-Erratum",
+        "previous_contract_version": PREVIOUS_CONTRACT_VERSION,
+        "current_contract_version": CONTRACT_VERSION,
+        "source_parent_sha": SOURCE_PARENT_SHA,
+        "cases_compared": len(current),
+        "comparison_scope": "all simulation columns; packet_version and the explicit historical duration-label mapping are excluded",
+        "expected_correction": {
+            "symbol": "AAPL",
+            "modality": "TEXT",
+            "policy": "UNAVAILABLE",
+            "reason": "verified clustered source-integrity mismatch in the formal-use raw member",
+            "expected_case_count": 26,
+            "observed_case_count": len(expected),
+            "allowed_changed_fields": sorted(expected_aapl_text_fields),
+        },
+        "packet_version_changes": packet_version_changes,
+        "historical_duration_label_changes_ignored": duration_label_changes,
+        "expected_correction_differences": expected,
+        "unexpected_differences": unexpected,
+        "verdict": "PASS — only the audited AAPL TEXT projection changed"
+        if len(expected) == 26 and not unexpected and packet_version_changes == 78
+        else "FAIL — unexpected input or protocol difference detected",
+    }
+
+
 def table_selection_diagnostic_rows(
     data: dict[str, Any], context: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -2079,6 +2211,7 @@ def freeze_manifest(
         "m1_evidence_contract.json",
         "m1_evidence_contract_case_simulation.csv",
         "m1_contract_erratum_equivalence.json",
+        "m1_input_correctness_erratum_equivalence.json",
         "finmultitime_table_concept_coverage.csv",
         "finmultitime_news_deduplication.csv",
         "finmultitime_ohlc_anomalies.csv",
@@ -2128,16 +2261,26 @@ def freeze_manifest(
 def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
     context = formal_context()
     data = load_raw_data(dataset_root)
+    text_audit_path = output_dir / "m1_text_source_integrity_audit.json"
+    frozen_contract_path = output_dir / "m1_evidence_contract.json"
+    if not text_audit_path.is_file() or not frozen_contract_path.is_file():
+        raise SystemExit(
+            "M1 TEXT source-integrity audit and frozen contract must exist before contract regeneration"
+        )
+    frozen_contract = json.loads(frozen_contract_path.read_text(encoding="utf-8"))
+    text_integrity_policy = load_integrity_policy(
+        frozen_contract, audit_path=text_audit_path
+    )
     snapshots = read_snapshot(m0_snapshot_dir)
     anomalies = impossible_ohlc_rows(data["series"], context)
     consistency = consistency_rows(data["series"], snapshots)
     semantics = semantics_summary(consistency)
     concept_rows = candidate_concept_coverage(data["tables"], context["decisions"])
-    simulation = case_simulation(data, context)
-    equivalence = erratum_equivalence_report(previous_frozen_simulation(), simulation)
+    simulation = case_simulation(data, context, text_integrity_policy)
+    equivalence = input_correctness_erratum_report(previous_frozen_simulation(), simulation)
     image_summary = image_coverage_summary(data["images"], context["decisions"])
     source_summary = source_stats(data, context)
-    validation = simulation_invariants(data, context, simulation)
+    validation = simulation_invariants(data, context, simulation, text_integrity_policy)
     if not all(validation.values()):
         failed = [name for name, passed in validation.items() if not passed]
         raise SystemExit("M1 contract validation failed; freeze stopped: " + ", ".join(failed))
@@ -2158,6 +2301,8 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
         source_summary,
         validation,
         data_audit_identity,
+        text_integrity_policy,
+        file_sha256(text_audit_path),
     )
     map_rows = m0_vs_finmultitime_map()
     dedup_rows = [
@@ -2171,7 +2316,7 @@ def run(dataset_root: Path, output_dir: Path, m0_snapshot_dir: Path) -> None:
     write_csv(output_dir / "m0_vs_finmultitime_evidence_map.csv", map_rows)
     write_csv(output_dir / "finmultitime_news_deduplication.csv", dedup_rows)
     write_csv(output_dir / "m1_evidence_contract_case_simulation.csv", simulation)
-    (output_dir / "m1_contract_erratum_equivalence.json").write_text(
+    (output_dir / "m1_input_correctness_erratum_equivalence.json").write_text(
         json.dumps(equivalence, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

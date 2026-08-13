@@ -1,0 +1,258 @@
+{
+  "report_id": "M1-FinMultiTime-v1.0.1-to-v1.0.2-Input-Correctness-Erratum",
+  "previous_contract_version": "M1-FINMULTITIME-v1.0.1",
+  "current_contract_version": "M1-FINMULTITIME-v1.0.2",
+  "source_parent_sha": "2617dafe0f6a690113f10fe1c0d4775810a576ac",
+  "cases_compared": 78,
+  "comparison_scope": "all simulation columns; packet_version and the explicit historical duration-label mapping are excluded",
+  "expected_correction": {
+    "symbol": "AAPL",
+    "modality": "TEXT",
+    "policy": "UNAVAILABLE",
+    "reason": "verified clustered source-integrity mismatch in the formal-use raw member",
+    "expected_case_count": 26,
+    "observed_case_count": 26,
+    "allowed_changed_fields": [
+      "TEXT_status",
+      "estimated_packet_bytes_utf8",
+      "estimated_packet_chars",
+      "estimated_text_chars",
+      "routed_news_analyst_chars",
+      "selected_news_count",
+      "selected_news_latest_date",
+      "selected_news_oldest_date",
+      "source_hash_reference",
+      "text_latest_safe_age_calendar_days"
+    ]
+  },
+  "packet_version_changes": 78,
+  "historical_duration_label_changes_ignored": 0,
+  "expected_correction_differences": [
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-01-05",
+      "differing_columns": [
+        "TEXT_status",
+        "selected_news_count",
+        "selected_news_latest_date",
+        "selected_news_oldest_date",
+        "text_latest_safe_age_calendar_days",
+        "source_hash_reference",
+        "estimated_text_chars",
+        "estimated_packet_chars",
+        "estimated_packet_bytes_utf8",
+        "routed_news_analyst_chars"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-01-12",
+      "differing_columns": [
+        "TEXT_status",
+        "selected_news_count",
+        "selected_news_latest_date",
+        "selected_news_oldest_date",
+        "text_latest_safe_age_calendar_days",
+        "source_hash_reference",
+        "estimated_text_chars",
+        "estimated_packet_chars",
+        "estimated_packet_bytes_utf8",
+        "routed_news_analyst_chars"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-01-19",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-01-26",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-02-02",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-02-09",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-02-16",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-02-23",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-03-01",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-03-08",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-03-15",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-03-22",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-03-28",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-04-05",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-04-12",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-04-19",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-04-26",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-05-03",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-05-10",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-05-17",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-05-24",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-05-31",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-06-07",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-06-14",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-06-21",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    },
+    {
+      "symbol": "AAPL",
+      "decision_session": "2024-06-28",
+      "differing_columns": [
+        "selected_news_latest_date",
+        "text_latest_safe_age_calendar_days"
+      ]
+    }
+  ],
+  "unexpected_differences": [],
+  "verdict": "PASS — only the audited AAPL TEXT projection changed"
+}

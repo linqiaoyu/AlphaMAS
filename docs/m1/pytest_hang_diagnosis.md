@@ -69,3 +69,20 @@ the frozen `uv.lock`.
 This protection is test infrastructure only. Production code and `uv.lock`
 remain unchanged, as do Agent behavior, M0 and M1 evidence, the backtester,
 execution, valuation, and metrics.
+
+## Pre-formal correctness erratum rerun — 2026-08-13
+
+The existing Python 3.12 environment was independently bounded before the
+corrected bundle was accepted. `import pandas` completed, but
+`import exchange_calendars` exceeded 60 seconds while reading the installed
+`toolz` package. The old environment was moved to the recoverable path
+`.venv.preformal-backup-20260813`; a fresh Python 3.12.10 environment was
+created with `uv sync --frozen --extra dev --python 3.12`.
+
+The fresh environment imported pandas in about 9 seconds on first import and
+exchange-calendars in about 0.5 seconds. The full suite then completed with:
+
+`798 passed, 2 skipped, 19 warnings, 69 subtests passed in 30.74s`
+
+The two skips were the optional `langchain_aws` Bedrock test and the opt-in
+live DeepSeek test. No M1 formal run was performed.

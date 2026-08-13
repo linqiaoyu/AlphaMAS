@@ -1,24 +1,51 @@
 {
   "contract_id": "M1-FinMultiTime-Evidence-Contract",
-  "packet_version": "M1-FINMULTITIME-v1.0.1",
+  "packet_version": "M1-FINMULTITIME-v1.0.2",
   "parent_draft_version": "M1-FINMULTITIME-DRAFT-0.1",
   "status": "FROZEN",
-  "verdict": "M1 EVIDENCE CONTRACT ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING",
+  "verdict": "M1 EVIDENCE CONTRACT CORRECTNESS ERRATUM PASSED — CONTRACT READY FOR PREPROCESSING",
   "research_review": {
     "decision": "M1 EVIDENCE CONTRACT RESEARCH REVIEW PASSED WITH REQUIRED REVISIONS",
     "required_revisions_applied": true
   },
   "erratum": {
-    "previous_contract_version": "M1-FINMULTITIME-v1.0",
-    "previous_contract_sha256": "cd3ef3f127551c1775bc4aa803556cf071b264e72cde52072a901213c93a29b6",
-    "reason": "Rename year_to_date_h1/year_to_date_h2 to the precise year_to_date_6m/year_to_date_9m duration classes; selection behaviour is unchanged.",
-    "behaviour_equivalence_report": "docs/m1/m1_contract_erratum_equivalence.json",
-    "behaviour_equivalent": true
+    "previous_contract_version": "M1-FINMULTITIME-v1.0.1",
+    "previous_contract_sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3",
+    "reason": "Pre-formal TEXT source-integrity audit found clustered headline/URL/body corruption in the AAPL FinMultiTime member. Freeze AAPL TEXT unavailable symbol-wide; retain source-native AMZN TEXT and absent JPM TEXT unavailable.",
+    "behaviour_equivalence_report": "docs/m1/m1_input_correctness_erratum_equivalence.json",
+    "behaviour_equivalent": false,
+    "pre_formal_correctness_only": true,
+    "formal_m1_run_before_erratum": false
+  },
+  "text_source_integrity": {
+    "audit_artifact": "docs/m1/m1_text_source_integrity_audit.json",
+    "audit_sha256": "abcc33b4e68a85ca7aceae3ab268f91b957ca931466257bb55b1e20fa3c5f397",
+    "policy_rule": "If a symbol's relevant FinMultiTime member has any verified source-integrity corruption or lacks a member, freeze that symbol's entire TEXT modality UNAVAILABLE. VERIFIED_MATCH symbols retain the fixed deterministic selection; no external replacement is allowed.",
+    "policy_by_symbol": {
+      "AAPL": {
+        "audit_status": "VERIFIED_MISMATCH",
+        "formal_text_policy": "UNAVAILABLE",
+        "formal_use_record_count": 8,
+        "reason": "AAPL formal-use rows show clustered headline/URL/body corruption in the raw member; the entire symbol TEXT modality is frozen unavailable."
+      },
+      "AMZN": {
+        "audit_status": "VERIFIED_MATCH",
+        "formal_text_policy": "AVAILABLE",
+        "formal_use_record_count": 8,
+        "reason": "Selected AMZN formal-use rows pass the source-local title/URL/body integrity audit and remain source-native."
+      },
+      "JPM": {
+        "audit_status": "UNVERIFIABLE",
+        "formal_text_policy": "UNAVAILABLE",
+        "formal_use_record_count": 0,
+        "reason": "No sp500_news/JPM.jsonl member exists; no external or cross-symbol replacement is permitted."
+      }
+    }
   },
   "freeze_metadata": {
     "freeze_date": "2026-08-13",
     "timestamp_policy": "run timestamps are excluded from deterministic artifacts; PIT uses source availability dates/session labels and strict comparison rules",
-    "source_parent_sha": "0b34a278b43e64204ce6805cec94728874b50131",
+    "source_parent_sha": "2617dafe0f6a690113f10fe1c0d4775810a576ac",
     "frozen_m0_base_sha": "2535896c8b1070b19c06fa6a936663babb4356f7"
   },
   "formal_relationship": "M1 evidence = M0 historical-safe evidence + FinMultiTime Evidence Packet",
@@ -70,7 +97,7 @@
       "max_title_chars": 200,
       "max_article_body_chars": 900,
       "representation": "date, title, URL, bounded article text, record hash; no LLM semantic deduplication",
-      "missingness": "JPM remains UNAVAILABLE; no eligible article remains UNAVAILABLE; no external news filling"
+      "missingness": "AAPL is fail-closed UNAVAILABLE after the source-integrity erratum; AMZN remains source-native under the fixed rule; JPM is UNAVAILABLE because its member is absent; no external news filling"
     },
     "TABLE": {
       "source_identity": "table/SP500_tabular.zip::financial_reports/<symbol>/*.json",
