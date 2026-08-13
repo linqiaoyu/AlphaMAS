@@ -1227,6 +1227,18 @@ def validate_artifact_bundle(
             memory_resumed_from_run_id=expected_resumed_from,
             graph_config_sha256=next(iter(graph_hashes.values()), None),
             symbols=memory_symbols,
+            finmultitime_evidence_enabled=bool(
+                isinstance(resolved_graph, Mapping)
+                and resolved_graph.get("finmultitime_evidence_enabled", False)
+            ),
+            finmultitime_bundle_scope=(
+                resolved_graph.get("finmultitime_bundle_scope")
+                if isinstance(resolved_graph, Mapping) else None
+            ),
+            finmultitime_bundle_identity=(
+                resolved_graph.get("finmultitime_expected_input_bundle_identity")
+                if isinstance(resolved_graph, Mapping) else None
+            ),
         )
         memory_archive_errors.extend(memory_validation["errors"])
         memory_archive_checksum_errors.extend(

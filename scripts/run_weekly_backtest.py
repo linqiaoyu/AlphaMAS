@@ -903,6 +903,13 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
                 memory_resumed_from_run_id=memory_lineage.resumed_from_run_id,
                 graph_config_sha256=graph_config_sha256,
                 symbols=archived_symbols,
+                finmultitime_evidence_enabled=bool(
+                    graph_config.get("finmultitime_evidence_enabled", False)
+                ),
+                finmultitime_bundle_scope=graph_config.get("finmultitime_bundle_scope"),
+                finmultitime_bundle_identity=graph_config.get(
+                    "finmultitime_expected_input_bundle_identity"
+                ),
             )
         completed = datetime.now(timezone.utc).isoformat()
         manifest["run_completed_at"] = completed

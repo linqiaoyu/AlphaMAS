@@ -30,6 +30,7 @@ from tradingagents.agents.utils.agent_utils import (
     resolve_instrument_identity,
 )
 from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.agents.utils.memory_namespace import runtime_experiment_memory_path
 from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -667,18 +668,7 @@ class TradingAgentsGraph:
             if memory_mode == "experiment":
                 if not context.experiment_id:
                     raise ValueError("experiment memory requires RunContext.experiment_id")
-                experiment = safe_ticker_component(context.experiment_id, max_len=128)
                 graph_hash = config.get("graph_config_sha256")
-                if not isinstance(graph_hash, str) or len(graph_hash) != 64:
-                    raise ValueError(
-                        "experiment memory requires a resolved graph_config_sha256"
-                    )
-                try:
-                    int(graph_hash, 16)
-                except ValueError as exc:
-                    raise ValueError(
-                        "experiment memory requires a resolved graph_config_sha256"
-                    ) from exc
                 lineage_value = (
                     context.memory_lineage_id
                     or config.get("historical_memory_lineage_id")
@@ -698,20 +688,18 @@ class TradingAgentsGraph:
                     "bundle_identity",
                     config.get("finmultitime_expected_input_bundle_identity", ""),
                 )
-                if config.get("finmultitime_evidence_enabled"):
-                    if bundle_scope not in {"FORMAL", "PILOT"} or not bundle_identity:
-                        raise ValueError(
-                            "experiment memory requires an explicit FinMultiTime bundle identity"
-                        )
-                    namespace = safe_ticker_component(
-                        f"finmultitime-{bundle_scope.lower()}-{bundle_identity[:16]}",
-                        max_len=128,
-                    )
-                    path = (
-                        root / namespace / experiment / graph_hash / lineage / f"{safe_symbol}.md"
-                    )
-                else:
-                    path = root / experiment / graph_hash / lineage / f"{safe_symbol}.md"
+                path = runtime_experiment_memory_path(
+                    config.get("historical_memory_dir") or config["data_cache_dir"],
+                    experiment_id=context.experiment_id,
+                    graph_config_sha256=graph_hash,
+                    memory_lineage_id=str(lineage_value),
+                    symbol=ticker,
+                    finmultitime_evidence_enabled=bool(
+                        config.get("finmultitime_evidence_enabled", False)
+                    ),
+                    finmultitime_bundle_scope=bundle_scope,
+                    finmultitime_bundle_identity=bundle_identity,
+                )
                 config["historical_memory_lineage_id"] = lineage
             else:
                 path = root / f"{safe_symbol}_{context.as_of.date().isoformat()}.md"

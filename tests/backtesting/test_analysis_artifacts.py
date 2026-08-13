@@ -41,7 +41,11 @@ def _write_result_directory(path: Path) -> None:
     _write_json(path / "metrics.json", {})
 
 
-def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
+def _complete_bundle(
+    root: Path, *, strategy: str = "sma", finmultitime_evidence_enabled: bool = False,
+    finmultitime_bundle_scope: str = "PILOT",
+    finmultitime_bundle_identity: str = "b" * 64,
+) -> None:
     lineage = {
         "memory_lineage_id": "run-1",
         "memory_lifecycle": "independent_fresh",
@@ -66,6 +70,12 @@ def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
         "max_risk_discuss_rounds": 3,
         "historical_memory_lineage_id": lineage["memory_lineage_id"],
     }
+    if finmultitime_evidence_enabled:
+        graph_config.update({
+            "finmultitime_evidence_enabled": True,
+            "finmultitime_bundle_scope": finmultitime_bundle_scope,
+            "finmultitime_expected_input_bundle_identity": finmultitime_bundle_identity,
+        })
     graph_hash = graph_config_sha256(graph_config)
     graph_config["graph_config_sha256"] = graph_hash
     config = {
@@ -77,6 +87,12 @@ def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
         "graph_config_sha256": graph_hash,
         **run_identity,
     }
+    if finmultitime_evidence_enabled:
+        config.update({
+            "finmultitime_evidence_enabled": True,
+            "finmultitime_bundle_scope": finmultitime_bundle_scope,
+            "finmultitime_expected_input_bundle_identity": finmultitime_bundle_identity,
+        })
     _write_json(root / "manifest.json", {
         "graph_config_sha256": graph_hash,
         **run_identity,
@@ -240,6 +256,9 @@ def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
             graph_config_sha256=graph_hash,
             memory_lineage_id=lineage["memory_lineage_id"],
             symbol="AAPL",
+            finmultitime_evidence_enabled=finmultitime_evidence_enabled,
+            finmultitime_bundle_scope=finmultitime_bundle_scope,
+            finmultitime_bundle_identity=finmultitime_bundle_identity,
         )
         runtime_path.parent.mkdir(parents=True, exist_ok=True)
         runtime_path.write_text(
@@ -257,6 +276,9 @@ def _complete_bundle(root: Path, *, strategy: str = "sma") -> None:
             memory_resumed_from_run_id=lineage["memory_resumed_from_run_id"],
             graph_config_sha256=graph_hash,
             symbols=["AAPL"],
+            finmultitime_evidence_enabled=finmultitime_evidence_enabled,
+            finmultitime_bundle_scope=finmultitime_bundle_scope,
+            finmultitime_bundle_identity=finmultitime_bundle_identity,
         )
         top_manifest_path = root / "manifest.json"
         top_manifest = json.loads(top_manifest_path.read_text(encoding="utf-8"))
@@ -454,6 +476,30 @@ def test_validate_artifact_bundle_accepts_complete_synthetic_bundle(tmp_path):
 
     assert report["status"] == "passed", report
     assert all(report["checks"].values())
+
+
+def test_validate_artifact_bundle_accepts_m1_namespaced_memory(tmp_path):
+    identity = "c" * 64
+    _complete_bundle(
+        tmp_path,
+        strategy="tradingagents",
+        finmultitime_evidence_enabled=True,
+        finmultitime_bundle_scope="FORMAL",
+        finmultitime_bundle_identity=identity,
+    )
+
+    report = validate_artifact_bundle(tmp_path)
+    memory_manifest = json.loads(
+        (tmp_path / "memory/manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert report["status"] == "passed", report
+    assert report["checks"]["final_memory_archive_complete_and_valid"] is True
+    assert memory_manifest["runtime_namespace"]["bundle_scope"] == "FORMAL"
+    assert memory_manifest["runtime_namespace"]["bundle_identity"] == identity
+    assert memory_manifest["runtime_namespace"]["namespace_component"] == (
+        "finmultitime-formal-cccccccccccccccc"
+    )
 
 
 def test_validate_artifact_bundle_checks_agent_cases_and_snapshot_hashes(tmp_path):

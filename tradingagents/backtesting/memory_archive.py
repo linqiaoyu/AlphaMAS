@@ -8,6 +8,10 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
+from tradingagents.agents.utils.memory_namespace import (
+    experiment_memory_namespace_component,
+    runtime_experiment_memory_path,
+)
 from tradingagents.backtesting.recorder import write_json
 from tradingagents.dataflows.utils import safe_ticker_component
 
@@ -48,31 +52,14 @@ def _safe_symbols(symbols: Iterable[str]) -> list[str]:
     return safe_symbols
 
 
-def runtime_experiment_memory_path(
-    runtime_memory_dir: str | Path, *, experiment_id: str,
-    graph_config_sha256: str, memory_lineage_id: str, symbol: str,
-) -> Path:
-    """Resolve the existing Graph experiment-memory file without mutating it."""
-    experiment = _identity_component(experiment_id, field="experiment_id")
-    lineage = _identity_component(memory_lineage_id, field="memory_lineage_id")
-    if not _valid_sha256(graph_config_sha256):
-        raise ValueError("graph_config_sha256 must be a valid SHA-256")
-    safe_symbol = safe_ticker_component(symbol)
-    return (
-        Path(runtime_memory_dir)
-        / "historical_memory"
-        / experiment
-        / graph_config_sha256
-        / lineage
-        / f"{safe_symbol}.md"
-    )
-
-
 def archive_final_experiment_memory(
     *, run_dir: str | Path, runtime_memory_dir: str | Path,
     experiment_id: str, run_id: str, memory_lineage_id: str,
     memory_lifecycle: str, memory_resumed_from_run_id: str | None,
     graph_config_sha256: str, symbols: Iterable[str],
+    finmultitime_evidence_enabled: bool = False,
+    finmultitime_bundle_scope: str | None = None,
+    finmultitime_bundle_identity: str | None = None,
 ) -> dict[str, Any]:
     """Copy final runtime Memory into a run-local, content-addressed artifact.
 
@@ -111,6 +98,11 @@ def archive_final_experiment_memory(
     if not _valid_sha256(graph_config_sha256):
         raise ValueError("graph_config_sha256 must be a valid SHA-256")
     safe_symbols = _safe_symbols(symbols)
+    namespace_component = experiment_memory_namespace_component(
+        finmultitime_evidence_enabled=finmultitime_evidence_enabled,
+        finmultitime_bundle_scope=finmultitime_bundle_scope,
+        finmultitime_bundle_identity=finmultitime_bundle_identity,
+    )
 
     # Read and validate every source before creating the archive directory. A
     # successful run cannot be published with a partial symbol archive.
@@ -123,6 +115,9 @@ def archive_final_experiment_memory(
             graph_config_sha256=graph_config_sha256,
             memory_lineage_id=lineage,
             symbol=symbol,
+            finmultitime_evidence_enabled=finmultitime_evidence_enabled,
+            finmultitime_bundle_scope=finmultitime_bundle_scope,
+            finmultitime_bundle_identity=finmultitime_bundle_identity,
         )
         try:
             payload = source.read_bytes()
@@ -181,6 +176,13 @@ def archive_final_experiment_memory(
         },
         "symbols": symbol_records,
     }
+    if finmultitime_evidence_enabled:
+        archive_manifest["runtime_namespace"].update({
+            "finmultitime_evidence_enabled": True,
+            "bundle_scope": finmultitime_bundle_scope.strip().upper(),
+            "bundle_identity": finmultitime_bundle_identity.lower(),
+            "namespace_component": namespace_component,
+        })
     archive_manifest_path = run_root / MEMORY_ARCHIVE_MANIFEST_PATH
     write_json(archive_manifest_path, archive_manifest)
     manifest_payload = archive_manifest_path.read_bytes()
@@ -209,7 +211,9 @@ def validate_final_memory_archive(
     *, run_dir: str | Path, descriptor: Any, experiment_id: Any,
     run_id: Any, memory_lineage_id: Any, memory_lifecycle: Any,
     memory_resumed_from_run_id: Any, graph_config_sha256: Any,
-    symbols: Iterable[str],
+    symbols: Iterable[str], finmultitime_evidence_enabled: bool = False,
+    finmultitime_bundle_scope: str | None = None,
+    finmultitime_bundle_identity: str | None = None,
 ) -> dict[str, list[str]]:
     """Validate archive completeness, provenance, isolation, and checksums."""
     root = Path(run_dir)
@@ -295,6 +299,30 @@ def validate_final_memory_archive(
         "memory_lineage_id": memory_lineage_id,
         "graph_config_sha256": graph_config_sha256,
     }
+    try:
+        namespace_component = experiment_memory_namespace_component(
+            finmultitime_evidence_enabled=finmultitime_evidence_enabled,
+            finmultitime_bundle_scope=finmultitime_bundle_scope,
+            finmultitime_bundle_identity=finmultitime_bundle_identity,
+        )
+    except ValueError as exc:
+        errors.append(f"memory archive runtime namespace identity is invalid: {exc}")
+        namespace_component = None
+    if finmultitime_evidence_enabled:
+        normalized_scope = (
+            finmultitime_bundle_scope.strip().upper()
+            if isinstance(finmultitime_bundle_scope, str) else finmultitime_bundle_scope
+        )
+        normalized_identity = (
+            finmultitime_bundle_identity.lower()
+            if isinstance(finmultitime_bundle_identity, str) else finmultitime_bundle_identity
+        )
+        expected_runtime_namespace.update({
+            "finmultitime_evidence_enabled": True,
+            "bundle_scope": normalized_scope,
+            "bundle_identity": normalized_identity,
+            "namespace_component": namespace_component,
+        })
     if runtime_namespace != expected_runtime_namespace:
         errors.append("memory archive runtime_namespace provenance does not match the run")
 
