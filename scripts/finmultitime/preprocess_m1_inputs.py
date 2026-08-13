@@ -64,14 +64,6 @@ DEFAULT_CONTRACT_DIR = REPO_ROOT / "docs/m1"
 DEFAULT_M0_BASE_SHA = "2535896c8b1070b19c06fa6a936663babb4356f7"
 FORMAL_SCHEDULE_ID = "XNYS_2024H1_26W_DECISION_CLOSES_FINAL_2024-07-05"
 CASE_SIMULATION_NAME = "m1_evidence_contract_case_simulation.csv"
-QWEN_PROMPT = (
-    "Describe only information visually observable in the supplied financial chart. "
-    "Return only the frozen schema fields: trend, momentum_visual, volatility_visual, "
-    "candlestick_structure, notable_gap_or_reversal, support_resistance_visual, "
-    "volume_visual, other_visible_pattern, and confidence. Do not use external or "
-    "company knowledge, subsequent events, future returns, forecasts, predictions, "
-    "price targets, or BUY/HOLD/SELL recommendations."
-)
 
 
 def sha256_bytes(payload: bytes) -> str:
@@ -165,6 +157,77 @@ def enforce_frozen_contract(contract_dir: Path = DEFAULT_CONTRACT_DIR) -> dict[s
                 "coverage_summary", {}
             ).get("used_files", [])
         },
+    }
+
+
+def load_frozen_qwen_config(
+    contract_dir: Path = DEFAULT_CONTRACT_DIR,
+) -> dict[str, Any]:
+    """Load the Qwen adapter only after enforcing the frozen contract identity."""
+    identity = enforce_frozen_contract(contract_dir)
+    adapter = read_json(contract_dir / "m1_evidence_contract.json").get(
+        "qwen_image_adapter"
+    )
+    if not isinstance(adapter, dict):
+        raise ValueError("frozen M1 contract lacks qwen_image_adapter")
+
+    required = {
+        "model": str,
+        "prompt": str,
+        "caption_schema": list,
+        "max_caption_chars": int,
+        "prohibited_content": list,
+        "additional_text_context": bool,
+        "ticker_or_company_metadata": bool,
+        "offline_preprocessing_only": bool,
+        "exact_model_revision_frozen": bool,
+        "runtime_and_generation_environment_frozen": bool,
+    }
+    for field, expected_type in required.items():
+        if field not in adapter or not isinstance(adapter[field], expected_type):
+            raise ValueError(f"invalid frozen qwen_image_adapter field: {field}")
+    if not adapter["model"] or not adapter["prompt"]:
+        raise ValueError("frozen Qwen model and prompt must be non-empty")
+    schema = adapter["caption_schema"]
+    prohibited = adapter["prohibited_content"]
+    if (
+        not schema
+        or any(not isinstance(item, str) or not item for item in schema)
+        or len(schema) != len(set(schema))
+    ):
+        raise ValueError("frozen Qwen caption schema must be an ordered unique string list")
+    if not prohibited or any(not isinstance(item, str) or not item for item in prohibited):
+        raise ValueError("frozen Qwen prohibited-content policy is invalid")
+    if adapter["max_caption_chars"] <= 0:
+        raise ValueError("frozen Qwen max_caption_chars must be positive")
+    if adapter["additional_text_context"] or adapter["ticker_or_company_metadata"]:
+        raise ValueError("frozen Qwen adapter must remain image-and-prompt only")
+    if not adapter["offline_preprocessing_only"]:
+        raise ValueError("frozen Qwen adapter must remain offline-only")
+    if adapter["exact_model_revision_frozen"]:
+        raise ValueError("Qwen model revision must remain unfrozen in this task")
+    if adapter["runtime_and_generation_environment_frozen"]:
+        raise ValueError("Qwen runtime must remain unfrozen in this task")
+
+    prompt = adapter["prompt"]
+    schema_serialization = canonical_json(schema)
+    return {
+        "evidence_contract_version": identity["packet_version"],
+        "evidence_contract_sha256": identity["contract_sha256"],
+        "model": adapter["model"],
+        "prompt": prompt,
+        "prompt_sha256": sha256_bytes(prompt.encode("utf-8")),
+        "caption_schema": list(schema),
+        "caption_schema_canonical_json": schema_serialization,
+        "caption_schema_sha256": sha256_bytes(schema_serialization.encode("utf-8")),
+        "max_caption_chars": adapter["max_caption_chars"],
+        "prohibited_content": list(prohibited),
+        "additional_text_context": adapter["additional_text_context"],
+        "ticker_or_company_metadata": adapter["ticker_or_company_metadata"],
+        "offline_preprocessing_only": adapter["offline_preprocessing_only"],
+        "exact_model_revision": "NOT_FROZEN",
+        "runtime_environment": "NOT_FROZEN",
+        "generation_settings": "NOT_FROZEN",
     }
 
 
@@ -327,7 +390,7 @@ def image_case_section(item: dict[str, Any] | None, decision: date) -> dict[str,
             "status": "UNAVAILABLE",
             "eligible_image": None,
             "evidence_age_calendar_days": None,
-            "caption_status": "PENDING",
+            "caption_status": "NOT_APPLICABLE",
             "reason": "no completed image with inferred period end strictly before decision",
         }
     return {
@@ -492,7 +555,12 @@ def stage_images(
     return inventory
 
 
-def write_qwen_manifest(destination: Path, records: list[dict[str, Any]], images: list[dict[str, Any]]) -> None:
+def write_qwen_manifest(
+    destination: Path,
+    records: list[dict[str, Any]],
+    images: list[dict[str, Any]],
+    qwen: dict[str, Any],
+) -> None:
     references = defaultdict(list)
     for record in records:
         image = record["IMAGE"].get("eligible_image")
@@ -511,12 +579,24 @@ def write_qwen_manifest(destination: Path, records: list[dict[str, Any]], images
             "sha256": item["sha256"],
             "formal_case_references": sorted(references[item["filename"]]),
             "formal_case_reference_count": len(references[item["filename"]]),
+            "caption_status": "PENDING",
         })
     write_json(destination, {
         "schema_version": "1.0",
         "caption_status": "NOT_GENERATED",
+        "caption_status_counts": {
+            status: sum(
+                record["IMAGE"]["caption_status"] == status for record in records
+            )
+            for status in ("PENDING", "NOT_APPLICABLE", "GENERATED")
+        },
         "qwen_runner_must_pass_only_image_and_frozen_visual_prompt": True,
-        "prompt": QWEN_PROMPT,
+        "qwen_runner_preflight": [
+            "verify evidence_contract_sha256",
+            "verify prompt_sha256",
+            "verify caption_schema_sha256",
+        ],
+        **qwen,
         "images": output,
     })
 
@@ -604,8 +684,11 @@ def validate_build(root: Path, records: list[dict[str, Any]], images: list[dict[
             "final_evidence_packet_status",
         }:
             raise ValueError("unexpected case record topology")
-        if record["IMAGE"]["caption_status"] != "PENDING":
-            raise ValueError("image caption status must remain PENDING")
+        expected_caption_status = (
+            "PENDING" if record["IMAGE"]["status"] == "AVAILABLE" else "NOT_APPLICABLE"
+        )
+        if record["IMAGE"]["caption_status"] != expected_caption_status:
+            raise ValueError("image caption status does not match image availability")
         if record["final_evidence_packet_status"] != "NOT_GENERATED":
             raise ValueError("final evidence packets must not be generated in Stage 1")
     if not (root / "qwen/qwen_input_manifest.json").is_file():
@@ -616,6 +699,7 @@ def _build_to_directory(
     destination: Path, raw_root: Path, contract_dir: Path, m0_snapshot_dir: Path,
 ) -> dict[str, Any]:
     contract = enforce_frozen_contract(contract_dir)
+    qwen = load_frozen_qwen_config(contract_dir)
     context = formal_context()
     if len(context["decisions"]) != 26:
         raise ValueError("formal schedule is not the frozen 26-decision schedule")
@@ -645,7 +729,9 @@ def _build_to_directory(
     for symbol, value in time_series.items():
         write_json(destination / f"time_series/{symbol}.json", value)
     staged_images = stage_images(destination, unique_image_items.values(), contract["expected_images"])
-    write_qwen_manifest(destination / "qwen/qwen_input_manifest.json", records, staged_images)
+    write_qwen_manifest(
+        destination / "qwen/qwen_input_manifest.json", records, staged_images, qwen
+    )
     for record in sorted(records, key=lambda value: (value["symbol"], value["decision_session"])):
         write_json(
             destination / "cases" / record["symbol"] / f"{record['decision_session']}.json",

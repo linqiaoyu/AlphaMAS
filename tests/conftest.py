@@ -6,22 +6,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-FROZEN_TEST_PYTHON = (3, 12)
+from scripts.pytest_interpreter_guard import is_known_bad_pytest_interpreter
 
 
 def pytest_sessionstart(session):
-    """Fail fast outside the frozen interpreter used by the experiment suite.
+    """Fail fast on the interpreter known to hang during test collection.
 
     Python 3.14 currently stalls while importing the eager Agent/Graph package
-    surface used by the M0 contract tests.  The experiment contract explicitly
-    uses Python 3.12, so an early test-only guard is safer than allowing an
-    incompatible interpreter to appear to hang during collection.
+    surface used by the M0 contract tests. The formal experiment still uses
+    Python 3.12, but this test-only protection does not block 3.10--3.13.
     """
-    if sys.version_info[:2] != FROZEN_TEST_PYTHON:
+    if is_known_bad_pytest_interpreter(sys.version_info):
         pytest.exit(
-            "The repository test suite is locked to Python 3.12; "
-            f"found Python {sys.version_info.major}.{sys.version_info.minor}. "
-            "Run `uv sync --frozen --extra dev --python 3.12` first.",
+            "Python 3.14 is known to stall while collecting the eager "
+            "tradingagents Agent/Graph imports. Use a supported Python "
+            "3.10--3.13 interpreter; formal experiments require Python 3.12. "
+            "Run `uv sync --frozen --extra dev --python 3.12` for the formal suite.",
             returncode=4,
         )
 

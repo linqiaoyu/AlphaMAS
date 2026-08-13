@@ -16,6 +16,7 @@ from scripts.finmultitime.preprocess_m1_inputs import (
     TS_MEMBERS,
     enforce_frozen_contract,
     image_case_section,
+    load_frozen_qwen_config,
     research_hashes,
     source_member_hash,
     table_case_section,
@@ -147,7 +148,7 @@ def test_image_preprocessing_has_explicit_unavailable_and_pending_states() -> No
     )
 
     assert unavailable["status"] == "UNAVAILABLE"
-    assert unavailable["caption_status"] == "PENDING"
+    assert unavailable["caption_status"] == "NOT_APPLICABLE"
     assert available["status"] == "AVAILABLE"
     assert available["evidence_age_calendar_days"] == 10
     assert available["caption_status"] == "PENDING"
@@ -189,6 +190,47 @@ def test_frozen_contract_mismatch_fails_closed(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="contract version mismatch"):
         enforce_frozen_contract(tmp_path)
+
+
+def test_qwen_configuration_comes_from_frozen_contract() -> None:
+    contract = json.loads(
+        (DEFAULT_CONTRACT_DIR / "m1_evidence_contract.json").read_text(encoding="utf-8")
+    )
+    adapter = contract["qwen_image_adapter"]
+    qwen = load_frozen_qwen_config()
+
+    assert qwen["prompt"] == adapter["prompt"]
+    assert qwen["caption_schema"] == adapter["caption_schema"]
+    assert qwen["model"] == adapter["model"]
+    assert qwen["prompt_sha256"] == (
+        "284c6e52763796a47f7d30fd2e44cfe68d9211db6831d89ec5ed436920c34df9"
+    )
+    assert qwen["caption_schema_sha256"] == (
+        "bf8f04330ffb1bd8468b9bf01eb96bec6b35bb4bad29c8e3f1ad6c47cf0ca8e4"
+    )
+    assert qwen["additional_text_context"] is False
+    assert qwen["ticker_or_company_metadata"] is False
+    assert qwen["offline_preprocessing_only"] is True
+
+
+def test_tampered_qwen_prompt_fails_closed(tmp_path) -> None:
+    for name in (
+        "m1_evidence_contract.json",
+        "m1_evidence_contract_freeze.json",
+        "m1_evidence_contract_case_simulation.csv",
+    ):
+        shutil.copy(DEFAULT_CONTRACT_DIR / name, tmp_path / name)
+    contract_path = tmp_path / "m1_evidence_contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["qwen_image_adapter"]["prompt"] += " tampered"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="contract SHA256"):
+        load_frozen_qwen_config(tmp_path)
+
+
+def test_preprocessor_has_no_code_default_qwen_prompt() -> None:
+    assert not hasattr(preprocess, "QWEN_PROMPT")
 
 
 def test_research_hashes_ignore_variable_metadata_and_are_stable(tmp_path) -> None:

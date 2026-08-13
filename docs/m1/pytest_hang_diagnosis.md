@@ -60,12 +60,12 @@ provider or paid API call was made during diagnosis.
 
 ## Fix and provenance
 
-`tests/conftest.py` now fails fast at pytest session start unless the frozen
-Python 3.12 interpreter is active. This is a test-only environment guard. It
-prevents an unsupported Python 3.14 invocation from entering the known eager
-Agent/Graph import stall and gives the exact repair command. It does not alter
-production imports, Agent behavior, M0 evidence, M1 evidence, the backtester,
-execution, valuation, metrics, or any dependency/lock file.
+`tests/conftest.py` now fails fast at pytest session start only when Python
+3.14 is active. This is the diagnosed collection-hang environment. Python
+3.10, 3.11, 3.12, and 3.13 are not intentionally blocked by the guard. The
+formal experiment interpreter remains exactly Python 3.12 and continues to use
+the frozen `uv.lock`.
 
-The guard is regression protection for the diagnosed environment failure. The
-validated test environment remains Python 3.12 and uses the frozen `uv.lock`.
+This protection is test infrastructure only. Production code and `uv.lock`
+remain unchanged, as do Agent behavior, M0 and M1 evidence, the backtester,
+execution, valuation, and metrics.

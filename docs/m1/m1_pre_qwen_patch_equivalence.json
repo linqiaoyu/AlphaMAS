@@ -1,0 +1,45 @@
+{
+  "report_id": "M1-PRE-QWEN-CORRECTNESS-PATCH-EQUIVALENCE",
+  "contract_version": "M1-FINMULTITIME-v1.0.1",
+  "contract_sha256": "13563ba0c829addde44d602cf8b9ac0e2879d8091832ee120a5caefa4c843ab3",
+  "comparison": {
+    "cases_before": 78,
+    "cases_after": 78,
+    "case_identities_equal": true,
+    "research_projection_sha256_before": "ae119ae028381880499ea08876ac80ad89c35fd17dc4006d9a858ca1273baab3",
+    "research_projection_sha256_after": "ae119ae028381880499ea08876ac80ad89c35fd17dc4006d9a858ca1273baab3",
+    "research_relevant_differences": 0,
+    "research_fields_compared": [
+      "case identities",
+      "TEXT selected article identities and content",
+      "TABLE selected facts, values, filing dates, and duration classes",
+      "TIME_SERIES source sessions and numeric summaries",
+      "IMAGE eligibility, identities, and SHA256",
+      "modality availability statuses",
+      "PIT rejection counts",
+      "analyst routing through the unchanged frozen contract"
+    ]
+  },
+  "expected_metadata_only_changes": {
+    "unavailable_pending_to_not_applicable": 26,
+    "qwen_manifest_now_uses_frozen_contract_prompt_and_schema": true,
+    "qwen_prompt_and_schema_hashes_added": true,
+    "processed_manifest_and_checksum_updates": true,
+    "changed_processed_file_count": 29
+  },
+  "image_identity": {
+    "amzn_2023_H2_candlestick.png": "215c01f8a03dc55719558644992b14c28d8b9f604d44e3504ef7df0f99997bb8",
+    "jpm_2023_H2_candlestick.png": "b9e218ab002a8bfd6c0cbf86dd53abe9bcfeda4744a785754cb1b9173cc85611"
+  },
+  "caption_status_counts_after": {
+    "PENDING": 52,
+    "NOT_APPLICABLE": 26,
+    "GENERATED": 0
+  },
+  "determinism": {
+    "independent_builds_compared": 2,
+    "mismatched_research_hashes": 0,
+    "deterministic_rerun": "PASS"
+  },
+  "verdict": "PASS"
+}
