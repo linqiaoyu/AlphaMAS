@@ -40,11 +40,14 @@ PILOT_FINMULTITIME_SESSIONS = (
     "2023-10-20",
     "2023-10-27",
 )
-# These are populated once the separately archived pilot bundle is committed.
-# PILOT mode fails closed while they are unset; it never derives an identity
-# from the directory it was pointed at.
-DEFAULT_PILOT_PACKET_MANIFEST_SHA256: str | None = None
-DEFAULT_PILOT_INPUT_BUNDLE_IDENTITY: str | None = None
+# These identities are pinned to the separately archived pilot bundle. PILOT
+# mode never derives an identity from the directory it was pointed at.
+DEFAULT_PILOT_PACKET_MANIFEST_SHA256 = (
+    "ea38129127446348a28bb5c1d52897125674ac55908a3b5dc09c3242dfc46645"
+)
+DEFAULT_PILOT_INPUT_BUNDLE_IDENTITY = (
+    "bd8dfafdbeb259fc8bac7ee3cdbfeebdc13f8abde8b1b420e494fa4ae8651ba3"
+)
 EVIDENCE_BUNDLE_SCOPES = frozenset({"FORMAL", "PILOT"})
 
 EXPECTED_PACKET_COUNT = 78
