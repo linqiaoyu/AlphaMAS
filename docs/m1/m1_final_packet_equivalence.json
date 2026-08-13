@@ -1,0 +1,1335 @@
+{
+  "cases": [
+    {
+      "case_id": "AAPL:2024-01-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-01-05.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-01-05.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-01-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-01-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-01-12.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-01-12.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-01-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-01-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-01-19.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-01-19.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-01-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-01-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-01-26.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-01-26.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-01-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-02-02",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-02-02.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-02-02.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-02-02.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-02-09",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-02-09.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-02-09.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-02-09.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-02-16",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-02-16.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-02-16.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-02-16.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-02-23",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-02-23.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-02-23.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-02-23.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-03-01",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-03-01.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-03-01.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-03-01.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-03-08",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-03-08.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-03-08.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-03-08.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-03-15",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-03-15.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-03-15.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-03-15.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-03-22",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-03-22.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-03-22.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-03-22.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-03-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-03-28.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-03-28.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-03-28.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-04-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-04-05.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-04-05.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-04-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-04-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-04-12.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-04-12.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-04-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-04-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-04-19.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-04-19.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-04-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-04-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-04-26.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-04-26.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-04-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-05-03",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-05-03.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-05-03.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-05-03.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-05-10",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-05-10.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-05-10.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-05-10.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-05-17",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-05-17.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-05-17.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-05-17.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-05-24",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-05-24.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-05-24.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-05-24.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-05-31",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-05-31.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-05-31.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-05-31.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-06-07",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-06-07.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-06-07.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-06-07.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-06-14",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-06-14.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-06-14.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-06-14.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-06-21",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-06-21.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-06-21.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-06-21.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AAPL:2024-06-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AAPL/2024-06-28.json",
+      "final_packet_text_path": "evidence_packets/AAPL/2024-06-28.txt",
+      "preprocessed_case_path": "cases/AAPL/2024-06-28.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-01-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-01-05.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-01-05.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-01-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-01-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-01-12.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-01-12.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-01-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-01-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-01-19.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-01-19.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-01-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-01-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-01-26.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-01-26.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-01-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-02-02",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-02-02.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-02-02.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-02-02.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-02-09",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-02-09.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-02-09.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-02-09.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-02-16",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-02-16.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-02-16.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-02-16.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-02-23",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-02-23.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-02-23.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-02-23.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-03-01",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-03-01.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-03-01.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-03-01.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-03-08",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-03-08.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-03-08.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-03-08.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-03-15",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-03-15.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-03-15.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-03-15.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-03-22",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-03-22.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-03-22.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-03-22.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-03-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-03-28.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-03-28.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-03-28.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-04-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-04-05.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-04-05.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-04-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-04-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-04-12.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-04-12.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-04-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-04-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-04-19.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-04-19.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-04-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-04-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-04-26.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-04-26.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-04-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-05-03",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-05-03.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-05-03.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-05-03.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-05-10",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-05-10.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-05-10.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-05-10.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-05-17",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-05-17.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-05-17.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-05-17.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-05-24",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-05-24.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-05-24.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-05-24.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-05-31",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-05-31.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-05-31.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-05-31.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-06-07",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-06-07.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-06-07.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-06-07.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-06-14",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-06-14.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-06-14.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-06-14.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-06-21",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-06-21.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-06-21.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-06-21.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "AMZN:2024-06-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/AMZN/2024-06-28.json",
+      "final_packet_text_path": "evidence_packets/AMZN/2024-06-28.txt",
+      "preprocessed_case_path": "cases/AMZN/2024-06-28.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-01-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-01-05.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-01-05.txt",
+      "preprocessed_case_path": "cases/JPM/2024-01-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-01-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-01-12.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-01-12.txt",
+      "preprocessed_case_path": "cases/JPM/2024-01-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-01-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-01-19.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-01-19.txt",
+      "preprocessed_case_path": "cases/JPM/2024-01-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-01-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-01-26.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-01-26.txt",
+      "preprocessed_case_path": "cases/JPM/2024-01-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-02-02",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-02-02.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-02-02.txt",
+      "preprocessed_case_path": "cases/JPM/2024-02-02.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-02-09",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-02-09.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-02-09.txt",
+      "preprocessed_case_path": "cases/JPM/2024-02-09.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-02-16",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-02-16.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-02-16.txt",
+      "preprocessed_case_path": "cases/JPM/2024-02-16.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-02-23",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-02-23.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-02-23.txt",
+      "preprocessed_case_path": "cases/JPM/2024-02-23.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-03-01",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-03-01.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-03-01.txt",
+      "preprocessed_case_path": "cases/JPM/2024-03-01.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-03-08",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-03-08.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-03-08.txt",
+      "preprocessed_case_path": "cases/JPM/2024-03-08.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-03-15",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-03-15.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-03-15.txt",
+      "preprocessed_case_path": "cases/JPM/2024-03-15.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-03-22",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-03-22.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-03-22.txt",
+      "preprocessed_case_path": "cases/JPM/2024-03-22.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-03-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-03-28.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-03-28.txt",
+      "preprocessed_case_path": "cases/JPM/2024-03-28.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-04-05",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-04-05.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-04-05.txt",
+      "preprocessed_case_path": "cases/JPM/2024-04-05.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-04-12",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-04-12.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-04-12.txt",
+      "preprocessed_case_path": "cases/JPM/2024-04-12.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-04-19",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-04-19.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-04-19.txt",
+      "preprocessed_case_path": "cases/JPM/2024-04-19.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-04-26",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-04-26.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-04-26.txt",
+      "preprocessed_case_path": "cases/JPM/2024-04-26.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-05-03",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-05-03.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-05-03.txt",
+      "preprocessed_case_path": "cases/JPM/2024-05-03.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-05-10",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-05-10.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-05-10.txt",
+      "preprocessed_case_path": "cases/JPM/2024-05-10.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-05-17",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-05-17.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-05-17.txt",
+      "preprocessed_case_path": "cases/JPM/2024-05-17.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-05-24",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-05-24.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-05-24.txt",
+      "preprocessed_case_path": "cases/JPM/2024-05-24.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-05-31",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-05-31.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-05-31.txt",
+      "preprocessed_case_path": "cases/JPM/2024-05-31.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-06-07",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-06-07.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-06-07.txt",
+      "preprocessed_case_path": "cases/JPM/2024-06-07.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-06-14",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-06-14.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-06-14.txt",
+      "preprocessed_case_path": "cases/JPM/2024-06-14.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-06-21",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-06-21.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-06-21.txt",
+      "preprocessed_case_path": "cases/JPM/2024-06-21.json",
+      "research_relevant_differences": []
+    },
+    {
+      "case_id": "JPM:2024-06-28",
+      "checks": {
+        "caption_sha": "PASS",
+        "image_eligibility_and_sha": "PASS",
+        "modality_status": "PASS",
+        "pit_decision": "PASS",
+        "selected_text_records": "PASS",
+        "source_provenance": "PASS",
+        "table_facts_values_dates_duration": "PASS",
+        "time_series_summaries": "PASS"
+      },
+      "final_packet_json_path": "evidence_packets/JPM/2024-06-28.json",
+      "final_packet_text_path": "evidence_packets/JPM/2024-06-28.txt",
+      "preprocessed_case_path": "cases/JPM/2024-06-28.json",
+      "research_relevant_differences": []
+    }
+  ],
+  "cases_compared": 78,
+  "contract_version": "M1-FINMULTITIME-v1.0.1",
+  "research_relevant_differences": 0,
+  "schema_version": "1.0",
+  "status": "PASS"
+}

@@ -1,0 +1,99 @@
+{
+  "caption_references": {
+    "AMZN": {
+      "caption_sha256": "131c2904cd82c850f94b00cc58e2b97b2ef69c7e805fa562ef2c8f2e00a568fe",
+      "case_references": 26
+    },
+    "JPM": {
+      "caption_sha256": "44e980fa7768c0cf36961d6c42ea769157e4b989d02b60b37618256028b04d70",
+      "case_references": 26
+    }
+  },
+  "caption_status_counts": {
+    "GENERATED": 52,
+    "NOT_APPLICABLE": 26,
+    "PENDING": 0
+  },
+  "character_budgets": {
+    "complete_packet_agent_text": {
+      "max": 12929,
+      "median": 3036.0,
+      "min": 2914
+    },
+    "contract_limits": {
+      "IMAGE": 1600,
+      "TABLE": 3200,
+      "TEXT": 12000,
+      "TIME_SERIES": 3200,
+      "total_packet": 22000
+    },
+    "fundamentals_routed": {
+      "max": 2111,
+      "median": 2083.0,
+      "min": 1806
+    },
+    "market_routed": {
+      "max": 986,
+      "median": 970.0,
+      "min": 566
+    },
+    "news_routed": {
+      "max": 9969,
+      "median": 97.0,
+      "min": 85
+    }
+  },
+  "contract_version": "M1-FINMULTITIME-v1.0.1",
+  "dataset_id": "finmultitime_3stocks_2024h1_v1",
+  "deterministic_build": {
+    "json_hash_mismatches": 0,
+    "packets_compared": 78,
+    "status": "PASS",
+    "text_hash_mismatches": 0
+  },
+  "equivalence": {
+    "cases_compared": 78,
+    "path": "docs/m1/m1_final_packet_equivalence.json",
+    "research_relevant_differences": 0
+  },
+  "formal_m1_run": false,
+  "future_field_violations": 0,
+  "input_bundle_checksums": {
+    "file_count": 251,
+    "path": "manifests/input_bundle_checksums.json",
+    "sha256": "07799f0b699afc9f3e7def1ca83821ba1ed1c9c68f8308d2feb4ebe65f91ed9b"
+  },
+  "input_bundle_manifest": {
+    "path": "manifests/input_bundle_manifest.json",
+    "sha256": "cd56e59f0b5973182d197faabaf933be9933f37c76067a27739324d93b38f343"
+  },
+  "modality_status_counts": {
+    "IMAGE": {
+      "AVAILABLE": 52,
+      "UNAVAILABLE": 26
+    },
+    "TABLE": {
+      "AVAILABLE": 78
+    },
+    "TEXT": {
+      "AVAILABLE": 4,
+      "UNAVAILABLE": 74
+    },
+    "TIME_SERIES": {
+      "AVAILABLE": 78
+    }
+  },
+  "packet_count": 78,
+  "packet_manifest": {
+    "path": "manifests/evidence_packet_manifest.json",
+    "sha256": "b52feb5798cc444ed4f458e3a2bbecbc0810bceb7d65e88014748fafb8a7ed2a"
+  },
+  "pit_violations": 0,
+  "schema_version": "1.0",
+  "symbol_counts": {
+    "AAPL": 26,
+    "AMZN": 26,
+    "JPM": 26
+  },
+  "verdict": "M1 INPUT FREEZE PASSED — 78 FINAL EVIDENCE PACKETS ARCHIVED AND RESEARCH-FROZEN"
+}
