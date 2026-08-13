@@ -11,7 +11,7 @@ Verdict: `M1 INPUT FREEZE PASSED — 78 FINAL EVIDENCE PACKETS ARCHIVED AND RESE
 - Preprocessed-to-final research differences: `0` across `78` cases
 - Deterministic build: `PASS`; JSON mismatches `0`, text mismatches `0`
 - Packet manifest: `manifests/evidence_packet_manifest.json` (b52feb5798cc444ed4f458e3a2bbecbc0810bceb7d65e88014748fafb8a7ed2a)
-- Input-bundle manifest: `manifests/input_bundle_manifest.json` (cd56e59f0b5973182d197faabaf933be9933f37c76067a27739324d93b38f343)
-- Input-bundle checksum inventory: `manifests/input_bundle_checksums.json` (07799f0b699afc9f3e7def1ca83821ba1ed1c9c68f8308d2feb4ebe65f91ed9b)
+- Input-bundle manifest: `manifests/input_bundle_manifest.json` (e64067054c717fda4462fcf2bb8411aa016933d1c893d1eb5d82987678861f94)
+- Input-bundle checksum inventory: `manifests/input_bundle_checksums.json` (402442dbe9287c69b5eba94ecc358c4dfe570092a37cceec43ffd0ad7d5288a5)
 
 The bundle contains FinMultiTime Evidence Packets only. M0 runtime evidence, Agent prompts/policies, execution, valuation, outcomes, formal M1 runtime, and formal results are outside this freeze.
