@@ -23,7 +23,11 @@ from tradingagents.evidence.finmultitime import (
 )
 from tradingagents.graph.checkpointer import thread_id
 from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.runtime.run_context import RunContext, activate_run_context
+from tradingagents.runtime.run_context import AuditTrail, RunContext, activate_run_context
+
+REPOSITORY = Path(__file__).resolve().parents[1]
+PILOT_CONFIG = REPOSITORY / "configs" / "m1_pilot_aapl_2023q4.json"
+PILOT_ARCHIVE_COMMIT = "376a214a9cbd0a650b7e5ac96d6275ae7cb5974a"
 
 
 def _root_from_env() -> Path:
@@ -62,6 +66,7 @@ def _pilot_store(root: Path) -> FrozenFinMultiTimeEvidenceStore:
         bundle_scope="PILOT",
         expected_packet_manifest_sha256=packet_sha,
         expected_input_bundle_identity=bundle_identity,
+        expected_archive_commit=PILOT_ARCHIVE_COMMIT,
     )
 
 
@@ -87,6 +92,36 @@ def test_pilot_schedule_and_bundle_contract() -> None:
     assert [event["decision_session"] for event in context["events"]] == list(PILOT_SESSIONS)
     assert all(event["execution_session"] for event in context["events"])
     assert PILOT_DATASET_ID == "finmultitime_m1_pilot_aapl_2023q4_4w_v1"
+
+
+def test_pilot_config_pins_the_frozen_archive_commit() -> None:
+    config = json.loads(PILOT_CONFIG.read_text(encoding="utf-8"))
+
+    assert config["finmultitime_archive_commit"] == PILOT_ARCHIVE_COMMIT
+
+
+def test_pilot_provenance_records_archive_and_route_identity() -> None:
+    store = _pilot_store(_root_from_env())
+    context = RunContext.historical(
+        "2023-10-06", experiment_id="M1_pilot_aapl_2023q4_4w_v1"
+    )
+    audit = AuditTrail(context)
+
+    with activate_run_context(context, audit):
+        routed = store.get_routed_evidence("AAPL", "2023-10-06", "market")
+
+    assert routed is not None
+    identity = store.case_identity("AAPL", "2023-10-06")
+    assert routed.archive_commit == PILOT_ARCHIVE_COMMIT
+    assert identity["archive_commit"] == PILOT_ARCHIVE_COMMIT
+    assert audit.records
+    metadata = audit.records[-1]["metadata"]
+    assert metadata["archive_commit"] == PILOT_ARCHIVE_COMMIT
+    assert metadata["bundle_scope"] == "PILOT"
+    assert metadata["input_bundle_identity"] == store.bundle_identity
+    assert metadata["case_id"] == "AAPL:2023-10-06"
+    assert metadata["packet_json_sha256"] == routed.packet_json_sha256
+    assert metadata["route_sha256"] == routed.route_sha256
 
 
 def test_archived_pilot_is_exactly_four_aapl_cases_and_missingness() -> None:

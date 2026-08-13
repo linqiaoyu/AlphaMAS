@@ -88,23 +88,24 @@ contract SHA
 case ID
 packet JSON SHA
 news/fundamentals/market route SHAs
+graph config SHA, which binds bundle scope and archive commit
 ```
 
 The checkpoint thread signature includes the enabled flag, bundle identity, and
 case packet SHA. Therefore the same symbol/date cannot reuse an M0 decision or
 resume checkpoint, and a changed packet cannot reuse an existing M1 prefix.
-The graph configuration identity includes the M1 protocol fields while
-excluding the machine-specific input path. Experiment Memory remains in the
-existing graph-config/lineage namespace; the Memory algorithm itself is
-unchanged.
+The graph configuration identity includes the M1 protocol fields, including
+bundle scope and archive commit, while excluding the machine-specific input
+path. Experiment Memory remains in the existing graph-config/lineage
+namespace; the Memory algorithm itself is unchanged.
 
 ## Provenance and audit
 
 Each routed access records a structured `finmultitime.frozen_evidence_packet`
-source-audit entry containing the enabled flag, contract version/SHA, bundle
-identity, case ID, packet SHA, analyst route, and route SHA. Cache case metadata
-contains the same lightweight identities. The complete bundle is never copied
-into per-case artifacts.
+source-audit entry containing the enabled flag, archive commit, contract
+version/SHA, bundle scope/identity, case ID, packet SHA, analyst route, and route
+SHA. The cache identity binds the configured archive commit through that graph
+config SHA. The complete bundle is never copied into per-case artifacts.
 
 ## Deterministic integration probe
 

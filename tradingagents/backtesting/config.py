@@ -134,6 +134,7 @@ GRAPH_RESEARCH_KEYS = (
     "finmultitime_expected_contract_sha256",
     "finmultitime_expected_packet_manifest_sha256",
     "finmultitime_expected_input_bundle_identity",
+    "finmultitime_bundle_scope",
     "finmultitime_archive_commit",
     "finmultitime_verify_full_bundle_on_start",
 )
@@ -213,6 +214,7 @@ def validate_formal_m0_config(config: dict[str, Any]) -> None:
         "finmultitime_expected_contract_sha256",
         "finmultitime_expected_packet_manifest_sha256",
         "finmultitime_expected_input_bundle_identity",
+        "finmultitime_bundle_scope",
         "finmultitime_archive_commit",
         "finmultitime_verify_full_bundle_on_start",
     }

@@ -16,7 +16,7 @@
   "finmultitime_expected_contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
   "finmultitime_expected_packet_manifest_sha256": "ea38129127446348a28bb5c1d52897125674ac55908a3b5dc09c3242dfc46645",
   "finmultitime_expected_input_bundle_identity": "bd8dfafdbeb259fc8bac7ee3cdbfeebdc13f8abde8b1b420e494fa4ae8651ba3",
-  "finmultitime_archive_commit": "376a214c267ba8e731cd6b595dbd250ba1a4d0a9",
+  "finmultitime_archive_commit": "376a214a9cbd0a650b7e5ac96d6275ae7cb5974a",
   "finmultitime_verify_full_bundle_on_start": true,
   "memory_mode": "experiment",
   "quick_think_llm": "deepseek-v4-flash",

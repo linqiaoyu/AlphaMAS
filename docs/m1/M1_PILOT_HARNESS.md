@@ -27,7 +27,7 @@ only by `scripts/finmultitime/build_m1_pilot_inputs.py`; the archived runtime
 bundle is self-contained and does not require `/Volumes/Jackson/Dataset/FinMultiTime`.
 
 The separate archive is committed at
-`376a214c267ba8e731cd6b595dbd250ba1a4d0a9`. Its packet-manifest SHA-256 is
+`376a214a9cbd0a650b7e5ac96d6275ae7cb5974a`. Its packet-manifest SHA-256 is
 `ea38129127446348a28bb5c1d52897125674ac55908a3b5dc09c3242dfc46645`, and its
 input-bundle identity is
 `bd8dfafdbeb259fc8bac7ee3cdbfeebdc13f8abde8b1b420e494fa4ae8651ba3`.

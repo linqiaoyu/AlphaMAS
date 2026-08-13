@@ -32,6 +32,9 @@ DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY = (
 DEFAULT_FINMULTITIME_ARCHIVE_COMMIT = (
     "3750fa50224ba46ab1d4bf5511cb5e8fa514445b"
 )
+DEFAULT_PILOT_ARCHIVE_COMMIT = (
+    "376a214a9cbd0a650b7e5ac96d6275ae7cb5974a"
+)
 DEFAULT_FINMULTITIME_BUNDLE_SCOPE = "FORMAL"
 PILOT_FINMULTITIME_DATASET_ID = "finmultitime_m1_pilot_aapl_2023q4_4w_v1"
 PILOT_FINMULTITIME_SESSIONS = (
@@ -85,6 +88,7 @@ class RoutedEvidence:
     contract_version: str
     contract_sha256: str
     bundle_scope: str
+    archive_commit: str
 
 
 def _sha256_file(path: Path) -> str:
@@ -144,7 +148,7 @@ class FrozenFinMultiTimeEvidenceStore:
         expected_contract_sha256: str = DEFAULT_FINMULTITIME_CONTRACT_SHA256,
         expected_packet_manifest_sha256: str | None = None,
         expected_input_bundle_identity: str | None = None,
-        expected_archive_commit: str = DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
+        expected_archive_commit: str | None = None,
         verify_full_bundle_on_start: bool = True,
     ) -> None:
         if input_root is None or str(input_root).strip() == "":
@@ -176,7 +180,10 @@ class FrozenFinMultiTimeEvidenceStore:
         self.expected_contract_sha256 = expected_contract_sha256
         self.expected_packet_manifest_sha256 = expected_packet_manifest_sha256
         self.expected_input_bundle_identity = expected_input_bundle_identity
-        self.expected_archive_commit = expected_archive_commit
+        self.expected_archive_commit = expected_archive_commit or (
+            DEFAULT_FINMULTITIME_ARCHIVE_COMMIT
+            if normalized_scope == "FORMAL" else DEFAULT_PILOT_ARCHIVE_COMMIT
+        )
         self.verify_full_bundle_on_start = bool(verify_full_bundle_on_start)
 
         self.manifest = _read_json(self.root / "manifest.json")
@@ -213,6 +220,10 @@ class FrozenFinMultiTimeEvidenceStore:
             DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY
             if scope == "FORMAL" else DEFAULT_PILOT_INPUT_BUNDLE_IDENTITY
         )
+        archive_commit_default = (
+            DEFAULT_FINMULTITIME_ARCHIVE_COMMIT
+            if scope == "FORMAL" else DEFAULT_PILOT_ARCHIVE_COMMIT
+        )
         return cls(
             config.get("finmultitime_input_root"),
             bundle_scope=scope,
@@ -234,7 +245,7 @@ class FrozenFinMultiTimeEvidenceStore:
             ),
             expected_archive_commit=config.get(
                 "finmultitime_archive_commit",
-                DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
+                archive_commit_default,
             ),
             verify_full_bundle_on_start=config.get(
                 "finmultitime_verify_full_bundle_on_start", True
@@ -547,6 +558,7 @@ class FrozenFinMultiTimeEvidenceStore:
         return {
             "finmultitime_enabled": True,
             "bundle_scope": self.bundle_scope,
+            "archive_commit": self.expected_archive_commit,
             "contract_version": self.expected_contract_version,
             "contract_sha256": self.expected_contract_sha256,
             "input_bundle_identity": self.bundle_identity,
@@ -588,6 +600,7 @@ class FrozenFinMultiTimeEvidenceStore:
             metadata={
                 "finmultitime_enabled": True,
                 "bundle_scope": self.bundle_scope,
+                "archive_commit": self.expected_archive_commit,
                 "contract_version": self.expected_contract_version,
                 "contract_sha256": self.expected_contract_sha256,
                 "input_bundle_identity": self.bundle_identity,
@@ -609,4 +622,5 @@ class FrozenFinMultiTimeEvidenceStore:
             contract_version=self.expected_contract_version,
             contract_sha256=self.expected_contract_sha256,
             bundle_scope=self.bundle_scope,
+            archive_commit=self.expected_archive_commit,
         )
