@@ -1,9 +1,29 @@
 """Shared pytest fixtures that prevent CI hangs when API keys are absent."""
 
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+FROZEN_TEST_PYTHON = (3, 12)
+
+
+def pytest_sessionstart(session):
+    """Fail fast outside the frozen interpreter used by the experiment suite.
+
+    Python 3.14 currently stalls while importing the eager Agent/Graph package
+    surface used by the M0 contract tests.  The experiment contract explicitly
+    uses Python 3.12, so an early test-only guard is safer than allowing an
+    incompatible interpreter to appear to hang during collection.
+    """
+    if sys.version_info[:2] != FROZEN_TEST_PYTHON:
+        pytest.exit(
+            "The repository test suite is locked to Python 3.12; "
+            f"found Python {sys.version_info.major}.{sys.version_info.minor}. "
+            "Run `uv sync --frozen --extra dev --python 3.12` first.",
+            returncode=4,
+        )
 
 
 def pytest_configure(config):
