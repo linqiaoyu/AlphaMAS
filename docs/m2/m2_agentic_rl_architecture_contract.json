@@ -1,0 +1,177 @@
+{
+  "action_space": [
+    "BUY",
+    "HOLD",
+    "SELL"
+  ],
+  "agent_llm_identity": {
+    "deep_model": "deepseek-v4-flash",
+    "formal_status": "unchanged_and_untrained",
+    "provider": "deepseek",
+    "quick_model": "deepseek-v4-flash",
+    "temperature": 0.0,
+    "thinking": "disabled"
+  },
+  "api_budget_contract": {
+    "formal_m2_a1_a2_budget": "separate_budget",
+    "m2_01_deepseek_api_calls": 0,
+    "m2_01_deepseek_api_cost_yuan": 0,
+    "pre_formal_m2_a1_a2_absolute_ceiling_yuan": 50,
+    "pre_formal_m2_a1_a2_normal_hard_stop_yuan": 40,
+    "pre_formal_m2_a1_a2_target_range_yuan": "20-40",
+    "reserve_use": "correctness_invalid_call_replacement_only"
+  },
+  "architecture_status": "frozen_for_progression_to_m2_02",
+  "aws_status": {
+    "gpu_hours": 0,
+    "incremental_cost_usd": 0,
+    "m2_01_requires_gpu": false,
+    "ec2_started": false,
+    "qwen_run": false
+  },
+  "contract_scope": {
+    "m1_runtime_modified": false,
+    "m2_01_scope": "repository_grounded_documentation_only",
+    "runtime_rl_implemented": false,
+    "training_executed": false
+  },
+  "deferred_decisions": [
+    "final_reward_formula_m2_03_m2_04",
+    "training_universe_m2_02",
+    "train_validation_holdout_split_m2_02",
+    "exact_semantic_encoder_model",
+    "exact_feature_representation_and_normalisation",
+    "exact_network_dimensions",
+    "ppo_family_hyperparameters",
+    "final_scalar_or_distributional_critic",
+    "formal_fast_adaptation_enablement",
+    "a1_a2_mechanisms"
+  ],
+  "formal_test_boundary": {
+    "calendar": "XNYS",
+    "decision_count_per_symbol": 26,
+    "final_decision_session": "2024-06-28",
+    "final_valuation_session": "2024-07-05",
+    "first_decision_session": "2024-01-05",
+    "initial_cash_usd_per_symbol": 100000,
+    "symbols": [
+      "AAPL",
+      "AMZN",
+      "JPM"
+    ],
+    "total_decisions": 78,
+    "warmup_sessions": 252
+  },
+  "frozen_execution_identities": {
+    "AAPL": "5428fc2c672f3b68c7c3e83b4a22bd5b7330c95a8b4194695762539d9d8a5af3",
+    "AMZN": "c4b5c747d75ba658c6f6833348783e3f8a8c571380c930de20cf9fb7dd6b1444",
+    "JPM": "74cf77b77b0a83ce8e6246578d4da30bf7622558e8973bda71344b99b9dfd6fc",
+    "SPY": "22e6996ebf963787f40d54bfc59e1ca088fa698cb82b639768504dbdbb2d25ac"
+  },
+  "frozen_formal_input_identities": {
+    "contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+    "contract_version": "M1-FINMULTITIME-v1.0.2",
+    "input_archive_commit": "3750fa50224ba46ab1d4bf5511cb5e8fa514445b",
+    "input_bundle_identity": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+    "packet_manifest_sha256": "05f10129b430475bad3d5dee9dfceffba463f8a99cdd3f087ff4b755a869d63d"
+  },
+  "frozen_m1_sha": "ac0d1b006d8019748702fda38399a4316befb9b0",
+  "m1_inheritance_sha": "ac0d1b006d8019748702fda38399a4316befb9b0",
+  "online_adaptation_scope": {
+    "global_backbone_formal_status": "frozen",
+    "per_symbol_fast_adapter": "optional_after_pre_formal_validation",
+    "per_symbol_isolation": true,
+    "shared_cross_symbol_updates": false,
+    "starting_fast_adapter_parameters": "identical_frozen_initialisation_per_symbol"
+  },
+  "policy_architecture_family": {
+    "actor": "compact_external_proposal_anchored_discrete_actor",
+    "critic": "scalar_or_distributional_candidate",
+    "encoder": "frozen_local_encoder_exact_model_deferred",
+    "optimisation": "ppo_family_candidate",
+    "principal_trainable_trader": "external_compact_policy_not_generative_llm"
+  },
+  "prohibited_decisions": [
+    "fine_tune_or_replace_deepseek_in_formal_m2",
+    "modify_m1_evidence_packets_or_execution_inputs",
+    "add_future_or_new_formal_market_information",
+    "change_buy_hold_sell_or_target_weight_semantics",
+    "use_formal_2024h1_for_training_or_model_selection",
+    "cross_symbol_online_policy_updates",
+    "implement_runtime_rl_in_m2_01",
+    "select_a1_or_a2_in_m2_01",
+    "call_deepseek_in_m2_01",
+    "start_aws_gpu_in_m2_01"
+  ],
+  "prompt_prior_enabled": true,
+  "repository_source_files_inspected": [
+    "configs/backtest_m1_2024h1.json",
+    "scripts/run_weekly_backtest.py",
+    "tradingagents/agents/schemas.py",
+    "tradingagents/agents/trader/trader.py",
+    "tradingagents/agents/utils/agent_states.py",
+    "tradingagents/agents/utils/memory.py",
+    "tradingagents/agents/utils/memory_namespace.py",
+    "tradingagents/backtesting/artifacts.py",
+    "tradingagents/backtesting/cache.py",
+    "tradingagents/backtesting/engine.py",
+    "tradingagents/backtesting/execution.py",
+    "tradingagents/backtesting/memory_lineage.py",
+    "tradingagents/backtesting/models.py",
+    "tradingagents/backtesting/portfolio.py",
+    "tradingagents/backtesting/strategies.py",
+    "tradingagents/evidence/finmultitime.py",
+    "tradingagents/evidence/prompt.py",
+    "tradingagents/graph/checkpointer.py",
+    "tradingagents/graph/propagation.py",
+    "tradingagents/graph/reflection.py",
+    "tradingagents/graph/setup.py",
+    "tradingagents/graph/signal_processing.py",
+    "tradingagents/graph/trading_graph.py",
+    "tests/backtesting/test_m1_formal_contract.py",
+    "tests/test_m1_runtime_evidence.py"
+  ],
+  "schema_version": "M2-01-agentic-rl-architecture-contract-v1.0.0",
+  "starting_branch": "baseline-m2",
+  "starting_sha": "ac0d1b006d8019748702fda38399a4316befb9b0",
+  "state_contract": {
+    "frozen_semantic_information": [
+      "research_manager_investment_plan",
+      "unchanged_prompt_trader_proposal_and_action",
+      "existing_frozen_mas_semantic_outputs",
+      "deterministic_instrument_context",
+      "decision_session_and_timestamp"
+    ],
+    "permitted_endogenous_portfolio_state": [
+      "cash",
+      "position_quantity",
+      "current_asset_weight",
+      "portfolio_equity",
+      "prior_executed_position_state"
+    ],
+    "portfolio_state_is_not_new_market_information": true,
+    "raw_future_market_information_forbidden": true
+  },
+  "temporal_training_boundary": {
+    "formal_2024h1_role": "test_only",
+    "training_validation_holdout_latest_allowed_date": "2023-12-31",
+    "pre_formal_data_must_be_strictly_before": "2024-01-01"
+  },
+  "transaction_and_experience_contract": {
+    "action_provenance_fields": [
+      "prompt_trader_action",
+      "rl_trader_action",
+      "portfolio_manager_final_action",
+      "executed_action"
+    ],
+    "experience_statuses": [
+      "PENDING",
+      "MATURED",
+      "APPLIED"
+    ],
+    "experience_store_implemented_in_m2_01": false,
+    "recommended_ledger": "append_only_event_sourced",
+    "terminal_formal_reward_at_2024_07_05": "PENDING",
+    "update_semantics": "exactly_once_with_update_event_id"
+  }
+}
