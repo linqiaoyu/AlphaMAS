@@ -1,0 +1,165 @@
+{
+  "action_space": {
+    "BUY": {
+      "target_weight": 1.0
+    },
+    "HOLD": {
+      "semantics": "preserve_discrete_position_state"
+    },
+    "SELL": {
+      "target_weight": 0.0
+    },
+    "fractional_shares": true,
+    "leverage": false,
+    "long_only": true,
+    "shorting": false
+  },
+  "architecture_sha": "ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2",
+  "candidate_rewards": [
+    {
+      "candidate_id": "R1_ABSOLUTE_NET_LOG_RETURN",
+      "formula": "ln(terminal_action_equity / pre_execution_equity)",
+      "hypothesis": "simple economic baseline with weaker Trader-local credit isolation",
+      "training_transform_applied": false
+    },
+    {
+      "candidate_id": "R2_HOLD_RELATIVE_LOG_ADVANTAGE",
+      "formula": "ln(terminal_action_equity / terminal_counterfactual_hold_equity)",
+      "hypothesis": "strong Trader-local credit-assignment candidate",
+      "training_transform_applied": false
+    },
+    {
+      "candidate_id": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+      "drawdown_penalty": "max(0, -ln(1-MDD(action_post_execution_path)) - -ln(1-MDD(hold_post_execution_path)))",
+      "formula": "R2 - drawdown_penalty",
+      "hypothesis": "risk-sensitive extension whose added complexity requires pre-Formal evidence",
+      "penalty_coefficient": null,
+      "training_transform_applied": false
+    }
+  ],
+  "cost": {
+    "aws_gpu_hours": 0,
+    "aws_incremental_cost_usd": 0,
+    "deepseek_calls": 0,
+    "deepseek_cost_cny": 0,
+    "qwen_inference_calls": 0
+  },
+  "counterfactual_hold_required": true,
+  "diagnostics": {
+    "action_discrimination": [
+      "per_state_max_minus_min_action_reward",
+      "non_trivial_action_spread_fraction"
+    ],
+    "cross_symbol_consistency": [
+      "reward_scale_per_symbol",
+      "reward_distribution_per_symbol"
+    ],
+    "downside_sensitivity": [
+      "excess_drawdown_penalty_activation_frequency",
+      "penalty_magnitude",
+      "R2_R3_relationship"
+    ],
+    "market_drift_exposure": [
+      "CASH_reward_behaviour",
+      "LONG_reward_behaviour"
+    ],
+    "no_op_behaviour": [
+      "no_op_count",
+      "no_op_fraction",
+      "relative_reward_magnitude"
+    ],
+    "numerical_stability": [
+      "finite_reward_rate",
+      "min",
+      "max",
+      "mean",
+      "median",
+      "standard_deviation",
+      "P05",
+      "P25",
+      "P75",
+      "P95",
+      "P99",
+      "median_absolute_reward",
+      "extreme_to_median_scale_ratio"
+    ],
+    "transaction_cost_sensitivity": [
+      "traded_vs_no_trade_behaviour",
+      "synthetic_cost_monotonicity"
+    ]
+  },
+  "excluded_reward_families": [
+    "BUY_AND_HOLD_RELATIVE",
+    "SPY_RELATIVE",
+    "M1_RELATIVE",
+    "FORMAL_PRIMARY_METRIC_COMPOSITE",
+    "DIFFERENTIAL_SHARPE_PRIMARY_REWARD"
+  ],
+  "execution_baseline": {
+    "attribution_equity": "execution_session_open_immediately_before_action",
+    "cash_interest": 0,
+    "decision_time": "weekly_final_valid_XNYS_session_close",
+    "execution_time": "next_valid_XNYS_session_open",
+    "forced_liquidation": false,
+    "mark_to_market": "each_valid_session_close_through_maturity",
+    "overnight_decision_close_to_execution_open_attributed_to_action": false
+  },
+  "final_reward_selected": false,
+  "m2_04_allowed_roles": {
+    "TRAIN": 56,
+    "VALIDATION": 16,
+    "total_decision_windows": 72
+  },
+  "m2_04_forbidden_roles": [
+    "FINAL_HOLDOUT",
+    "E2E_PILOT",
+    "FORMAL_2024H1"
+  ],
+  "maturity_sessions": {
+    "count": 5,
+    "endpoint": "fifth_subsequent_valid_XNYS_session_after_decision",
+    "lifecycle": [
+      "PENDING",
+      "MATURED",
+      "APPLIED"
+    ],
+    "scalar_before_maturity": false
+  },
+  "portfolio_state_templates": {
+    "empirical_m2_04": [
+      "CASH",
+      "LONG"
+    ],
+    "normalised_initial_equity_usd": 100000,
+    "synthetic_robustness_only": [
+      "FRACTIONAL_EXPOSURE_0_5"
+    ]
+  },
+  "research_validity": {
+    "formal_performance_used_for_selection": false,
+    "historical_outcomes_used_in_m2_03": false,
+    "lambda_tuning_allowed": false,
+    "primary_candidate_count": 3,
+    "reward_training_transform": "DEFERRED",
+    "synthetic_scenarios_only": true
+  },
+  "schema_version": "1.0",
+  "selection_hierarchy": [
+    "GATE_1_CORRECTNESS",
+    "GATE_2_SEMANTIC_SUITABILITY",
+    "GATE_3_NON_DEGENERACY",
+    "GATE_4_STABILITY",
+    "GATE_5_RISK_INCENTIVE_INTERPRETATION",
+    "TIE_BREAK_SIMPLICITY_LOCAL_CREDIT_FEWER_ASSUMPTIONS"
+  ],
+  "split_protocol_sha": "cf189c53a3600030911efcd1ceb5afdad1e06765",
+  "starting_sha": "8574067d039f6288042ec85cebc4517f3c3da49c",
+  "task_id": "M2-03",
+  "transaction_costs": {
+    "commission_bps": 5,
+    "included_in_terminal_equity": true,
+    "slippage_bps": 5,
+    "slippage_direction": "adverse",
+    "total_one_way_nominal_bps": 10
+  }
+}

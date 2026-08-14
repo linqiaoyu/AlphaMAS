@@ -1,0 +1,822 @@
+{
+  "all_passed": true,
+  "artifact_scope": "DETERMINISTIC_SYNTHETIC_SCENARIOS_ONLY",
+  "leaderboard": false,
+  "records": [
+    {
+      "action": "BUY",
+      "assertions": [
+        "traded BUY is cost-negative versus HOLD",
+        "HOLD incurs no new cost"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0009997500833020402,
+        "R2": -0.0009997500833020402,
+        "R3": -0.0009997500833020402
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 99900.07495003124,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "traded BUY is cost-negative versus HOLD",
+        "HOLD incurs no new cost"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "traded BUY is cost-negative versus HOLD",
+        "HOLD incurs no new cost"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "traded SELL is cost-negative versus HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "traded SELL is cost-negative versus HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "traded SELL is cost-negative versus HOLD"
+      ],
+      "commission_cost": 49.975,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0010002500833646729,
+        "R2": -0.0010002500833646729,
+        "R3": -0.0010002500833646729
+      },
+      "scenario_id": "S1_FLAT",
+      "slippage_cost": 49.99999999999716,
+      "terminal_equity": 99900.025,
+      "total_cost": 99.97499999999715
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "CASH BUY beats CASH HOLD"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09431042972102276,
+        "R2": 0.09431042972102276,
+        "R3": 0.09431042972102276
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 109890.08244503436,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "CASH BUY beats CASH HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "CASH BUY beats CASH HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "LONG SELL is inferior to LONG HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09531017980432493,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 110000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "LONG SELL is inferior to LONG HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09531017980432493,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 110000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "LONG SELL is inferior to LONG HOLD"
+      ],
+      "commission_cost": 49.975,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0010002500833646729,
+        "R2": -0.09631042988768952,
+        "R3": -0.09631042988768952
+      },
+      "scenario_id": "S2_MONOTONIC_RISE",
+      "slippage_cost": 49.99999999999716,
+      "terminal_equity": 99900.025,
+      "total_cost": 99.97499999999715
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "CASH BUY is inferior to CASH HOLD"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": -0.10636026574112839,
+        "R2": -0.10636026574112839,
+        "R3": -0.21172078139895467
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 89910.06745502811,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "CASH BUY is inferior to CASH HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "CASH BUY is inferior to CASH HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "LONG SELL beats LONG HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": -0.10536051565782628,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 0.0,
+      "terminal_equity": 90000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "LONG SELL beats LONG HOLD"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": -0.10536051565782628,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 0.0,
+      "terminal_equity": 90000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "LONG SELL beats LONG HOLD"
+      ],
+      "commission_cost": 49.975,
+      "initial_portfolio_state": "LONG",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0010002500833646729,
+        "R2": 0.1043602655744617,
+        "R3": 0.1043602655744617
+      },
+      "scenario_id": "S3_MONOTONIC_FALL",
+      "slippage_cost": 49.99999999999716,
+      "terminal_equity": 99900.025,
+      "total_cost": 99.97499999999715
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "R3 penalises BUY excess drawdown beyond R2"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0009997500833020402,
+        "R2": -0.0009997500833020402,
+        "R3": -0.2241433013975119
+      },
+      "scenario_id": "S4_V_SHAPE",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 99900.07495003124,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "R3 penalises BUY excess drawdown beyond R2"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S4_V_SHAPE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "R3 penalises BUY excess drawdown beyond R2"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S4_V_SHAPE",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "R3 detects terminal-return/interim-drawdown distinction"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": -0.0009997500833020402,
+        "R2": -0.0009997500833020402,
+        "R3": -0.18332130687725676
+      },
+      "scenario_id": "S5_INVERTED_V",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 99900.07495003124,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "R3 detects terminal-return/interim-drawdown distinction"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S5_INVERTED_V",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "R3 detects terminal-return/interim-drawdown distinction"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S5_INVERTED_V",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.04779041408613004,
+        "R2": 0.04779041408613004,
+        "R3": 0.04779041408613004
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_LOW",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 104895.07869753281,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_LOW",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_LOW",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.04779041408613004,
+        "R2": 0.04779041408613004,
+        "R3": 0.04779041408613004
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_HIGH",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 104895.07869753281,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_HIGH",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "decision-close overnight gap is excluded"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S6_OVERNIGHT_GAP_HIGH",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09431042972102276,
+        "R2": 0.09431042972102276,
+        "R3": 0.09431042972102276
+      },
+      "scenario_id": "S7_FORMAL_COST",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 109890.08244503436,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S7_FORMAL_COST",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S7_FORMAL_COST",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 990.09900990099,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.07540951809798868,
+        "R2": 0.07540951809798868,
+        "R3": 0.07540951809798868
+      },
+      "scenario_id": "S7_HIGH_COST_STRESS",
+      "slippage_cost": 980.2960494069208,
+      "terminal_equity": 107832.56543476129,
+      "total_cost": 1970.3950593079107
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S7_HIGH_COST_STRESS",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "higher costs cannot improve traded BUY reward"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S7_HIGH_COST_STRESS",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 4.997501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09431042972102296,
+        "R2": 0.09431042972102296,
+        "R3": 0.09431042972102296
+      },
+      "scenario_id": "S8_SCALE_10000",
+      "slippage_cost": 4.995003747501278,
+      "terminal_equity": 10989.008244503437,
+      "total_cost": 9.99250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_10000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 10000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_10000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 10000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 49.97501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09431042972102276,
+        "R2": 0.09431042972102276,
+        "R3": 0.09431042972102276
+      },
+      "scenario_id": "S8_SCALE_100000",
+      "slippage_cost": 49.95003747501278,
+      "terminal_equity": 109890.08244503436,
+      "total_cost": 99.9250499687659
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_100000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_100000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 100000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "BUY",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 499.7501249375313,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.09431042972102296,
+        "R2": 0.09431042972102296,
+        "R3": 0.09431042972102296
+      },
+      "scenario_id": "S8_SCALE_1000000",
+      "slippage_cost": 499.50037475012783,
+      "terminal_equity": 1098900.8244503438,
+      "total_cost": 999.2504996876592
+    },
+    {
+      "action": "HOLD",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_1000000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 1000000.0,
+      "total_cost": 0.0
+    },
+    {
+      "action": "SELL",
+      "assertions": [
+        "raw rewards are equity-scale invariant"
+      ],
+      "commission_cost": 0.0,
+      "initial_portfolio_state": "CASH",
+      "pass": true,
+      "rewards": {
+        "R1": 0.0,
+        "R2": 0.0,
+        "R3": 0.0
+      },
+      "scenario_id": "S8_SCALE_1000000",
+      "slippage_cost": 0.0,
+      "terminal_equity": 1000000.0,
+      "total_cost": 0.0
+    }
+  ],
+  "schema_version": "1.0",
+  "task_id": "M2-03"
+}
