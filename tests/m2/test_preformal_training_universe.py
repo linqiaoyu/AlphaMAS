@@ -197,7 +197,16 @@ def test_selected_symbol_universe_and_erratum_provenance_are_frozen() -> None:
     }
     assert protocol["schema_version"] == "1.1"
     assert protocol["erratum_task"] == "M2-02B"
+    assert audit.STARTING_SHA == "cf189c53a3600030911efcd1ceb5afdad1e06765"
+    assert audit.PARENT_PROTOCOL_COMMIT == (
+        "cf189c53a3600030911efcd1ceb5afdad1e06765"
+    )
+    assert audit.ENVIRONMENT_RECOVERY_SHA == (
+        "c1bebcbd73d1d30bfd081e4529181f7163450c49"
+    )
+    assert protocol["starting_sha"] == audit.STARTING_SHA
     assert protocol["parent_protocol_commit"] == audit.PARENT_PROTOCOL_COMMIT
+    assert protocol["environment_recovery_sha"] == audit.ENVIRONMENT_RECOVERY_SHA
 
 
 def test_future_source_integrity_policy_fails_closed_without_reselection() -> None:
