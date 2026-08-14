@@ -18,7 +18,7 @@ This matrix is authoritative for subsequent M2 tasks. A later task must not sile
 | Action space | Exactly BUY, HOLD, SELL. No continuous sizing, leverage, shorting, or Actor-side execution. |
 | Execution mapping | BUY → 1.0 target weight; SELL → 0.0; HOLD → preserve; next valid XNYS open; existing costs and no forced liquidation unchanged. |
 | Downstream authority | Existing risk debate and Portfolio Manager remain the downstream decision path; PM remains final before execution. |
-| Observation classes | Frozen M1 semantic state plus permitted endogenous portfolio control state only. No new Formal market information. |
+| Observation classes | Semantic information already available at the M1 Trader hand-off plus permitted endogenous portfolio control state only. This means the Research Manager final `investment_plan`, the complete unchanged Prompt Trader proposal/action/reasoning, and deterministic instrument/temporal context; no new Formal market information. |
 | Portfolio-state interpretation | Portfolio state is an M2-only endogenous control-state interface, not an additional market-information source. |
 | Formal online boundary | If enabled, only a fast-adaptation component may update; global backbone/checkpoint is frozen and each symbol starts from identical initial adapter parameters. |
 | Symbol isolation | AAPL, AMZN, and JPM have independent policy state, reward/update state, ledgers, and lineage. No cross-symbol update or future leakage. |
@@ -52,6 +52,7 @@ This matrix is authoritative for subsequent M2 tasks. A later task must not sile
 
 | Prohibited change | Reason |
 |---|---|
+| Directly expose raw analyst reports or upstream bull/bear debate transcripts to the RL Actor | Changes the Trader information interface in addition to adding RL; the Actor may receive those sources only indirectly through the existing Research Manager → Prompt Trader hand-off. |
 | Fine-tune DeepSeek or replace it with Qwen/Llama/another generative LLM in Formal M2 | Violates the M1-controlled comparison and Formal LLM contract. |
 | Replace the Prompt Trader with the RL Actor | The Prompt Trader must remain the explicit observable proposal prior. |
 | Add raw market history, new indicators, future prices, or post-decision outcomes to the Formal RL/Trader observation | Violates the frozen information environment and PIT contract. |

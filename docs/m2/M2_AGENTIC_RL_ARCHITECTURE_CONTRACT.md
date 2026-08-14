@@ -147,13 +147,33 @@ Frozen M1 analysts
   → frozen execution/backtester
 ```
 
+The controlled information path is therefore:
+
+```text
+M1:
+upstream MAS → Research Manager → unchanged Prompt Trader
+
+M2:
+same upstream MAS → same Research Manager → same Prompt Trader → RL calibration
+```
+
+The RL Actor is not given all hidden MAS state. It receives semantic information
+already present at the existing M1 Trader hand-off, plus the explicitly permitted
+endogenous portfolio control state. Upstream analysts and debate may influence the
+Actor indirectly through the unchanged Research Manager `investment_plan` and
+Prompt Trader proposal, but they must not become a new direct Actor input channel.
+
 The risk and portfolio components remain the M1 implementation and semantic contract. Their input proposal is the intended M2 adapted proposal, but their prompts, model identity, rounds, output ratings, and execution mapping are not redesigned. The M2 layer must not modify the Formal action space, add raw market information, fine-tune or replace DeepSeek, or alter the Evidence Packets.
 
 ## 5. Agentic RL operational definition
 
-For this dissertation, Agentic RL means an external sequential decision policy operating inside the existing Trader slot, using frozen MAS-produced semantic state, a Prompt Trader proposal prior, permitted endogenous portfolio control state, delayed outcome feedback, and reproducible policy/experience lineage. The mechanism is agentic because it observes the current agent-generated proposal, chooses whether to follow/retain/override it, and can adapt from mature outcomes under a strict point-in-time boundary.
+For this dissertation, Agentic RL means an external sequential decision policy operating inside the existing Trader slot, using semantic information already present at the existing M1 Trader hand-off, a Prompt Trader proposal prior, permitted endogenous portfolio control state, delayed outcome feedback, and reproducible policy/experience lineage. The mechanism is agentic because it observes the current agent-generated proposal, chooses whether to follow/retain/override it, and can adapt from mature outcomes under a strict point-in-time boundary.
 
-The label does not imply that DeepSeek is trained. DeepSeek remains a frozen semantic-state generator in Formal M2, and PPO-family optimisation is an implementation candidate rather than the claimed novelty.
+The label does not imply that DeepSeek is trained. DeepSeek remains the
+unchanged generator of the M1 Trader hand-off and Prompt Trader proposal in
+Formal M2; it is not a source of a new direct upstream-MAS input to the Actor.
+PPO-family optimisation is an implementation candidate rather than the claimed
+novelty.
 
 ## 6. Proposal-Prior Actor contract
 
@@ -167,12 +187,12 @@ The Prompt Trader is not replaced by a local generative LLM and is not fine-tune
 
 The trainable policy is a compact external model, not a generative LLM. The architecture family is:
 
-- a frozen local semantic encoder applied to the frozen M1/MAS state;
+- a frozen local semantic encoder applied to the frozen M1 Trader hand-off state;
 - a proposal-anchored discrete Actor over BUY/HOLD/SELL;
 - a value/Critic component; and
 - an optional small fast-adaptation head for delayed per-symbol Formal updates.
 
-The Actor consumes only the frozen semantic representation, the Prompt Trader proposal/action, deterministic instrument/time context permitted by the M1 state, and the permitted endogenous portfolio state. It produces action scores/logits/probabilities and a selected `rl_trader_action` in the unchanged three-action space.
+The Actor consumes only the explicitly bounded semantic representation of the existing M1 Trader hand-off, the complete unchanged Prompt Trader proposal/action/reasoning, deterministic instrument/time context already available to the M1 Trader, and the permitted endogenous portfolio state. It produces action scores/logits/probabilities and a selected `rl_trader_action` in the unchanged three-action space. This boundary does not reduce the Actor to the final Prompt Trader action alone: the Research Manager `investment_plan` and the richer unchanged Prompt Trader proposal/reasoning remain permitted semantic inputs.
 
 The Prompt Trader action is an explicit policy prior/anchor. The Actor must be able to follow it, retain the current position through HOLD, or override it. The exact prior implementation—feature conditioning, logit prior, regularisation, or another validated equivalent—is intentionally not frozen in M2-01. What is frozen is the role: the Prompt Trader proposal remains an observable prior and is not discarded.
 
@@ -203,15 +223,48 @@ The final feature representation and encoder are deferred, but the information c
 
 ### 9.1 Frozen semantic information
 
-The preliminary observation may include stable identities or encoded representations of:
+The Formal RL Actor's semantic observation is restricted to semantic information
+already present at the existing M1 Trader hand-off. The preliminary observation may
+include stable identities, hashes, or encoded representations of:
 
-- the Research Manager investment plan;
-- the unchanged Prompt Trader structured/rendered proposal and action;
-- semantic outputs produced by the existing frozen analyst/MAS path, where selected by the later encoder design;
-- deterministic instrument context; and
-- decision session, decision timestamp, and other already-frozen temporal context.
+- the Research Manager `investment_plan`, including its deterministic
+  structured/rendered representation and stable identity/hash;
+- the complete unchanged Prompt Trader structured/rendered proposal, including its
+  BUY/HOLD/SELL action, reasoning, permitted optional proposal fields, and stable
+  proposal/action identity/hash;
+- deterministic context already available to the M1 Trader, including instrument
+  context, company/ticker identity, decision session, decision timestamp, and the
+  existing temporal/point-in-time instruction/context.
 
-These are representations of the M1 information environment, not a licence to add new Formal data. Evidence Packet text, M1 lookbacks, analyst routing, and point-in-time rules remain unchanged.
+This is a hand-off boundary, not a licence to expose arbitrary upstream MAS state.
+Raw analyst reports and upstream debate transcripts that the M1 Prompt Trader did
+not directly consume must not be passed directly to the Actor. Those sources may
+influence the Actor only indirectly through the unchanged M1 path:
+
+```text
+Analysts / Debate → Research Manager investment_plan → Prompt Trader proposal → RL Actor
+```
+
+The richer Research Manager plan and Prompt Trader proposal/reasoning are allowed;
+the Actor is not restricted to a three-value copy of the Prompt Trader action.
+Evidence Packet text, M1 lookbacks, analyst routing, and point-in-time rules remain
+unchanged.
+
+The following are forbidden as direct Formal RL Actor inputs:
+
+- raw `market_report`, `sentiment_report`, `news_report`, or
+  `fundamentals_report`;
+- raw bull-researcher or bear-researcher transcripts, including complete
+  bull/bear debate history;
+- Research Manager internal debate state beyond the final `investment_plan`;
+- raw Risk Debate content before the RL action or Portfolio Manager output;
+- future outcomes/reflections, future rewards, or future prices;
+- new technical indicators, new web evidence, or modified FinMultiTime evidence.
+
+This prohibition prevents M2 from becoming an RL policy with a privileged direct
+view of upstream MAS internals. The intended controlled difference remains
+`M2 − M1 = Agentic RL applied to the Trader hand-off`, not RL plus a new semantic
+information interface.
 
 ### 9.2 Permitted endogenous portfolio state
 
@@ -300,9 +353,9 @@ The intended later pipeline is:
 ```text
 Pre-2024 FinMultiTime / historical-safe evidence
         ↓
-Frozen M1-style MAS / DeepSeek state generation
+Frozen M1 Trader hand-off state generation
         ↓
-Frozen semantic state corpus
+Frozen Trader hand-off semantic corpus
         ↓
 Frozen local encoder
         ↓
@@ -319,7 +372,11 @@ Optional delayed fast-adaptation training
 Frozen Full M2 checkpoint
 ```
 
-DeepSeek may later be called to generate unique semantic historical states, but RL optimisation must be reusable locally without repeatedly calling DeepSeek. Full M2, A1, and A2 should later share the same frozen pre-Formal semantic corpus. M2-01 itself makes zero DeepSeek calls.
+DeepSeek may later be called to generate unique pre-Formal M1 Trader hand-off
+states, including the Research Manager plan and unchanged Prompt Trader proposal,
+but RL optimisation must be reusable locally without repeatedly calling DeepSeek.
+Full M2, A1, and A2 should later share the same frozen pre-Formal Trader hand-off
+semantic corpus. M2-01 itself makes zero DeepSeek calls.
 
 ## 14. Cache, resume, and lineage requirements
 
@@ -412,7 +469,7 @@ The following decisions are intentionally not frozen in M2-01:
 ## 19. Risks and limitations
 
 - A proposal prior can anchor the Actor too strongly; the prior strength must be validated without using Formal results.
-- DeepSeek-generated semantic states may be expensive or sparse; the local semantic corpus must be frozen before policy optimisation.
+- DeepSeek-generated M1 Trader hand-off states may be expensive or sparse; the local hand-off semantic corpus must be frozen before policy optimisation.
 - Only 26 Formal decisions per symbol are available, so Formal online adaptation is an evaluation condition, not a basis for tuning.
 - The symbol-major runner makes shared online state especially dangerous; per-symbol lineage must be mechanically enforced.
 - Delayed rewards create pending terminal experiences and require durable exactly-once update semantics.

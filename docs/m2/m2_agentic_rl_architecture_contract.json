@@ -137,11 +137,38 @@
   "state_contract": {
     "frozen_semantic_information": [
       "research_manager_investment_plan",
-      "unchanged_prompt_trader_proposal_and_action",
-      "existing_frozen_mas_semantic_outputs",
+      "research_manager_investment_plan_rendered_or_structured_representation",
+      "research_manager_investment_plan_identity_hash",
+      "unchanged_prompt_trader_proposal",
+      "unchanged_prompt_trader_action",
+      "unchanged_prompt_trader_reasoning",
+      "unchanged_prompt_trader_optional_proposal_fields",
+      "unchanged_prompt_trader_proposal_identity_hash",
       "deterministic_instrument_context",
-      "decision_session_and_timestamp"
+      "company_or_ticker_identity",
+      "decision_session_and_timestamp",
+      "existing_temporal_pit_context"
     ],
+    "direct_upstream_mas_outputs_forbidden": [
+      "market_report",
+      "sentiment_report",
+      "news_report",
+      "fundamentals_report",
+      "bull_researcher_transcript",
+      "bear_researcher_transcript",
+      "bull_bear_debate_transcript",
+      "complete_bull_bear_debate_history",
+      "research_manager_internal_debate_state_beyond_final_investment_plan",
+      "risk_debate_before_rl_action",
+      "portfolio_manager_output",
+      "future_outcome_or_reflection",
+      "future_reward",
+      "future_prices",
+      "new_technical_indicators",
+      "new_web_evidence",
+      "modified_finmultitime_evidence"
+    ],
+    "indirect_upstream_influence_through_m1_trader_hand_off_permitted": true,
     "permitted_endogenous_portfolio_state": [
       "cash",
       "position_quantity",
