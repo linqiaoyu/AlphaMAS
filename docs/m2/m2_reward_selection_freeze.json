@@ -1,0 +1,39 @@
+{
+  "analysis_plan_sha256": "1e0d1f999ed259f5facb3b0dd8002b6a6e0a7d3eafdca708338b8ba07462e030",
+  "candidate_gate_results": {
+    "R1_ABSOLUTE_NET_LOG_RETURN": {
+      "GATE_1_CORRECTNESS": "PASS",
+      "GATE_2_SEMANTIC_SUITABILITY": "BASELINE_FALLBACK_ONLY",
+      "GATE_3_NON_DEGENERACY": "PASS",
+      "GATE_4_STABILITY": "PASS",
+      "GATE_5_RISK_INCENTIVE_INTERPRETATION": "BASELINE_OR_NO_ADDED_VALUE"
+    },
+    "R2_HOLD_RELATIVE_LOG_ADVANTAGE": {
+      "GATE_1_CORRECTNESS": "PASS",
+      "GATE_2_SEMANTIC_SUITABILITY": "PASS",
+      "GATE_3_NON_DEGENERACY": "PASS",
+      "GATE_4_STABILITY": "PASS",
+      "GATE_5_RISK_INCENTIVE_INTERPRETATION": "LOCAL_CREDIT_PASS"
+    },
+    "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY": {
+      "GATE_1_CORRECTNESS": "PASS",
+      "GATE_2_SEMANTIC_SUITABILITY": "PASS",
+      "GATE_3_NON_DEGENERACY": "PASS",
+      "GATE_4_STABILITY": "PASS",
+      "GATE_5_RISK_INCENTIVE_INTERPRETATION": "R3_ADDED_VALUE_PASS"
+    }
+  },
+  "final_reward_frozen": true,
+  "market_snapshot_archive_commit": "5c71719e8cde6a78088a47024a263f58378b83e2",
+  "market_snapshot_identity_sha256": "3afc723888666e0ca3a12219a57dc577d6cf3953717da731b774634f4aff1445",
+  "result_archive_commit": "6c9e18d7d0ea1a2b91fd4ac5eefe829160a15cac",
+  "reward_framework_sha": "06b30f05749c53c8122d3997595aad556cbf0136",
+  "reward_training_transform": "DEFERRED",
+  "schema_version": "1.0",
+  "selected_reward_formula": "ln(terminal_action_equity / terminal_counterfactual_hold_equity) - max(0, -ln(1-MDD(action_post_execution_path)) - -ln(1-MDD(hold_post_execution_path)))",
+  "selected_reward_id": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+  "selection_rule_version": "M2_REWARD_SELECTION_HIERARCHY_V1",
+  "split_contract_sha": "8574067d039f6288042ec85cebc4517f3c3da49c",
+  "starting_sha": "06b30f05749c53c8122d3997595aad556cbf0136",
+  "task_id": "M2-04"
+}

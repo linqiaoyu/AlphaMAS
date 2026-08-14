@@ -23,6 +23,7 @@ This matrix is authoritative for subsequent M2 tasks. A later task must not sile
 | Formal online boundary | If enabled, only a fast-adaptation component may update; global backbone/checkpoint is frozen and each symbol starts from identical initial adapter parameters. |
 | Symbol isolation | AAPL, AMZN, and JPM have independent policy state, reward/update state, ledgers, and lineage. No cross-symbol update or future leakage. |
 | Reward maturity boundary | Five valid XNYS outcome sessions must be observable before a reward can mature; terminal Formal rewards may remain pending. |
+| Raw economic reward | **FROZEN by M2-04:** `R3_HOLD_RELATIVE_DRAWDOWN_UTILITY`; source lineage `06b30f05749c53c8122d3997595aad556cbf0136`; see `docs/m2/M2_REWARD_SELECTION_FREEZE.md`. The training transform remains deferred. |
 | Memory separation | Existing prose TradingMemory and numeric RL experience/policy state are logically distinct, though future execution must commit them at one chronological transaction boundary. |
 | Experience lifecycle | `PENDING → MATURED → APPLIED`, with durable update event IDs and exactly-once application. |
 | Provenance | Preserve distinct Prompt Trader, RL Trader, PM final, and executed action fields. |
@@ -37,7 +38,6 @@ This matrix is authoritative for subsequent M2 tasks. A later task must not sile
 
 | Decision | Owner/boundary |
 |---|---|
-| Final reward formula | M2-03/M2-04. |
 | Training universe | M2-02. |
 | Train/validation/holdout split | M2-02. |
 | Exact semantic encoder model | Later representation/resource evaluation. |
