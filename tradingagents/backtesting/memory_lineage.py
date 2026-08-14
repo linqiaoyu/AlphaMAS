@@ -41,9 +41,17 @@ def backtest_protocol_sha256(
     implementation_identity: str | None = None,
 ) -> str:
     """Hash the stable research/execution contract relevant to a resume."""
+    # Operational mount locations are not research inputs. The frozen bundle
+    # identity remains in the config, so relocating identical bytes does not
+    # create a different protocol or prevent a valid same-lineage resume.
+    research_config = {
+        key: value
+        for key, value in effective_config.items()
+        if key != "finmultitime_input_root"
+    }
     payload = json.dumps(
         {
-            "config": effective_config,
+            "config": research_config,
             "planned_cases": planned_cases,
             "market_input_identity": market_input_identity,
             "implementation_identity": implementation_identity,

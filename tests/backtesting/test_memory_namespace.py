@@ -18,7 +18,7 @@ from tradingagents.runtime.run_context import RunContext
 
 GRAPH_SHA = "0b707807d747afba827e6bf76b6f182a7a596ee42ccdb3ee5d861ae67dbf2488"
 PILOT_IDENTITY = "bd8dfafdbeb259fc8bac7ee3cdbfeebdc13f8abde8b1b420e494fa4ae8651ba3"
-FORMAL_IDENTITY = "f" * 64
+FORMAL_IDENTITY = "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121"
 EXPERIMENT = "M1_pilot_aapl_2023q4_4w_v1"
 LINEAGE = "20260813T221516239387Z_7e765a73"
 
@@ -68,7 +68,7 @@ def test_shared_resolver_preserves_m0_and_isolates_pilot_formal_namespaces(tmp_p
         / GRAPH_SHA / LINEAGE / "AAPL.md"
     )
     assert "/historical_memory/finmultitime-pilot-bd8dfafdbeb259fc/" in str(pilot)
-    assert "/historical_memory/finmultitime-formal-ffffffffffffffff/" in str(formal)
+    assert "/historical_memory/finmultitime-formal-30596a5478810187/" in str(formal)
     assert len({m0, pilot, formal}) == 3
 
 
@@ -170,7 +170,7 @@ def _archive_m1(tmp_path: Path, *, scope: str, identity: str):
     ("scope", "identity", "namespace"),
     (
         ("PILOT", PILOT_IDENTITY, "finmultitime-pilot-bd8dfafdbeb259fc"),
-        ("FORMAL", FORMAL_IDENTITY, "finmultitime-formal-ffffffffffffffff"),
+        ("FORMAL", FORMAL_IDENTITY, "finmultitime-formal-30596a5478810187"),
     ),
 )
 def test_m1_archive_and_validator_preserve_namespace_provenance(
@@ -197,6 +197,73 @@ def test_m1_archive_and_validator_preserve_namespace_provenance(
         "namespace_component": namespace,
     }
     assert archived.read_bytes() == source.read_bytes()
+
+
+def test_three_symbol_formal_memory_publication_dry_gate(tmp_path):
+    experiment = "M1_finmultitime_prompt_2024H1"
+    lineage = "formal-dry-run"
+    symbols = ["AAPL", "AMZN", "JPM"]
+    runtime_root = tmp_path / "runtime"
+    run_root = tmp_path / "run"
+    for symbol in symbols:
+        source = runtime_experiment_memory_path(
+            runtime_root,
+            experiment_id=experiment,
+            graph_config_sha256=GRAPH_SHA,
+            memory_lineage_id=lineage,
+            symbol=symbol,
+            finmultitime_evidence_enabled=True,
+            finmultitime_bundle_scope="FORMAL",
+            finmultitime_bundle_identity=FORMAL_IDENTITY,
+        )
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(
+            f"[2024-01-05 | {symbol} | HOLD | pending]\n",
+            encoding="utf-8",
+        )
+
+    descriptor = archive_final_experiment_memory(
+        run_dir=run_root,
+        runtime_memory_dir=runtime_root,
+        experiment_id=experiment,
+        run_id=lineage,
+        memory_lineage_id=lineage,
+        memory_lifecycle="independent_fresh",
+        memory_resumed_from_run_id=None,
+        graph_config_sha256=GRAPH_SHA,
+        symbols=symbols,
+        finmultitime_evidence_enabled=True,
+        finmultitime_bundle_scope="FORMAL",
+        finmultitime_bundle_identity=FORMAL_IDENTITY,
+    )
+    report = validate_final_memory_archive(
+        run_dir=run_root,
+        descriptor=descriptor,
+        experiment_id=experiment,
+        run_id=lineage,
+        memory_lineage_id=lineage,
+        memory_lifecycle="independent_fresh",
+        memory_resumed_from_run_id=None,
+        graph_config_sha256=GRAPH_SHA,
+        symbols=symbols,
+        finmultitime_evidence_enabled=True,
+        finmultitime_bundle_scope="FORMAL",
+        finmultitime_bundle_identity=FORMAL_IDENTITY,
+    )
+    manifest = json.loads(
+        (run_root / "memory/manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert report == {"errors": [], "missing_files": [], "checksum_errors": []}
+    assert [entry["symbol"] for entry in manifest["symbols"]] == symbols
+    assert {entry["path"] for entry in manifest["symbols"]} == {
+        "memory/symbols/AAPL.md",
+        "memory/symbols/AMZN.md",
+        "memory/symbols/JPM.md",
+    }
+    assert manifest["runtime_namespace"]["namespace_component"] == (
+        "finmultitime-formal-30596a5478810187"
+    )
 
 
 @pytest.mark.parametrize(

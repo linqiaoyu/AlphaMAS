@@ -43,6 +43,7 @@ from tradingagents.backtesting.config import (  # noqa: E402
     sanitize_graph_config,
     validate_fixed_backtest_contract,
     validate_formal_m0_config,
+    validate_formal_m1_config,
 )
 from tradingagents.backtesting.data import (  # noqa: E402
     CSVSnapshotDataProvider,
@@ -90,6 +91,10 @@ def parse_args() -> argparse.Namespace:
         help="market input source (default: config value or yfinance)",
     )
     parser.add_argument("--snapshot-dir", help="directory containing canonical <symbol>.csv files")
+    parser.add_argument(
+        "--finmultitime-input-root",
+        help="operational root of the frozen FinMultiTime input bundle",
+    )
     parser.add_argument("--synthetic-data", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--output-root", default="results/backtests")
     return parser.parse_args()
@@ -577,16 +582,36 @@ def validate_run(
 def execute(args: argparse.Namespace) -> tuple[Path, str]:
     config_path = Path(args.config).resolve()
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    formal_config_path = (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").resolve()
-    if config_path == formal_config_path:
+    formal_m0_config_path = (REPO_ROOT / "configs" / "backtest_m0_2024h1.json").resolve()
+    formal_m1_config_path = (REPO_ROOT / "configs" / "backtest_m1_2024h1.json").resolve()
+    if config_path == formal_m0_config_path:
         validate_formal_m0_config(config)
+    if config_path == formal_m1_config_path:
+        validate_formal_m1_config(config)
+        if args.experiment_id != config["experiment_id_template"]:
+            raise ValueError(
+                "formal M1 requires experiment_id="
+                f"{config['experiment_id_template']}"
+            )
+    finmultitime_input_root = getattr(args, "finmultitime_input_root", None)
+    if finmultitime_input_root:
+        config["finmultitime_input_root"] = str(
+            Path(finmultitime_input_root).expanduser().resolve()
+        )
     validate_fixed_backtest_contract(config)
     strategy_name = args.strategy or config["strategy"]
     source = "synthetic" if args.synthetic_data else (
         args.data_source or config.get("data_source", "yfinance")
     )
-    if config_path == formal_config_path and strategy_name == "tradingagents" and source != "snapshot":
-        raise ValueError("formal M0 TradingAgents execution requires data_source=snapshot")
+    if (
+        config_path in {formal_m0_config_path, formal_m1_config_path}
+        and strategy_name == "tradingagents"
+        and source != "snapshot"
+    ):
+        formal_name = "M0" if config_path == formal_m0_config_path else "M1"
+        raise ValueError(
+            f"formal {formal_name} TradingAgents execution requires data_source=snapshot"
+        )
     schedule = ExchangeSchedule(config["calendar"])
     events = schedule.weekly_events(config["first_calendar_week"], config["final_calendar_week"])
     if config.get("decision_weeks") != len(events):
@@ -617,12 +642,21 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
     protocol_mode = (
         "formal_m0"
         if (
-            config_path == formal_config_path
+            config_path == formal_m0_config_path
             and strategy_name == "tradingagents"
             and source == "snapshot"
             and args.max_cases is None
         )
-        else "engineering_validation" if config_path == formal_config_path else "custom"
+        else "formal_m1"
+        if (
+            config_path == formal_m1_config_path
+            and strategy_name == "tradingagents"
+            and source == "snapshot"
+            and args.max_cases is None
+        )
+        else "engineering_validation"
+        if config_path in {formal_m0_config_path, formal_m1_config_path}
+        else "custom"
     )
     decision_sessions = [event.decision_session for event in events]
     dry = {
@@ -660,6 +694,9 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
         "will_execute": False if args.dry_run else None,
         "do_not_execute_paid_agent_cases": bool(args.dry_run and strategy_name == "tradingagents"),
         "output_path": str(experiment_root), "schedule": [event.to_dict() for event in events],
+        "formal_execution_workers": 1 if protocol_mode == "formal_m1" else None,
+        "parallel_symbol_runners": 0 if protocol_mode == "formal_m1" else None,
+        "finmultitime_input_root_supplied": bool(config.get("finmultitime_input_root")),
     }
     if args.dry_run:
         print(json.dumps(dry, indent=2))
@@ -667,9 +704,16 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
 
     if source == "snapshot" and not args.snapshot_dir:
         raise ValueError("--snapshot-dir is required with --data-source snapshot")
+    if protocol_mode == "formal_m1" and not config.get("finmultitime_input_root"):
+        raise ValueError(
+            "formal M1 execution requires --finmultitime-input-root"
+        )
+    if protocol_mode == "formal_m1" and args.force:
+        raise ValueError("--force is forbidden for the official Formal M1 run")
     validate_resume_data_source(source, resume=bool(args.resume))
-    if protocol_mode == "formal_m0" and git_value("status", "--porcelain"):
-        raise ValueError("formal M0 execution requires a clean git worktree")
+    if protocol_mode in {"formal_m0", "formal_m1"} and git_value("status", "--porcelain"):
+        formal_name = "M0" if protocol_mode == "formal_m0" else "M1"
+        raise ValueError(f"formal {formal_name} execution requires a clean git worktree")
 
     market_input_identity = (
         snapshot_input_identity(args.snapshot_dir, config["symbols"])

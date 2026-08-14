@@ -94,6 +94,25 @@ FORMAL_M0_CONTRACT = {
     "data_source": "snapshot",
 }
 
+FORMAL_M1_CONTRACT = {
+    **FORMAL_M0_CONTRACT,
+    "experiment_id_template": "M1_finmultitime_prompt_2024H1",
+    "finmultitime_evidence_enabled": True,
+    "finmultitime_bundle_scope": "FORMAL",
+    "finmultitime_expected_contract_version": "M1-FINMULTITIME-v1.0.2",
+    "finmultitime_expected_contract_sha256": (
+        "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08"
+    ),
+    "finmultitime_expected_packet_manifest_sha256": (
+        "05f10129b430475bad3d5dee9dfceffba463f8a99cdd3f087ff4b755a869d63d"
+    ),
+    "finmultitime_expected_input_bundle_identity": (
+        "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121"
+    ),
+    "finmultitime_archive_commit": "3750fa50224ba46ab1d4bf5511cb5e8fa514445b",
+    "finmultitime_verify_full_bundle_on_start": True,
+}
+
 # Every mutable default that can affect graph output is copied into the formal
 # preset and overlaid explicitly when constructing the graph. Operational paths
 # are supplied separately and are intentionally excluded from the stable hash.
@@ -231,6 +250,36 @@ def validate_formal_m0_config(config: dict[str, Any]) -> None:
     ]
     if missing_graph:
         raise ValueError(f"formal M0 config leaves graph defaults implicit: {missing_graph}")
+    validate_fixed_backtest_contract(config)
+
+
+def validate_formal_m1_config(config: dict[str, Any]) -> None:
+    """Fail if the checked-in Formal M1 protocol has drifted or is ambiguous."""
+    missing = [key for key in FORMAL_M1_CONTRACT if key not in config]
+    if missing:
+        raise ValueError(f"formal M1 config is missing required fields: {missing}")
+    unexpected = sorted(set(config) - set(FORMAL_M1_CONTRACT))
+    if unexpected:
+        raise ValueError(f"formal M1 config has unexpected fields: {unexpected}")
+    mismatches = {
+        key: {"expected": expected, "actual": config[key]}
+        for key, expected in FORMAL_M1_CONTRACT.items()
+        if not _contract_equal(config[key], expected)
+    }
+    if mismatches:
+        raise ValueError(f"formal M1 config contract mismatch: {mismatches}")
+    if resolve_research_rounds(config["research_depth"]) != 3:
+        raise ValueError("formal M1 medium research depth must resolve to 3 rounds")
+    derived_graph_keys = {
+        "memory_holding_horizon_sessions",
+        "execution_data_source",
+    }
+    missing_graph = [
+        key for key in GRAPH_RESEARCH_KEYS
+        if key not in derived_graph_keys and key not in config
+    ]
+    if missing_graph:
+        raise ValueError(f"formal M1 config leaves graph defaults implicit: {missing_graph}")
     validate_fixed_backtest_contract(config)
 
 
