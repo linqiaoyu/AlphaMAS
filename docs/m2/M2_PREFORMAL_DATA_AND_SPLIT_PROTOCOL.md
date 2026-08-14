@@ -58,7 +58,7 @@ rank is recorded in `m2_preformal_symbol_audit.csv`.
 
 ## 7. Selected symbols and modality diversity
 
-MAXIMUM symbols: `AAPL, AMZN, JPM, JBSS, EML, AGI, ARR, AEMD`. The three Formal symbols contribute
+All budget tiers use the same eight symbols: `AAPL, AMZN, JPM, JBSS, EML, AGI, ARR, AEMD`. The three Formal symbols contribute
 distinct legitimate availability profiles (including AAPL image/TEXT restrictions
 and JPM missing TEXT), while deterministic non-Formal selection supplies
 cross-asset and sector diversity. Formal symbols are 3/8; non-Formal symbols are
@@ -88,15 +88,24 @@ Every left-hand maturity precedes the next protected decision:
 
 These are XNYS session boundaries, not calendar-day approximations.
 
-## 10. Frozen semantic-corpus budget tiers
+## 10. M2-02B fixed-evaluation budget-tier erratum
 
-Whole-symbol trajectories are added to preserve strict nesting:
+M2-02 varied case count by dropping complete symbols, which unintentionally made
+VALIDATION, FINAL_HOLDOUT, and E2E_PILOT depend on API affordability. M2-02B
+corrects that inconsistency: API budget changes TRAIN volume only, while the
+40-case evaluation set and all eight symbols remain fixed across tiers.
 
-- **COMPACT:** 72 cases; SHA-256 `46cf3d886c89339097e9d0995639feae2ac32962ff1955c2b45fc1292799884e`; symbols `AAPL, AGI, AMZN, EML, JBSS, JPM`.
-- **STANDARD:** 84 cases; SHA-256 `e91e83c47362b49786cd86de98cfc5c81d22158cf6da384685c26e795eaefea8`; symbols `AAPL, AGI, AMZN, ARR, EML, JBSS, JPM`.
+TRAIN windows are right-aligned at decision `2023-06-16` (maturity
+`2023-06-26`). COMPACT uses the final four TRAIN weeks, STANDARD the final five,
+and MAXIMUM all seven:
+
+- **COMPACT:** 72 cases; SHA-256 `f35488ed0f910f73b11713bb7eadf00191f13f5e5b711b309dc879aca8075d62`; symbols `AAPL, AEMD, AGI, AMZN, ARR, EML, JBSS, JPM`.
+- **STANDARD:** 80 cases; SHA-256 `f1253ab0ed8e23d9ae5656fc4250d7dca63bd6f9342e2fd9a2d84eac8e377452`; symbols `AAPL, AEMD, AGI, AMZN, ARR, EML, JBSS, JPM`.
 - **MAXIMUM:** 96 cases; SHA-256 `68fbc780cbb454f78d0ae719f91665737ed6e04928eba91f4c9c0530745d601f`; symbols `AAPL, AEMD, AGI, AMZN, ARR, EML, JBSS, JPM`.
 
-COMPACT is a strict subset of STANDARD, which is a strict subset of MAXIMUM.
+The corrected totals are COMPACT 72, STANDARD 80, and MAXIMUM 96. COMPACT is a
+strict subset of STANDARD, which is a strict subset of MAXIMUM; every set
+difference contains TRAIN cases only.
 M2-07 may choose among them using measured API cost per case only. Performance
 cannot trigger hand-picked additions or tier expansion.
 
@@ -109,6 +118,10 @@ FINAL_HOLDOUT contains 16 cases across
 `f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe`. Its outcomes remain blocked
 from development/model-selection code until M2-15. No Holdout performance was
 calculated or inspected.
+
+VALIDATION, FINAL_HOLDOUT, and E2E_PILOT have separate deterministic identities,
+plus one combined fixed-evaluation identity, in `m2_preformal_data_and_split_protocol.json`. The frozen
+Holdout identity is unchanged by this erratum.
 
 ## 12. Environment and reproducibility
 
@@ -128,6 +141,12 @@ the separate M1 article-content integrity investigation. Image availability is
 inferred conservatively from half-year filenames. OHLC adjustment semantics are
 not used for selection.
 
+Future modality-integrity failure is fail-closed: retain the case, symbol, role,
+and tier membership and mark only the affected modality unavailable. Automatic
+symbol reselection, including performance-driven replacement, is forbidden. A
+whole-case/core correctness failure blocks processing pending explicit research
+review; it never triggers automatic replacement.
+
 ## 14. Research validity and cost
 
 2024 decision leakage: **NO**. 2024 reward-label leakage: **NO**.
@@ -139,4 +158,4 @@ DeepSeek API calls: **0**; DeepSeek API cost: **¥0**; Qwen inference calls:
 
 ## 15. Final freeze verdict
 
-**PASS — M2 pre-Formal universe and temporal split frozen; ready for M2-03**
+**PASS — canonical M2 resident checkout established and fixed-evaluation budget tiers frozen; ready for M2-03**

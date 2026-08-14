@@ -9,14 +9,17 @@
     "future_outcomes_in_state_forbidden": true,
     "semantic_source": "existing M1 Research Manager investment_plan and unchanged Prompt Trader proposal"
   },
+  "budget_tier_policy": {
+    "all_tiers_use_all_selected_symbols": true,
+    "evaluation_membership_fixed_across_tiers": true,
+    "right_aligned_train_windows": true,
+    "tier_variable": "TRAIN_CASE_COUNT_ONLY"
+  },
   "budget_tiers": {
     "COMPACT": {
-      "canonical_case_list_sha256": "46cf3d886c89339097e9d0995639feae2ac32962ff1955c2b45fc1292799884e",
+      "canonical_case_list_sha256": "f35488ed0f910f73b11713bb7eadf00191f13f5e5b711b309dc879aca8075d62",
       "case_count": 72,
       "case_ids": [
-        "AAPL:2023-05-05",
-        "AAPL:2023-05-12",
-        "AAPL:2023-05-19",
         "AAPL:2023-05-26",
         "AAPL:2023-06-02",
         "AAPL:2023-06-09",
@@ -26,9 +29,15 @@
         "AAPL:2023-07-21",
         "AAPL:2023-07-28",
         "AAPL:2023-10-06",
-        "AGI:2023-05-05",
-        "AGI:2023-05-12",
-        "AGI:2023-05-19",
+        "AEMD:2023-05-26",
+        "AEMD:2023-06-02",
+        "AEMD:2023-06-09",
+        "AEMD:2023-06-16",
+        "AEMD:2023-06-30",
+        "AEMD:2023-07-07",
+        "AEMD:2023-07-21",
+        "AEMD:2023-07-28",
+        "AEMD:2023-10-06",
         "AGI:2023-05-26",
         "AGI:2023-06-02",
         "AGI:2023-06-09",
@@ -38,9 +47,6 @@
         "AGI:2023-07-21",
         "AGI:2023-07-28",
         "AGI:2023-10-06",
-        "AMZN:2023-05-05",
-        "AMZN:2023-05-12",
-        "AMZN:2023-05-19",
         "AMZN:2023-05-26",
         "AMZN:2023-06-02",
         "AMZN:2023-06-09",
@@ -50,9 +56,15 @@
         "AMZN:2023-07-21",
         "AMZN:2023-07-28",
         "AMZN:2023-10-06",
-        "EML:2023-05-05",
-        "EML:2023-05-12",
-        "EML:2023-05-19",
+        "ARR:2023-05-26",
+        "ARR:2023-06-02",
+        "ARR:2023-06-09",
+        "ARR:2023-06-16",
+        "ARR:2023-06-30",
+        "ARR:2023-07-07",
+        "ARR:2023-07-21",
+        "ARR:2023-07-28",
+        "ARR:2023-10-06",
         "EML:2023-05-26",
         "EML:2023-06-02",
         "EML:2023-06-09",
@@ -62,9 +74,6 @@
         "EML:2023-07-21",
         "EML:2023-07-28",
         "EML:2023-10-06",
-        "JBSS:2023-05-05",
-        "JBSS:2023-05-12",
-        "JBSS:2023-05-19",
         "JBSS:2023-05-26",
         "JBSS:2023-06-02",
         "JBSS:2023-06-09",
@@ -74,9 +83,6 @@
         "JBSS:2023-07-21",
         "JBSS:2023-07-28",
         "JBSS:2023-10-06",
-        "JPM:2023-05-05",
-        "JPM:2023-05-12",
-        "JPM:2023-05-19",
         "JPM:2023-05-26",
         "JPM:2023-06-02",
         "JPM:2023-06-09",
@@ -94,15 +100,17 @@
         "T1-B1-S1-I1"
       ],
       "split_counts": {
-        "E2E_PILOT": 6,
-        "FINAL_HOLDOUT": 12,
-        "TRAIN": 42,
-        "VALIDATION": 12
+        "E2E_PILOT": 8,
+        "FINAL_HOLDOUT": 16,
+        "TRAIN": 32,
+        "VALIDATION": 16
       },
       "symbols": [
         "AAPL",
+        "AEMD",
         "AGI",
         "AMZN",
+        "ARR",
         "EML",
         "JBSS",
         "JPM"
@@ -128,18 +136,12 @@
         },
         "TRAIN": {
           "decision_sessions": [
-            "2023-05-05",
-            "2023-05-12",
-            "2023-05-19",
             "2023-05-26",
             "2023-06-02",
             "2023-06-09",
             "2023-06-16"
           ],
           "maturity_sessions": [
-            "2023-05-12",
-            "2023-05-19",
-            "2023-05-26",
             "2023-06-05",
             "2023-06-09",
             "2023-06-16",
@@ -333,11 +335,9 @@
       }
     },
     "STANDARD": {
-      "canonical_case_list_sha256": "e91e83c47362b49786cd86de98cfc5c81d22158cf6da384685c26e795eaefea8",
-      "case_count": 84,
+      "canonical_case_list_sha256": "f1253ab0ed8e23d9ae5656fc4250d7dca63bd6f9342e2fd9a2d84eac8e377452",
+      "case_count": 80,
       "case_ids": [
-        "AAPL:2023-05-05",
-        "AAPL:2023-05-12",
         "AAPL:2023-05-19",
         "AAPL:2023-05-26",
         "AAPL:2023-06-02",
@@ -348,8 +348,16 @@
         "AAPL:2023-07-21",
         "AAPL:2023-07-28",
         "AAPL:2023-10-06",
-        "AGI:2023-05-05",
-        "AGI:2023-05-12",
+        "AEMD:2023-05-19",
+        "AEMD:2023-05-26",
+        "AEMD:2023-06-02",
+        "AEMD:2023-06-09",
+        "AEMD:2023-06-16",
+        "AEMD:2023-06-30",
+        "AEMD:2023-07-07",
+        "AEMD:2023-07-21",
+        "AEMD:2023-07-28",
+        "AEMD:2023-10-06",
         "AGI:2023-05-19",
         "AGI:2023-05-26",
         "AGI:2023-06-02",
@@ -360,8 +368,6 @@
         "AGI:2023-07-21",
         "AGI:2023-07-28",
         "AGI:2023-10-06",
-        "AMZN:2023-05-05",
-        "AMZN:2023-05-12",
         "AMZN:2023-05-19",
         "AMZN:2023-05-26",
         "AMZN:2023-06-02",
@@ -372,8 +378,6 @@
         "AMZN:2023-07-21",
         "AMZN:2023-07-28",
         "AMZN:2023-10-06",
-        "ARR:2023-05-05",
-        "ARR:2023-05-12",
         "ARR:2023-05-19",
         "ARR:2023-05-26",
         "ARR:2023-06-02",
@@ -384,8 +388,6 @@
         "ARR:2023-07-21",
         "ARR:2023-07-28",
         "ARR:2023-10-06",
-        "EML:2023-05-05",
-        "EML:2023-05-12",
         "EML:2023-05-19",
         "EML:2023-05-26",
         "EML:2023-06-02",
@@ -396,8 +398,6 @@
         "EML:2023-07-21",
         "EML:2023-07-28",
         "EML:2023-10-06",
-        "JBSS:2023-05-05",
-        "JBSS:2023-05-12",
         "JBSS:2023-05-19",
         "JBSS:2023-05-26",
         "JBSS:2023-06-02",
@@ -408,8 +408,6 @@
         "JBSS:2023-07-21",
         "JBSS:2023-07-28",
         "JBSS:2023-10-06",
-        "JPM:2023-05-05",
-        "JPM:2023-05-12",
         "JPM:2023-05-19",
         "JPM:2023-05-26",
         "JPM:2023-06-02",
@@ -428,13 +426,14 @@
         "T1-B1-S1-I1"
       ],
       "split_counts": {
-        "E2E_PILOT": 7,
-        "FINAL_HOLDOUT": 14,
-        "TRAIN": 49,
-        "VALIDATION": 14
+        "E2E_PILOT": 8,
+        "FINAL_HOLDOUT": 16,
+        "TRAIN": 40,
+        "VALIDATION": 16
       },
       "symbols": [
         "AAPL",
+        "AEMD",
         "AGI",
         "AMZN",
         "ARR",
@@ -463,8 +462,6 @@
         },
         "TRAIN": {
           "decision_sessions": [
-            "2023-05-05",
-            "2023-05-12",
             "2023-05-19",
             "2023-05-26",
             "2023-06-02",
@@ -472,8 +469,6 @@
             "2023-06-16"
           ],
           "maturity_sessions": [
-            "2023-05-12",
-            "2023-05-19",
             "2023-05-26",
             "2023-06-05",
             "2023-06-09",
@@ -601,7 +596,8 @@
     "yfinance": "1.5.2"
   },
   "environment_recovery_sha": "c1bebcbd73d1d30bfd081e4529181f7163450c49",
-  "final_freeze_verdict": "PASS — M2 pre-Formal universe and temporal split frozen; ready for M2-03",
+  "erratum_task": "M2-02B",
+  "final_freeze_verdict": "PASS — canonical M2 resident checkout established and fixed-evaluation budget tiers frozen; ready for M2-03",
   "final_holdout_identity": {
     "canonical_holdout_case_list_sha256": "f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe",
     "case_count": 16,
@@ -650,8 +646,22 @@
       "JPM"
     ]
   },
+  "fixed_evaluation_identity": {
+    "case_count": 40,
+    "combined_case_list_sha256": "2cdf6fc7f3edc4f3478b1a3cb1809ae296dc39d7d2e44a2df27bf6d55e0a0f58",
+    "e2e_pilot_case_list_sha256": "49e9bbbf65d65bd14210ebdfa296729f8317b5de57e3a67d3f940773674e9530",
+    "final_holdout_case_list_sha256": "f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe",
+    "validation_case_list_sha256": "08411801c99a77006e044292e5f34f1e657c450020610ba26af23f5284900f5a"
+  },
   "future_api_tier_selection_rule": "M2-07 may select only among these frozen tiers using measured API cost per case; performance-driven expansion is forbidden",
+  "future_source_integrity_policy": {
+    "automatic_symbol_reselection": false,
+    "modality_failure": "MARK_MODALITY_UNAVAILABLE_AND_RETAIN_CASE",
+    "performance_driven_symbol_replacement": false,
+    "whole_case_correctness_failure": "BLOCK_FOR_EXPLICIT_RESEARCH_REVIEW"
+  },
   "inherited_architecture_sha": "ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2",
+  "parent_protocol_commit": "cf189c53a3600030911efcd1ceb5afdad1e06765",
   "pilot_reuse": {
     "aapl_existing_m1_pilot_session_reused": "2023-10-06",
     "complementary_symbols": [
@@ -719,7 +729,7 @@
     "reward_label_2024_leakage": false,
     "split_outcome_overlap": false
   },
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "selected_symbol_metadata": [
     {
       "formal_symbol": true,
@@ -989,5 +999,5 @@
     }
   },
   "starting_sha": "c1bebcbd73d1d30bfd081e4529181f7163450c49",
-  "task_id": "M2-02-RERUN"
+  "task_id": "M2-02B"
 }

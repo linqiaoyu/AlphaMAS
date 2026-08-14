@@ -33,9 +33,10 @@ from scripts.finmultitime.audit_finmultitime import (  # noqa: E402
 )
 from tradingagents.backtesting.calendar import ExchangeSchedule  # noqa: E402
 
-SCHEMA_VERSION = "1.0"
-TASK_ID = "M2-02-RERUN"
+SCHEMA_VERSION = "1.1"
+TASK_ID = "M2-02B"
 STARTING_SHA = "c1bebcbd73d1d30bfd081e4529181f7163450c49"
+PARENT_PROTOCOL_COMMIT = "cf189c53a3600030911efcd1ceb5afdad1e06765"
 ARCHITECTURE_SHA = "ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2"
 ENVIRONMENT_RECOVERY_SHA = STARTING_SHA
 FORMAL_SYMBOLS = ("AAPL", "AMZN", "JPM")
@@ -67,7 +68,25 @@ ROLE_WEEKS = {
     "E2E_PILOT": ("2023-10-02",),
 }
 ROLE_ORDER = {role: index for index, role in enumerate(ROLE_WEEKS)}
-TIER_SYMBOL_COUNTS = {"COMPACT": 6, "STANDARD": 7, "MAXIMUM": 8}
+TIER_TRAIN_SESSIONS = {
+    "COMPACT": ("2023-05-26", "2023-06-02", "2023-06-09", "2023-06-16"),
+    "STANDARD": (
+        "2023-05-19",
+        "2023-05-26",
+        "2023-06-02",
+        "2023-06-09",
+        "2023-06-16",
+    ),
+    "MAXIMUM": (
+        "2023-05-05",
+        "2023-05-12",
+        "2023-05-19",
+        "2023-05-26",
+        "2023-06-02",
+        "2023-06-09",
+        "2023-06-16",
+    ),
+}
 
 SYMBOL_AUDIT_FIELDS = (
     "symbol",
@@ -628,7 +647,7 @@ def build_cases(
     series: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
-    for symbol_index, symbol in enumerate(selected):
+    for symbol in selected:
         valid_matured = {item.decision_session for item in series[symbol]["matured"]}
         for event in events:
             decision = date.fromisoformat(event.decision_session)
@@ -661,8 +680,14 @@ def build_cases(
                     "decision_time": event.decision_time,
                     "maturity_session": event.maturity_session,
                     "split_role": event.split_role,
-                    "compact_included": symbol_index < TIER_SYMBOL_COUNTS["COMPACT"],
-                    "standard_included": symbol_index < TIER_SYMBOL_COUNTS["STANDARD"],
+                    "compact_included": (
+                        event.split_role != "TRAIN"
+                        or event.decision_session in TIER_TRAIN_SESSIONS["COMPACT"]
+                    ),
+                    "standard_included": (
+                        event.split_role != "TRAIN"
+                        or event.decision_session in TIER_TRAIN_SESSIONS["STANDARD"]
+                    ),
                     "maximum_included": True,
                     "formal_symbol": symbol in FORMAL_SYMBOLS,
                     "modality_profile": (
@@ -776,6 +801,22 @@ def validate_plan(selected: list[str], cases: list[dict[str, Any]]) -> None:
     maximum = {row["case_id"] for row in tier_cases(cases, "MAXIMUM")}
     if not compact < standard < maximum:
         raise ValueError("budget tiers are not strictly nested")
+    evaluation = {row["case_id"] for row in cases if row["split_role"] != "TRAIN"}
+    for tier_name, tier_ids in (
+        ("COMPACT", compact),
+        ("STANDARD", standard),
+        ("MAXIMUM", maximum),
+    ):
+        if evaluation - tier_ids:
+            raise ValueError(f"{tier_name} omits fixed evaluation cases")
+        if {row["symbol"] for row in tier_cases(cases, tier_name)} != set(selected):
+            raise ValueError(f"{tier_name} does not contain all selected symbols")
+    if any(
+        row["split_role"] != "TRAIN"
+        for row in cases
+        if row["case_id"] in (maximum - compact)
+    ):
+        raise ValueError("budget-tier differences include evaluation cases")
     train = [row for row in cases if row["split_role"] == "TRAIN"]
     counts = Counter(row["symbol"] for row in train)
     if max(counts.values()) / len(train) > 0.25:
@@ -799,7 +840,7 @@ def build_protocol(
 ) -> dict[str, Any]:
     splits = {role: split_summary(cases, role) for role in ROLE_WEEKS}
     tiers = {}
-    for tier in TIER_SYMBOL_COUNTS:
+    for tier in TIER_TRAIN_SESSIONS:
         rows = tier_cases(cases, tier)
         tiers[tier] = {
             "case_count": len(rows),
@@ -821,6 +862,9 @@ def build_protocol(
             "canonical_case_list_sha256": sha256_bytes(case_list_bytes(rows)),
         }
     holdout = [row for row in cases if row["split_role"] == "FINAL_HOLDOUT"]
+    validation_rows = [row for row in cases if row["split_role"] == "VALIDATION"]
+    pilot_rows = [row for row in cases if row["split_role"] == "E2E_PILOT"]
+    fixed_evaluation = [row for row in cases if row["split_role"] != "TRAIN"]
     eligible_count = sum(bool(row["correctness_eligible"]) for row in symbol_rows)
     exclusion_categories = Counter(
         row["exclusion_reason"]
@@ -854,6 +898,8 @@ def build_protocol(
     return {
         "schema_version": SCHEMA_VERSION,
         "task_id": TASK_ID,
+        "erratum_task": TASK_ID,
+        "parent_protocol_commit": PARENT_PROTOCOL_COMMIT,
         "starting_sha": STARTING_SHA,
         "inherited_architecture_sha": ARCHITECTURE_SHA,
         "environment_recovery_sha": ENVIRONMENT_RECOVERY_SHA,
@@ -920,7 +966,20 @@ def build_protocol(
         ],
         "split_definitions": splits,
         "embargo_boundaries": embargoes,
+        "budget_tier_policy": {
+            "evaluation_membership_fixed_across_tiers": True,
+            "all_tiers_use_all_selected_symbols": True,
+            "tier_variable": "TRAIN_CASE_COUNT_ONLY",
+            "right_aligned_train_windows": True,
+        },
         "budget_tiers": tiers,
+        "fixed_evaluation_identity": {
+            "case_count": len(fixed_evaluation),
+            "validation_case_list_sha256": sha256_bytes(case_list_bytes(validation_rows)),
+            "final_holdout_case_list_sha256": sha256_bytes(case_list_bytes(holdout)),
+            "e2e_pilot_case_list_sha256": sha256_bytes(case_list_bytes(pilot_rows)),
+            "combined_case_list_sha256": sha256_bytes(case_list_bytes(fixed_evaluation)),
+        },
         "final_holdout_identity": {
             "case_count": len(holdout),
             "symbols": sorted({row["symbol"] for row in holdout}),
@@ -942,6 +1001,12 @@ def build_protocol(
             "M2-07 may select only among these frozen tiers using measured API cost per case; "
             "performance-driven expansion is forbidden"
         ),
+        "future_source_integrity_policy": {
+            "modality_failure": "MARK_MODALITY_UNAVAILABLE_AND_RETAIN_CASE",
+            "automatic_symbol_reselection": False,
+            "performance_driven_symbol_replacement": False,
+            "whole_case_correctness_failure": "BLOCK_FOR_EXPLICIT_RESEARCH_REVIEW",
+        },
         "api_budget": {
             "target_yuan": "20-40",
             "normal_hard_stop_yuan": 40,
@@ -966,7 +1031,8 @@ def build_protocol(
             "aws_incremental_cost_usd": 0,
         },
         "final_freeze_verdict": (
-            "PASS — M2 pre-Formal universe and temporal split frozen; ready for M2-03"
+            "PASS — canonical M2 resident checkout established and fixed-evaluation "
+            "budget tiers frozen; ready for M2-03"
         ),
     }
 
@@ -992,7 +1058,7 @@ def render_markdown(protocol: dict[str, Any]) -> bytes:
         f"- **{tier}:** {item['case_count']} cases; "
         f"SHA-256 `{item['canonical_case_list_sha256']}`; symbols "
         f"`{', '.join(item['symbols'])}`."
-        for tier in TIER_SYMBOL_COUNTS
+        for tier in TIER_TRAIN_SESSIONS
         for item in (tiers[tier],)
     )
     metadata = protocol["candidate_universe"]
@@ -1057,7 +1123,7 @@ rank is recorded in `{SYMBOL_AUDIT_CSV}`.
 
 ## 7. Selected symbols and modality diversity
 
-MAXIMUM symbols: `{', '.join(selected)}`. The three Formal symbols contribute
+All budget tiers use the same eight symbols: `{', '.join(selected)}`. The three Formal symbols contribute
 distinct legitimate availability profiles (including AAPL image/TEXT restrictions
 and JPM missing TEXT), while deterministic non-Formal selection supplies
 cross-asset and sector diversity. Formal symbols are 3/8; non-Formal symbols are
@@ -1082,13 +1148,22 @@ Every left-hand maturity precedes the next protected decision:
 
 These are XNYS session boundaries, not calendar-day approximations.
 
-## 10. Frozen semantic-corpus budget tiers
+## 10. M2-02B fixed-evaluation budget-tier erratum
 
-Whole-symbol trajectories are added to preserve strict nesting:
+M2-02 varied case count by dropping complete symbols, which unintentionally made
+VALIDATION, FINAL_HOLDOUT, and E2E_PILOT depend on API affordability. M2-02B
+corrects that inconsistency: API budget changes TRAIN volume only, while the
+40-case evaluation set and all eight symbols remain fixed across tiers.
+
+TRAIN windows are right-aligned at decision `2023-06-16` (maturity
+`2023-06-26`). COMPACT uses the final four TRAIN weeks, STANDARD the final five,
+and MAXIMUM all seven:
 
 {tier_lines}
 
-COMPACT is a strict subset of STANDARD, which is a strict subset of MAXIMUM.
+The corrected totals are COMPACT 72, STANDARD 80, and MAXIMUM 96. COMPACT is a
+strict subset of STANDARD, which is a strict subset of MAXIMUM; every set
+difference contains TRAIN cases only.
 M2-07 may choose among them using measured API cost per case only. Performance
 cannot trigger hand-picked additions or tier expansion.
 
@@ -1101,6 +1176,10 @@ FINAL_HOLDOUT contains {holdout['case_count']} cases across
 `{holdout['canonical_holdout_case_list_sha256']}`. Its outcomes remain blocked
 from development/model-selection code until M2-15. No Holdout performance was
 calculated or inspected.
+
+VALIDATION, FINAL_HOLDOUT, and E2E_PILOT have separate deterministic identities,
+plus one combined fixed-evaluation identity, in `{PROTOCOL_JSON}`. The frozen
+Holdout identity is unchanged by this erratum.
 
 ## 12. Environment and reproducibility
 
@@ -1119,6 +1198,12 @@ authoritative. Non-Formal news members were date/PIT audited but not subjected t
 the separate M1 article-content integrity investigation. Image availability is
 inferred conservatively from half-year filenames. OHLC adjustment semantics are
 not used for selection.
+
+Future modality-integrity failure is fail-closed: retain the case, symbol, role,
+and tier membership and mark only the affected modality unavailable. Automatic
+symbol reselection, including performance-driven replacement, is forbidden. A
+whole-case/core correctness failure blocks processing pending explicit research
+review; it never triggers automatic replacement.
 
 ## 14. Research validity and cost
 

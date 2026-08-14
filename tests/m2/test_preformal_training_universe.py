@@ -64,7 +64,7 @@ def test_budget_tiers_are_strictly_nested_and_within_cap() -> None:
     maximum = set(tiers["MAXIMUM"]["case_ids"])
 
     assert compact < standard < maximum
-    assert [len(compact), len(standard), len(maximum)] == [72, 84, 96]
+    assert [len(compact), len(standard), len(maximum)] == [72, 80, 96]
     assert len(maximum) <= 104
     for tier in tiers.values():
         assert set(tier["temporal_blocks"]) == set(audit.ROLE_WEEKS)
@@ -72,6 +72,86 @@ def test_budget_tiers_are_strictly_nested_and_within_cap() -> None:
             block["decision_sessions"] and block["maturity_sessions"]
             for block in tier["temporal_blocks"].values()
         )
+
+
+def test_budget_tiers_vary_train_only_with_fixed_evaluation() -> None:
+    protocol = _protocol()
+    cases = _cases()
+    by_id = {row["case_id"]: row for row in cases}
+    tiers = {
+        name: set(details["case_ids"])
+        for name, details in protocol["budget_tiers"].items()
+    }
+    evaluation_by_role = {
+        role: {row["case_id"] for row in cases if row["split_role"] == role}
+        for role in ("VALIDATION", "FINAL_HOLDOUT", "E2E_PILOT")
+    }
+    fixed_evaluation = set().union(*evaluation_by_role.values())
+
+    assert protocol["budget_tier_policy"] == {
+        "all_tiers_use_all_selected_symbols": True,
+        "evaluation_membership_fixed_across_tiers": True,
+        "right_aligned_train_windows": True,
+        "tier_variable": "TRAIN_CASE_COUNT_ONLY",
+    }
+    for tier_ids in tiers.values():
+        assert fixed_evaluation <= tier_ids
+        assert {by_id[case_id]["symbol"] for case_id in tier_ids} == set(
+            protocol["selected_symbols"]
+        )
+        for role_ids in evaluation_by_role.values():
+            assert tier_ids & role_ids == role_ids
+    for larger, smaller in (("STANDARD", "COMPACT"), ("MAXIMUM", "STANDARD")):
+        assert {
+            by_id[case_id]["split_role"]
+            for case_id in tiers[larger] - tiers[smaller]
+        } == {"TRAIN"}
+
+
+def test_train_windows_and_counts_are_right_aligned() -> None:
+    protocol = _protocol()
+    cases = _cases()
+    expected = {
+        "COMPACT": (32, set(audit.TIER_TRAIN_SESSIONS["COMPACT"])),
+        "STANDARD": (40, set(audit.TIER_TRAIN_SESSIONS["STANDARD"])),
+        "MAXIMUM": (56, set(audit.TIER_TRAIN_SESSIONS["MAXIMUM"])),
+    }
+    for tier, (count, sessions) in expected.items():
+        included = [
+            row
+            for row in cases
+            if row["split_role"] == "TRAIN"
+            and row[f"{tier.lower()}_included"] == "true"
+        ]
+        assert len(included) == count
+        assert {row["decision_session"] for row in included} == sessions
+        assert max(row["decision_session"] for row in included) == "2023-06-16"
+        assert max(row["maturity_session"] for row in included) == "2023-06-26"
+        assert protocol["budget_tiers"][tier]["split_counts"]["TRAIN"] == count
+
+
+def test_fixed_evaluation_identities_are_canonical() -> None:
+    protocol = _protocol()
+    cases = _cases()
+    identity = protocol["fixed_evaluation_identity"]
+
+    validation = [row for row in cases if row["split_role"] == "VALIDATION"]
+    holdout = [row for row in cases if row["split_role"] == "FINAL_HOLDOUT"]
+    pilot = [row for row in cases if row["split_role"] == "E2E_PILOT"]
+    evaluation = validation + holdout + pilot
+    assert identity["case_count"] == 40
+    assert identity["validation_case_list_sha256"] == audit.sha256_bytes(
+        audit.case_list_bytes(validation)
+    )
+    assert identity["final_holdout_case_list_sha256"] == audit.sha256_bytes(
+        audit.case_list_bytes(holdout)
+    )
+    assert identity["e2e_pilot_case_list_sha256"] == audit.sha256_bytes(
+        audit.case_list_bytes(pilot)
+    )
+    assert identity["combined_case_list_sha256"] == audit.sha256_bytes(
+        audit.case_list_bytes(evaluation)
+    )
 
 
 def test_training_caps_and_nonformal_diversity() -> None:
@@ -98,6 +178,36 @@ def test_holdout_identity_and_hash_are_frozen() -> None:
     ]
     assert not identity["performance_inspected"]
     assert identity["protected_until_task"] == "M2-15"
+    assert identity["canonical_holdout_case_list_sha256"] == (
+        "f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe"
+    )
+
+
+def test_selected_symbol_universe_and_erratum_provenance_are_frozen() -> None:
+    protocol = _protocol()
+    assert set(protocol["selected_symbols"]) == {
+        "AAPL",
+        "AMZN",
+        "JPM",
+        "JBSS",
+        "EML",
+        "AGI",
+        "ARR",
+        "AEMD",
+    }
+    assert protocol["schema_version"] == "1.1"
+    assert protocol["erratum_task"] == "M2-02B"
+    assert protocol["parent_protocol_commit"] == audit.PARENT_PROTOCOL_COMMIT
+
+
+def test_future_source_integrity_policy_fails_closed_without_reselection() -> None:
+    policy = _protocol()["future_source_integrity_policy"]
+    assert policy["modality_failure"] == "MARK_MODALITY_UNAVAILABLE_AND_RETAIN_CASE"
+    assert policy["automatic_symbol_reselection"] is False
+    assert policy["performance_driven_symbol_replacement"] is False
+    assert policy["whole_case_correctness_failure"] == (
+        "BLOCK_FOR_EXPLICIT_RESEARCH_REVIEW"
+    )
 
 
 def test_price_trajectory_cannot_change_eligibility() -> None:
