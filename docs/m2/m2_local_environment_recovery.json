@@ -1,0 +1,20 @@
+{
+  "baseline_tests_passed": true,
+  "canonical_environment": ".venv-m2-locked",
+  "canonical_environment_target": "/Users/yulinqiao/.local/share/alphamas/venvs/m2-locked",
+  "dependency_files_changed": false,
+  "formal_m1_equivalence": true,
+  "numpy_import_ok": true,
+  "pandas_import_ok": true,
+  "platform_machine": "arm64",
+  "python_version": "3.12.10",
+  "starting_sha": "ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2",
+  "task_id": "M2-02A",
+  "versions": {
+    "exchange-calendars": "4.13.2",
+    "numpy": "2.5.2",
+    "pandas": "2.3.3",
+    "tradingagents": "0.3.1",
+    "yfinance": "1.5.2"
+  }
+}
