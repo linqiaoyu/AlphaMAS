@@ -8,7 +8,7 @@ The framework is local and deterministic. M2-03 uses source inspection, calendar
 
 ## 2. Inherited M2 architecture and data boundary
 
-This contract inherits the architecture at `ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2`, the M2-02B split lineage at `cf189c53a3600030911efcd1ceb5afdad1e06765`, and the provenance-clean starting state at `8574067d039f6288042ec85cebc4517f3c3da49c`. It does not reopen the eight-symbol selection (`AAPL`, `AMZN`, `JPM`, `JBSS`, `EML`, `AGI`, `ARR`, `AEMD`), the COMPACT/STANDARD/MAXIMUM case budgets (72/80/96), or evaluation membership. Final Holdout identity `f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe` remains protected until M2-15.
+This contract inherits the architecture at `ea9ca73c15ed94ba3fa37a86e3ee145960d94bc2` and the authoritative post-M2-02C split-contract state at `8574067d039f6288042ec85cebc4517f3c3da49c`. The split lineage began with the original M2-02 split at `cf189c53a3600030911efcd1ceb5afdad1e06765`, followed by the M2-02B fixed-evaluation correction at `71a9a106b328c4e9a967c0275b705a11382450bc`; M2-03 inherits the resulting post-M2-02C state, not the original split commit. It does not reopen the eight-symbol selection (`AAPL`, `AMZN`, `JPM`, `JBSS`, `EML`, `AGI`, `ARR`, `AEMD`), the COMPACT/STANDARD/MAXIMUM case budgets (72/80/96), or evaluation membership. Final Holdout identity `f8e011558f59f56db730702700ef3d419b353b63d4f35278ee78ddb70fedabfe` remains protected until M2-15.
 
 ## 3. Frozen execution timing and accounting
 

@@ -376,11 +376,30 @@ def test_synthetic_sanity_artifact_is_canonical_and_passes() -> None:
 def test_machine_readable_contract_is_canonical_and_defers_selection() -> None:
     path = DOCS / "m2_reward_study_contract.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
+    split_payload = json.loads(
+        (DOCS / "m2_preformal_data_and_split_protocol.json").read_text(
+            encoding="utf-8"
+        )
+    )
     expected = (
         json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
         + "\n"
     ).encode()
     assert path.read_bytes() == expected
+    assert payload["split_protocol_sha"] == (
+        "8574067d039f6288042ec85cebc4517f3c3da49c"
+    )
+    assert split_payload["budget_tiers"]["MAXIMUM"]["split_counts"] == {
+        "E2E_PILOT": 8,
+        "FINAL_HOLDOUT": 16,
+        "TRAIN": 56,
+        "VALIDATION": 16,
+    }
+    assert payload["m2_04_allowed_roles"] == {
+        "TRAIN": 56,
+        "VALIDATION": 16,
+        "total_decision_windows": 72,
+    }
     assert payload["final_reward_selected"] is False
     assert len(payload["candidate_rewards"]) == 3
     assert payload["cost"]["deepseek_calls"] == 0
