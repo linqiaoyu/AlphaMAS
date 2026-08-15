@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +28,6 @@ from scripts.m2.build_preformal_evidence_corpus import (  # noqa: E402
     SYNTHETIC_IMAGE_SHA256,
     SYNTHETIC_RAW_SHA256,
     EvidenceBuildError,
-    canonical_bytes,
     read_json,
     write_json,
 )

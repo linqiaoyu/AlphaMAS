@@ -12,9 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.m2.build_preformal_evidence_corpus import (
-    EvidenceBuildError,
+from scripts.m2.build_preformal_evidence_corpus import (  # noqa: E402
     EXPECTED_ROLE_COUNTS,
+    EvidenceBuildError,
     _pit_violations,
     _walk_forbidden,
     read_json,

@@ -5,8 +5,6 @@ from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
-import pytest
-
 from scripts.finmultitime.design_m1_contract import SELECTED_TABLE_CONCEPTS
 from scripts.m2.build_preformal_evidence_corpus import (
     DEFAULT_M1_ARCHIVE,
@@ -16,11 +14,11 @@ from scripts.m2.build_preformal_evidence_corpus import (
     SYMBOLS,
     TIER_IDENTITIES,
     _m1_caption_map,
+    _pit_violations,
     audit_text_candidates,
     build_packet,
     case_list_sha,
     load_plan,
-    _pit_violations,
 )
 from scripts.m2.run_preformal_qwen_batch import validate_environment
 
@@ -61,7 +59,7 @@ def _raw_record(symbol: str, title: str = "Example Company Reports Results") -> 
 
 def test_source_integrity_fails_closed_for_aapl() -> None:
     plan = [row for row in load_plan() if row["decision_session"] == "2023-05-05"]
-    data = {"news": {symbol: None for symbol in SYMBOLS}}
+    data = {"news": dict.fromkeys(SYMBOLS)}
     data["news"]["AAPL"] = {"records": [_raw_record("AAPL")]}
     data["news"]["ARR"] = {"records": [_raw_record("ARR")]}
     audit = audit_text_candidates(data, plan)
@@ -100,7 +98,7 @@ def _unavailable_packet_skeleton() -> dict[str, object]:
         "routing": {},
         "sections": {
             "TEXT": {"status": "UNAVAILABLE", "reason": "frozen", "selected_records": [], "source_member": None},
-            "TABLE": {"status": "UNAVAILABLE", "facts": {concept: None for concept in SELECTED_TABLE_CONCEPTS}, "source_members": []},
+            "TABLE": {"status": "UNAVAILABLE", "facts": dict.fromkeys(SELECTED_TABLE_CONCEPTS), "source_members": []},
             "TIME_SERIES": {"status": "AVAILABLE", "selected_row_count": 61, "required_row_count": 61, "selected_session_dates": sessions, "summary": summary, "through_session": "2023-05-05", "source_member": "fixture.csv"},
             "IMAGE": {"status": "UNAVAILABLE", "caption_status": "NOT_APPLICABLE", "reason": "frozen"},
         },

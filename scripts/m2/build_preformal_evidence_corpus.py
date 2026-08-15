@@ -19,9 +19,10 @@ import sys
 import tempfile
 import zipfile
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -46,15 +47,13 @@ from scripts.finmultitime.build_m1_evidence_packets import (  # noqa: E402
     format_table_section,
     format_text_section,
     format_time_series_section,
+    validate_packet,
     validate_table_source,
     validate_text_source,
     validate_time_series_source,
-    validate_packet,
 )
 from scripts.finmultitime.design_m1_contract import (  # noqa: E402
     CONTRACT_VERSION,
-    MAX_ARTICLE_BODY_CHARS,
-    MAX_ARTICLE_TITLE_CHARS,
     MIN_TIME_SERIES_ROWS,
     SELECTED_TABLE_CONCEPTS,
     canonical_json,
@@ -62,7 +61,6 @@ from scripts.finmultitime.design_m1_contract import (  # noqa: E402
     selected_news,
     table_selection,
     time_series_selection,
-    truncate,
     ts_summary,
 )
 from scripts.finmultitime.preprocess_m1_inputs import (  # noqa: E402
@@ -72,8 +70,6 @@ from scripts.finmultitime.preprocess_m1_inputs import (  # noqa: E402
     source_member_hash,
 )
 from scripts.finmultitime.run_qwen_caption import (  # noqa: E402
-    CAPTION_FIELDS,
-    MAX_CAPTION_CHARS,
     MODEL_REPO,
     MODEL_REVISION,
     parse_canonical_caption,
