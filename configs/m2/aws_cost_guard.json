@@ -1,0 +1,11 @@
+{
+  "auto_stop_required": true,
+  "instance_count": 1,
+  "instance_type": "g5.xlarge",
+  "m2_05_incremental_cost_ceiling_usd": 5,
+  "m2_05_max_running_minutes": 90,
+  "profile": "alphamas",
+  "purchasing_model": "on-demand",
+  "region": "eu-west-2",
+  "whole_project_aws_budget_usd": 50
+}

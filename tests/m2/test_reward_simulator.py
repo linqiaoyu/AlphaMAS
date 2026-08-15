@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import replace
@@ -23,6 +24,11 @@ from scripts.m2.reward_simulator import (
     synthetic_sanity_payload,
     validate_action,
 )
+from tests.m2.numeric_equivalence import (
+    FLOAT_ABS_TOLERANCE,
+    FLOAT_REL_TOLERANCE,
+    assert_semantically_equivalent,
+)
 from tradingagents.backtesting.calendar import ExchangeSchedule
 from tradingagents.backtesting.execution import Broker
 from tradingagents.backtesting.models import Action, Order
@@ -30,6 +36,9 @@ from tradingagents.backtesting.portfolio import Portfolio
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs/m2"
+EXPECTED_SYNTHETIC_SANITY_SHA256 = (
+    "ee6a57e3113dbcf2ac09ef4a8aa7721cc5dab1c33d334f7c144d58187f707b1e"
+)
 SESSIONS = (
     "2023-10-09",
     "2023-10-10",
@@ -362,15 +371,44 @@ def test_drawdown_uses_post_execution_path_without_pre_trade_peak() -> None:
     assert maximum_drawdown((90.0, 100.0, 80.0, 120.0)) == pytest.approx(0.2)
 
 
-def test_synthetic_sanity_artifact_is_canonical_and_passes() -> None:
+def test_synthetic_sanity_frozen_artifact_sha_is_unchanged() -> None:
+    artifact = DOCS / "m2_reward_synthetic_sanity.json"
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == (
+        EXPECTED_SYNTHETIC_SANITY_SHA256
+    )
+
+
+def test_synthetic_sanity_regeneration_is_semantically_equivalent() -> None:
+    frozen = json.loads((DOCS / "m2_reward_synthetic_sanity.json").read_text())
     payload = synthetic_sanity_payload()
-    expected = (
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
-        + "\n"
-    ).encode()
-    assert (DOCS / "m2_reward_synthetic_sanity.json").read_bytes() == expected
+    assert_semantically_equivalent(payload, frozen)
     assert payload["all_passed"]
     assert payload["leaderboard"] is False
+
+
+def test_semantic_comparator_accepts_tiny_float_perturbation() -> None:
+    assert FLOAT_ABS_TOLERANCE == 1e-12
+    assert FLOAT_REL_TOLERANCE == 1e-12
+    assert_semantically_equivalent({"value": 1.0 + 5e-13}, {"value": 1.0})
+
+
+@pytest.mark.parametrize(
+    ("actual", "expected"),
+    [
+        ({"value": 1.0 + 1e-8}, {"value": 1.0}),
+        ({"action": "BUY"}, {"action": "SELL"}),
+        ({"scenario_id": "S1"}, {"scenario_id": "S2"}),
+        ({"pass": True}, {"pass": False}),
+        ({"assertions": ["same", "extra"]}, {"assertions": ["same"]}),
+        ({"value": float("nan")}, {"value": float("nan")}),
+        ({"value": float("inf")}, {"value": float("inf")}),
+    ],
+)
+def test_semantic_comparator_rejects_meaningful_or_structural_drift(
+    actual: object, expected: object
+) -> None:
+    with pytest.raises(AssertionError):
+        assert_semantically_equivalent(actual, expected)
 
 
 def test_machine_readable_contract_is_canonical_and_defers_selection() -> None:

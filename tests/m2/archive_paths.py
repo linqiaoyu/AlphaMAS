@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
+
+from tests.archive_roots import (
+    ExperimentsArchiveUnavailable,
+    resolve_experiments_root as resolve_generic_experiments_root,
+)
 
 EXPERIMENTS_ROOT_ENV = "ALPHAMAS_EXPERIMENTS_ROOT"
 REWARD_STUDY_RELATIVE_PATH = Path("experiments/M2/development/reward_study_v1")
@@ -99,25 +103,19 @@ def _validate_reward_study_root(study_root: Path) -> Path:
 
 def resolve_experiments_root(repository_root: Path) -> Path:
     """Resolve the AlphaMAS-Experiments root without network or regeneration."""
-    if EXPERIMENTS_ROOT_ENV in os.environ:
-        configured = Path(os.path.expandvars(os.environ[EXPERIMENTS_ROOT_ENV])).expanduser()
-        experiments_root = configured.resolve()
-        try:
-            _validate_reward_study_root(experiments_root / REWARD_STUDY_RELATIVE_PATH)
-        except ValueError as exc:
-            raise ValueError(
-                f"{EXPERIMENTS_ROOT_ENV} is explicitly set to an invalid "
-                f"AlphaMAS-Experiments root: {experiments_root}"
-            ) from exc
-        return experiments_root
-
-    experiments_root = repository_root.resolve().parent / "AlphaMAS-Experiments"
     try:
-        _validate_reward_study_root(experiments_root / REWARD_STUDY_RELATIVE_PATH)
-    except ValueError as exc:
+        experiments_root = resolve_generic_experiments_root(repository_root)
+    except ExperimentsArchiveUnavailable as exc:
         raise RewardStudyArchiveUnavailable(
             "M2 reward-study archive unavailable. Set ALPHAMAS_EXPERIMENTS_ROOT or "
             "provide a sibling AlphaMAS-Experiments checkout."
+        ) from exc
+    try:
+        _validate_reward_study_root(experiments_root / REWARD_STUDY_RELATIVE_PATH)
+    except ValueError as exc:
+        raise ValueError(
+            f"{EXPERIMENTS_ROOT_ENV} is explicitly set to an invalid "
+            f"AlphaMAS-Experiments root: {experiments_root}"
         ) from exc
     return experiments_root
 

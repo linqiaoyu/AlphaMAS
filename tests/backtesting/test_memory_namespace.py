@@ -5,6 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from tests.archive_roots import (
+    ExperimentsArchiveUnavailable,
+    resolve_experiments_root,
+)
 from tradingagents.agents.utils.memory_namespace import (
     experiment_memory_namespace_component,
     runtime_experiment_memory_path,
@@ -336,8 +340,13 @@ def test_validator_rejects_tampered_m1_namespace_provenance(tmp_path, field, val
 
 
 def test_preserved_failed_pilot_memory_archives_without_touching_fixture(tmp_path):
-    fixture = Path(
-        "/Users/yulinqiao/Desktop/AlphaMAS-Experiments/experiments/M1/pilot/runs/"
+    repository_root = Path(__file__).resolve().parents[2]
+    try:
+        experiments_root = resolve_experiments_root(repository_root)
+    except ExperimentsArchiveUnavailable as exc:
+        pytest.skip(str(exc))
+    fixture = experiments_root / (
+        "experiments/M1/pilot/runs/"
         "20260813T221516239387Z_7e765a73/provenance/memory/historical_memory/"
         "finmultitime-pilot-bd8dfafdbeb259fc/M1_pilot_aapl_2023q4_4w_v1/"
         f"{GRAPH_SHA}/{LINEAGE}/AAPL.md"
