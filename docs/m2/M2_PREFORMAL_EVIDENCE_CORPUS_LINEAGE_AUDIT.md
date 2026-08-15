@@ -72,21 +72,30 @@ delta did not alter any frozen research evidence.
 
 ## Protection, non-execution, and invariance
 
-Raw FinMultiTime accessed: **NO**  
+Raw FinMultiTime accessed: **NO**
+
 Raw FinMultiTime modified: **NO**
 
-Qwen inference calls: **0**  
-Qwen model loads: **0**  
-Qwen captions regenerated: **0**  
+Qwen inference calls: **0**
+
+Qwen model loads: **0**
+
+Qwen captions regenerated: **0**
+
 Qwen captions manually edited: **0**
 
-DeepSeek API calls: **0**  
-DeepSeek API cost: **¥0**  
+DeepSeek API calls: **0**
+
+DeepSeek API cost: **¥0**
+
 Agent executions: **0**
 
-AWS EC2 starts: **0**  
-AWS GPU hours: **0**  
-New AWS resources: **0**  
+AWS EC2 starts: **0**
+
+AWS GPU hours: **0**
+
+New AWS resources: **0**
+
 AWS incremental compute cost: **USD 0**
 
 FINAL_HOLDOUT outcomes, rewards, policy performance, and trading performance
@@ -95,7 +104,8 @@ The 96-case, COMPACT, STANDARD, and MAXIMUM memberships; packet and caption
 bytes; TEXT, TABLE, TIME_SERIES, and IMAGE evidence; PIT rules; Holdout
 protection; R1, R2, R3, selected reward; and Formal M1/M2 inputs are unchanged.
 
-Budget tier selected: **NO**  
+Budget tier selected: **NO**
+
 Status: **DEFERRED TO M2-07**
 
 ## Historical limitation and verdict
@@ -109,4 +119,3 @@ clean commit `3cef79b9536e4714cc5f532eada84f66fd6e8142` using frozen pre-Qwen
 inputs `a9d3c554a9eb0ecf401a2064d12d5fb901e55165` and the frozen Qwen captions
 from `6b2406f1e12e1988c27b44880a1e153a9b750c2e`. The frozen corpus remains
 authoritative and unchanged.**
-

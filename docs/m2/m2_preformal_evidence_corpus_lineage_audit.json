@@ -52,4 +52,3 @@
   "status": "PASS",
   "verdict": "Frozen corpus is byte-identically reproducible from clean 3cef79b9536e4714cc5f532eada84f66fd6e8142 using frozen pre-Qwen inputs and frozen Qwen captions; the frozen corpus remains authoritative and unchanged."
 }
-
