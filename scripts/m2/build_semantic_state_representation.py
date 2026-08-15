@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import platform
+import subprocess
 import sys
 import time
 from importlib import metadata
@@ -153,6 +154,20 @@ def package_version(name: str) -> str:
         return "NOT_INSTALLED"
 
 
+def nvidia_driver_version() -> str | None:
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.splitlines()[0].strip()
+
+
 def array_row_sha256(array: np.ndarray) -> list[str]:
     return [sha256_bytes(np.ascontiguousarray(row, dtype=np.float32).tobytes()) for row in array]
 
@@ -290,6 +305,7 @@ def main() -> int:
         "cuda_runtime": torch.version.cuda,
         "cuda_available": torch.cuda.is_available(),
         "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        "nvidia_driver": nvidia_driver_version(),
         "transformers": package_version("transformers"),
         "sentence_transformers": package_version("sentence-transformers"),
         "huggingface_hub": package_version("huggingface-hub"),

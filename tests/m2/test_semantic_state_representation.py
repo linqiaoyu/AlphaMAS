@@ -27,6 +27,7 @@ from tradingagents.backtesting.portfolio import Portfolio
 
 EXPERIMENTS = Path("/Users/yulinqiao/.local/share/alphamas/repos/AlphaMAS-Experiments")
 CORPUS = EXPERIMENTS / "experiments/M2/development/semantic_handoff_trainval_v1"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _actor_state(**metadata: object) -> dict[str, object]:
@@ -240,3 +241,22 @@ def test_loader_exposes_only_semantic_rows(tmp_path) -> None:
     assert store.shape == (72, 772)
     assert store.semantic_base(0).shape == (772,)
     assert not hasattr(store, "metadata")
+
+
+def test_machine_freeze_binds_final_archive_and_dimensions() -> None:
+    import json
+
+    freeze = json.loads(
+        (ROOT / "docs/m2/m2_semantic_state_representation_freeze.json").read_text()
+    )
+    assert freeze["schema_version"] == "M2-SEMANTIC-STATE-FREEZE-v1"
+    assert freeze["representation_archive_sha"] == (
+        "1a94fdd20c6c3c004cbe5c2340171e86922c49f7"
+    )
+    assert freeze["selected_dimension"] == 1024
+    assert freeze["semantic_base_dimension"] == 3076
+    assert freeze["actor_observation_dimension"] == 3080
+    assert freeze["selection_train_cases"] == 56
+    assert freeze["selection_validation_cases"] == 0
+    assert freeze["reward_used"] is False
+    assert freeze["final_holdout_used"] is False
