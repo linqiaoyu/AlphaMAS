@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "task_id": "M2-06",
+  "status": "FROZEN",
+  "starting_source_sha": "bc67a5cda93e08b40a97a37fd88feee9e16441b7",
+  "builder_source_sha": "791c88a7ba927cebe3713d893b8b111c5f54bde5",
+  "starting_experiments_sha": "3a8e63a9abe89a80787b68aabb9b3523453966fc",
+  "pre_qwen_inputs_commit": "a9d3c554a9eb0ecf401a2064d12d5fb901e55165",
+  "final_evidence_archive_commit": "6b2406f1e12e1988c27b44880a1e153a9b750c2e",
+  "case_counts": {
+    "TRAIN": 56,
+    "VALIDATION": 16,
+    "FINAL_HOLDOUT": 16,
+    "E2E_PILOT": 8,
+    "TOTAL": 96
+  },
+  "symbols": ["AAPL", "AEMD", "AGI", "AMZN", "ARR", "EML", "JBSS", "JPM"],
+  "compact_identity": {
+    "case_count": 72,
+    "canonical_case_list_sha256": "f35488ed0f910f73b11713bb7eadf00191f13f5e5b711b309dc879aca8075d62"
+  },
+  "standard_identity": {
+    "case_count": 80,
+    "canonical_case_list_sha256": "f1253ab0ed8e23d9ae5656fc4250d7dca63bd6f9342e2fd9a2d84eac8e377452"
+  },
+  "maximum_identity": {
+    "case_count": 96,
+    "canonical_case_list_sha256": "68fbc780cbb454f78d0ae719f91665737ed6e04928eba91f4c9c0530745d601f"
+  },
+  "budget_tier_selected": false,
+  "budget_tier_status": "DEFERRED TO M2-07",
+  "m1_evidence_contract_version": "M1-FINMULTITIME-v1.0.2",
+  "m1_evidence_rule_identity": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+  "qwen_model": "Qwen/Qwen3-VL-2B-Instruct",
+  "qwen_revision": "89644892e4d85e24eaac8bacfd4f463576704203",
+  "qwen_prompt_sha256": "284c6e52763796a47f7d30fd2e44cfe68d9211db6831d89ec5ed436920c34df9",
+  "qwen_schema_sha256": "bf8f04330ffb1bd8468b9bf01eb96bec6b35bb4bad29c8e3f1ad6c47cf0ca8e4",
+  "qwen_trained": false,
+  "qwen_fine_tuned": false,
+  "qwen_agent": false,
+  "qwen_experimental_variable": false,
+  "qwen_synthetic_compatibility": "PASS",
+  "unique_image_count": 14,
+  "reused_caption_count": 0,
+  "new_qwen_caption_count": 14,
+  "successful_qwen_calls": 14,
+  "case_level_repeated_qwen_calls": 0,
+  "manually_edited_captions": 0,
+  "packet_count": 96,
+  "preformal_evidence_corpus_identity_sha256": "3e9bb6e66fcd998c0b4deff30f7d5728c563126d3a1b976e21bbf034174e4420",
+  "pit_violations": 0,
+  "future_label_violations": 0,
+  "packet_bound_violations": 0,
+  "double_generation_deterministic": true,
+  "final_holdout_protected": true,
+  "raw_dataset_modified": false,
+  "deepseek_calls": 0,
+  "deepseek_cost_cny": 0,
+  "aws_incremental_cost_usd": 0.334,
+  "formal_2024h1_inputs_regenerated": false,
+  "m2_07_tier_selection_rule": "Measured DeepSeek API cost only; never returns, rewards, policy performance, or validation trading performance.",
+  "verdict": "PASS — M2 pre-Formal 96-case evidence corpus, source-integrity decisions and unique-image Qwen captions are frozen without DeepSeek or outcome leakage; ready for M2-07 semantic-state API-cost calibration and budget-tier selection"
+}

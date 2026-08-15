@@ -20,6 +20,7 @@ from scripts.m2.build_preformal_evidence_corpus import (
     build_packet,
     case_list_sha,
     load_plan,
+    _pit_violations,
 )
 from scripts.m2.run_preformal_qwen_batch import validate_environment
 
@@ -112,6 +113,8 @@ def test_packet_is_bounded_pit_safe_and_outcome_free() -> None:
     assert packet["TIME_SERIES"]["through_session"] == "2023-05-05"
     assert "future_return" not in rendered
     assert len(rendered) <= 22_000
+    normalized = {"case_id": packet["case_id"], "decision_session": packet["decision_session"], "sections": {name: packet[name] for name in ("TEXT", "TABLE", "TIME_SERIES", "IMAGE")}}
+    assert _pit_violations([normalized]) == []
 
 
 def test_packet_and_corpus_binding_inputs_are_deterministic() -> None:

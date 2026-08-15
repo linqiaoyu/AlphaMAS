@@ -647,13 +647,19 @@ def _pit_violations(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for case in cases:
         decision = date.fromisoformat(case["decision_session"])
         sections = case["sections"]
-        for record in sections["TEXT"]["selected_records"]:
-            if date.fromisoformat(record["date"]) >= decision:
+        text_records = sections["TEXT"].get("selected_records", sections["TEXT"].get("records", []))
+        for record in text_records:
+            available = record.get("date", record.get("article_date"))
+            if available and date.fromisoformat(available) >= decision:
                 violations.append({"case_id": case["case_id"], "modality": "TEXT"})
         for fact in sections["TABLE"]["facts"].values():
-            if fact and date.fromisoformat(fact["filed_date"]) >= decision:
+            if fact and fact.get("status") != "UNAVAILABLE" and date.fromisoformat(fact["filed_date"]) >= decision:
                 violations.append({"case_id": case["case_id"], "modality": "TABLE"})
-        if any(date.fromisoformat(value) > decision for value in sections["TIME_SERIES"]["selected_session_dates"]):
+        sessions = sections["TIME_SERIES"].get("selected_session_dates", [])
+        if any(date.fromisoformat(value) > decision for value in sessions):
+            violations.append({"case_id": case["case_id"], "modality": "TIME_SERIES"})
+        through = sections["TIME_SERIES"].get("through_session")
+        if through and date.fromisoformat(through) > decision:
             violations.append({"case_id": case["case_id"], "modality": "TIME_SERIES"})
         image = sections["IMAGE"]
         if image["status"] == "AVAILABLE" and date.fromisoformat(image["inferred_period_end"]) >= decision:

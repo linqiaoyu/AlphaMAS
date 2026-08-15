@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.m2.build_preformal_evidence_corpus import (
     EvidenceBuildError,
@@ -23,7 +28,7 @@ def audit(root: Path) -> dict[str, object]:
         packets = [read_json(path) for path in packet_paths]
         if len(packets) != 96:
             raise EvidenceBuildError("final archive does not contain 96 packets")
-        cases = [{"case_id": p["case_id"], "decision_session": p["decision_session"], "sections": {name: p[name] for name in ("TEXT", "TABLE", "TIME_SERIES", "IMAGE")}} for p in packets]
+        cases = packets
         forbidden = [{"case_id": p["case_id"], "paths": _walk_forbidden(p)} for p in packets]
         forbidden = [item for item in forbidden if item["paths"]]
     else:
