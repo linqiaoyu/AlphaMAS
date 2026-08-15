@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -33,6 +34,8 @@ SOURCE = Path("/Users/yulinqiao/.local/share/alphamas/repos/AlphaMAS-m2")
 EXPERIMENTS = Path("/Users/yulinqiao/.local/share/alphamas/repos/AlphaMAS-Experiments")
 CORPUS = EXPERIMENTS / "experiments/M2/development/preformal_evidence_v1"
 CALIBRATION = EXPERIMENTS / "experiments/M2/development/semantic_cost_calibration_v1"
+ARCHIVE = EXPERIMENTS / "experiments/M2/development/semantic_handoff_trainval_v1"
+FREEZE = SOURCE / "docs/m2/m2_semantic_handoff_trainval_freeze.json"
 
 
 def synthetic_inputs(role: str = "TRAIN"):
@@ -306,3 +309,37 @@ def test_canonical_serialisation_is_stable():
     assert sha256_bytes(canonical_json({"b": 1, "a": 2})) == sha256_bytes(
         canonical_json({"a": 2, "b": 1})
     )
+
+
+def test_committed_corpus_archive_is_exact_and_protected_roles_are_absent():
+    manifest = json.loads(
+        (ARCHIVE / "manifests/corpus_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["materialised_case_count"] == 72
+    assert manifest["train"] == 56
+    assert manifest["validation"] == 16
+    assert manifest["m2_07_reused"] == 6
+    assert manifest["m2_08_generated"] == 66
+    assert manifest["final_holdout"] == {"deferred": 16, "materialised": 0}
+    assert manifest["e2e_pilot"] == {"deferred": 8, "materialised": 0}
+    assert not (ARCHIVE / "cases/final_holdout").exists()
+    assert not (ARCHIVE / "cases/e2e_pilot").exists()
+
+
+def test_freeze_document_binds_committed_corpus_and_costs():
+    freeze = json.loads(FREEZE.read_text(encoding="utf-8"))
+    corpus = json.loads(
+        (ARCHIVE / "manifests/corpus_manifest.json").read_text(encoding="utf-8")
+    )
+    costs = json.loads(
+        (ARCHIVE / "manifests/cost_manifest.json").read_text(encoding="utf-8")
+    )
+    assert freeze["semantic_handoff_trainval_corpus_identity_sha256"] == corpus[
+        "semantic_handoff_trainval_corpus_identity_sha256"
+    ]
+    assert freeze["m2_08_actual_cost_cny"] == costs["m2_08_actual_cost_cny"]
+    assert freeze["deepseek_requests"] == costs["deepseek_requests"]
+    assert freeze["input_tokens"] == costs["input_tokens"]
+    assert freeze["output_tokens"] == costs["output_tokens"]
+    assert freeze["reward_used"] is False
+    assert freeze["performance_used"] is False
