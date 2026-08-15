@@ -1,0 +1,72 @@
+{
+  "actual_probe_spend_cny": "0.95720644",
+  "actor_selected": false,
+  "calibration_archive_sha": "123a0b412c91379a1c2279ca9e31a5c19743c40f",
+  "compact_projection": {
+    "case_count": 72,
+    "projected_semantic_generation_cost_cny": "12.04758244",
+    "projected_with_reserve_cny": "16.04758244",
+    "within_hard_50": true,
+    "within_target_40": true
+  },
+  "critic_selected": false,
+  "deepseek_model": "deepseek-v4-flash",
+  "final_holdout_used": false,
+  "guard_cost_per_case_cny": "0.16803600",
+  "hard_budget_cny": "50.00",
+  "maximum_projection": {
+    "case_count": 96,
+    "projected_semantic_generation_cost_cny": "16.08044644",
+    "projected_with_reserve_cny": "20.08044644",
+    "within_hard_50": true,
+    "within_target_40": true
+  },
+  "pricing_snapshot_identity": "f27fd57a4e63fa415f0e799b57a29b64bfae8a39ef85240ecddb36d88b4be9f3",
+  "probe_case_count": 6,
+  "probe_case_ids": [
+    "AAPL:2023-06-09",
+    "JBSS:2023-06-02",
+    "AEMD:2023-06-02",
+    "EML:2023-06-09",
+    "AGI:2023-06-02",
+    "AMZN:2023-06-02"
+  ],
+  "probe_inputs_sha": "2bf79ffce2dedf15e157f48a5e3727eef611d0e9",
+  "probe_selection_algorithm": {
+    "population": "role=TRAIN and in_compact=true",
+    "population_count": 32,
+    "positions_zero_based": [
+      0,
+      6,
+      12,
+      18,
+      24,
+      31
+    ],
+    "sort": [
+      "UTF-8 rendered Evidence Packet byte length ascending",
+      "case_id ascending"
+    ]
+  },
+  "reserve_cny": "4.00",
+  "runner_source_sha": "6d3c46b96b8935944e0f232b73020262d870d953",
+  "schema_version": "M2-PREFORMAL-API-COST-TIER-FREEZE-v1",
+  "selected_tier": "MAXIMUM",
+  "selected_tier_case_count": 96,
+  "selected_tier_identity": "68fbc780cbb454f78d0ae719f91665737ed6e04928eba91f4c9c0530745d601f",
+  "selection_uses_performance": false,
+  "semantic_encoder_selected": false,
+  "standard_projection": {
+    "case_count": 80,
+    "projected_semantic_generation_cost_cny": "13.39187044",
+    "projected_with_reserve_cny": "17.39187044",
+    "within_hard_50": true,
+    "within_target_40": true
+  },
+  "sunk_failed_cost_cny": "0",
+  "target_budget_cny": "40.00",
+  "task_id": "M2-07",
+  "temperature": 0,
+  "thinking": "disabled",
+  "validation_used_for_probe": false
+}
