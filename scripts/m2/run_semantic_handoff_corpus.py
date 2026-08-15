@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import time
 from collections import Counter
@@ -20,6 +21,9 @@ from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.m2.run_semantic_handoff_probe import (
     CORPUS_IDENTITY,
