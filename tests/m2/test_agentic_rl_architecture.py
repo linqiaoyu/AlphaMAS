@@ -21,6 +21,34 @@ def test_frozen_inheritance_and_method_boundaries() -> None:
     )
 
 
+def test_corrected_delayed_credit_method_freeze() -> None:
+    contract = json.loads(
+        (ROOT / "docs/m2/m2_agentic_rl_method_freeze.json").read_text()
+    )
+    assert contract["task_id"] == "M2-10A"
+    assert contract["superseded_method"] == "M2-PA-CTPPO-v1"
+    assert contract["method_id"] == "M2-PA-CTPPO-v2"
+    assert contract["tree_contract"] == "M2_TRAIN_COUNTERFACTUAL_TREE-v2"
+    assert contract["state_reward_time_decoupled"] is True
+    assert contract["bellman_bootstrap"] is False
+    assert contract["gamma"] is None
+    assert contract["gae"] is False
+    assert contract["nonterminal_transitions"] == 8736
+    assert contract["after_child_maturity_edges"] == 648
+    assert contract["trainable_parameters"] == 20197
+    assert contract["fast_parameters_per_symbol"] == 165
+    assert contract["validation_performance_used"] is False
+    assert contract["final_holdout_used"] is False
+
+
+def test_v2_source_has_no_bellman_r3_bootstrap() -> None:
+    method = (ROOT / "scripts/m2/pa_ctppo.py").read_text()
+    assert "GAMMA" not in method
+    assert "q_values" not in method
+    assert "rewards[node] +" not in method
+    assert "exact_local_credit_policy_evaluation" in method
+
+
 def test_no_production_graph_wiring_in_m2_10() -> None:
     setup = (ROOT / "tradingagents/graph/setup.py").read_text()
     assert "M2-PA-CTPPO-v1" not in setup
