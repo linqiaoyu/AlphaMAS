@@ -27,6 +27,7 @@ from scripts.m2.rl_environment import (
     simulate_transition,
 )
 from scripts.m2.semantic_state_representation import build_actor_observation
+from tradingagents.backtesting.calendar import ExchangeSchedule
 
 REPRESENTATION_IDENTITY = "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe"
 REWARD_ID = "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY"
@@ -95,10 +96,16 @@ def build_tree(
     noop_edges = 0
     split_events = 0
     dividend_events = 0
+    schedule = ExchangeSchedule()
 
     for symbol in TRAIN_SYMBOLS:
         market = load_market_snapshot(reward_study / f"inputs/market_snapshot/{symbol}.csv", symbol)
-        root_snapshot = initial_snapshot(symbol, TRAIN_SESSIONS[0], market[TRAIN_SESSIONS[0]].close_price)
+        root_snapshot = initial_snapshot(
+            symbol,
+            TRAIN_SESSIONS[0],
+            market[TRAIN_SESSIONS[0]].close_price,
+            schedule=schedule,
+        )
         queue = deque([((), SequentialPortfolioState(), root_snapshot)])
         while queue:
             history, state, snapshot = queue.popleft()
@@ -136,11 +143,11 @@ def build_tree(
                 }
             )
             depth_counts[depth] += 1
-            window = reward_window(symbol, decision_session, market)
+            window = reward_window(symbol, decision_session, market, schedule=schedule)
             split_events += int(any(bar.split_ratio for bar in window.bars))
             dividend_events += int(any(bar.dividend_per_share for bar in window.bars))
             for action in ACTIONS:
-                transition = simulate_transition(window, state, action)
+                transition = simulate_transition(window, state, action, schedule=schedule)
                 child_history = (*history, action)
                 terminal = depth == len(TRAIN_SESSIONS) - 1
                 child_id = _terminal_id(symbol, child_history) if terminal else _node_id(symbol, child_history)
