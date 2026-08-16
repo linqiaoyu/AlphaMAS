@@ -18,14 +18,21 @@ the shared experiment-Memory namespace still admitted only the legacy M1 `PILOT`
 continuing to reject every unknown scope. The store scope and packet bytes were not
 changed.
 
-After the eight official trajectories and ordinary run validation completed, final
+After eight candidate trajectories and ordinary run validation completed, final
 Memory publication exposed the same distinction at a second non-Graph consumer: the
 archiver derived its namespace from the unchanged legacy M1 `FORMAL` config fields
 instead of the evidence store actually selected for M2 E2E. A shared effective-Memory
 identity resolver now binds both final archiving and bundle validation to
 `M2_E2E_PILOT` plus the frozen M2 corpus identity while leaving
 `finmultitime_bundle_scope` and all Formal M2 semantics unchanged. The already-complete
-trajectories were preserved and were not rerun.
+candidate trajectories were preserved and were not rerun.
+
+The subsequent `AUDIT_ONLY` authority check found that six candidates preserved the
+frozen Trader handoff, but ARR and AEMD did not: in both cases the M2 Actor had overridden
+the Prompt Trader, then the downstream Portfolio Manager restored the original Prompt
+Trader action. Those two candidates are not correctness-valid and M2-14 remains blocked;
+no performance or protected outcome was inspected, and the cost ceiling forbids another
+corrective execution in this task.
 
 No Agent trajectory, DeepSeek request, decision artifact, research output, or protected
 evaluation access occurred before this correction. No packet, prompt, research method,
