@@ -172,6 +172,7 @@ class WeeklyBacktestEngine:
         if missing:
             raise ValueError(f"missing market sessions for {symbol}: {missing[:5]}")
         event_by_decision = {event.decision_session: event for event in events}
+        event_index = {event.decision_session: index for index, event in enumerate(events)}
         portfolio = Portfolio(symbol, self.initial_cash)
         broker = Broker(**self.broker_args)
         pending: Order | None = None
@@ -239,6 +240,21 @@ class WeeklyBacktestEngine:
                         "experiment_id": experiment_id,
                         "point_in_time": True,
                         "market_history_visibility": dict(visibility),
+                        "portfolio_reward_state": {
+                            "cash": portfolio.cash,
+                            "quantity": portfolio.quantity,
+                            "average_entry_price": portfolio.average_entry_price,
+                            "open_position_commission": portfolio.open_position_commission,
+                        },
+                        "next_decision_session": (
+                            events[event_index[session] + 1].decision_session
+                            if event_index[session] + 1 < len(events)
+                            and (
+                                max_decisions is None
+                                or event_index[session] + 1 < max_decisions
+                            )
+                            else None
+                        ),
                     },
                 )
                 # This is engine-owned provenance: overwrite any strategy-provided
@@ -271,6 +287,14 @@ class WeeklyBacktestEngine:
                 )
                 order_rows.append(pending.to_dict())
                 decision_rows[-1]["rebalance_status"] = "ordered"
+
+        finalize = getattr(strategy, "finalize_symbol", None)
+        if callable(finalize):
+            finalize(
+                symbol=symbol,
+                final_session=final_valuation_session,
+                market_history=data.loc[:pd.Timestamp(final_valuation_session)].copy(),
+            )
 
         decisions = pd.DataFrame(decision_rows)
         orders = pd.DataFrame(order_rows)

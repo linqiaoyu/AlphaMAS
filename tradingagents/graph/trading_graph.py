@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -35,8 +36,10 @@ from tradingagents.dataflows.config import set_config
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.evidence.finmultitime import FrozenFinMultiTimeEvidenceStore
+from tradingagents.evidence.m2_preformal import FrozenM2E2EEvidenceStore
 from tradingagents.llm_clients import create_llm_client
 from tradingagents.llm_clients.openai_client import validate_deepseek_thinking
+from tradingagents.m2.runtime import M2ProductionTraderRuntime
 from tradingagents.reporting import write_report_tree
 from tradingagents.runtime.run_context import (
     AuditTrail,
@@ -199,9 +202,22 @@ class TradingAgentsGraph:
 
         # M1 is an explicit opt-in.  Validation happens before any graph is
         # constructed so a configured M1 run can never silently degrade to M0.
-        self.finmultitime_evidence_store = (
-            FrozenFinMultiTimeEvidenceStore.from_config(self.config)
-            if self.config.get("finmultitime_evidence_enabled", False)
+        if self.config.get("m2_preformal_evidence_enabled", False):
+            self.finmultitime_evidence_store = FrozenM2E2EEvidenceStore.from_config(
+                self.config
+            )
+        elif self.config.get("finmultitime_evidence_enabled", False):
+            self.finmultitime_evidence_store = FrozenFinMultiTimeEvidenceStore.from_config(
+                self.config
+            )
+        else:
+            self.finmultitime_evidence_store = None
+
+        # M2 is a fail-closed explicit opt-in. Construction verifies the exact
+        # checkpoint before any Agent call; M0/M1 never import an encoder model.
+        self.m2_trader_runtime = (
+            M2ProductionTraderRuntime.from_config(self.config)
+            if self.config.get("m2_trader_enabled", False)
             else None
         )
 
@@ -246,6 +262,7 @@ class TradingAgentsGraph:
             self.tool_nodes,
             self.conditional_logic,
             self.finmultitime_evidence_store,
+            self.m2_trader_runtime,
         )
 
         self.propagator = Propagator(
@@ -642,6 +659,17 @@ class TradingAgentsGraph:
                 and getattr(self, "finmultitime_evidence_store", None) is not None
                 else ""
             ),
+            "m2_enabled=" + str(bool(self.config.get("m2_trader_enabled", False))),
+            "m2_variant=" + str(self.config.get("m2_variant", "")),
+            "m2_runtime_state=" + (
+                self.m2_trader_runtime.cache_identity_for_decision(
+                    str(ticker), str(trade_date)
+                )
+                if ticker is not None
+                and trade_date is not None
+                and getattr(self, "m2_trader_runtime", None) is not None
+                else ""
+            ),
         ])
 
     def _historical_memory_config(self, ticker: str, context: RunContext) -> dict[str, Any]:
@@ -726,6 +754,9 @@ class TradingAgentsGraph:
         mode: str = "live",
         historical_as_of=None,
         run_context: RunContext | None = None,
+        portfolio_snapshot: Mapping[str, Any] | None = None,
+        portfolio_reward_state: Mapping[str, Any] | None = None,
+        next_decision_session: str | None = None,
     ):
         """Run the trading agents graph for a company on a specific date.
 
@@ -802,7 +833,14 @@ class TradingAgentsGraph:
                         logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
                 try:
-                    return self._run_graph(company_name, trade_date, asset_type=asset_type)
+                    return self._run_graph(
+                        company_name,
+                        trade_date,
+                        asset_type=asset_type,
+                        portfolio_snapshot=portfolio_snapshot,
+                        portfolio_reward_state=portfolio_reward_state,
+                        next_decision_session=next_decision_session,
+                    )
                 finally:
                     if self._checkpointer_ctx is not None:
                         self._checkpointer_ctx.__exit__(None, None, None)
@@ -828,7 +866,16 @@ class TradingAgentsGraph:
             )
         return write_report_tree(final_state, ticker, save_path)
 
-    def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
+    def _run_graph(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        *,
+        portfolio_snapshot: Mapping[str, Any] | None = None,
+        portfolio_reward_state: Mapping[str, Any] | None = None,
+        next_decision_session: str | None = None,
+    ):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
@@ -841,6 +888,13 @@ class TradingAgentsGraph:
             past_context=past_context,
             instrument_context=instrument_context,
             run_context=current_run_context(),
+            m2_portfolio_snapshot=(
+                dict(portfolio_snapshot) if portfolio_snapshot is not None else None
+            ),
+            m2_portfolio_reward_state=(
+                dict(portfolio_reward_state) if portfolio_reward_state is not None else None
+            ),
+            m2_next_decision_session=next_decision_session,
         )
         args = self.propagator.get_graph_args()
 
@@ -919,6 +973,15 @@ class TradingAgentsGraph:
                 ],
             },
             "trader_investment_decision": final_state["trader_investment_plan"],
+            "prompt_trader_proposal_original": final_state.get(
+                "prompt_trader_proposal_original", ""
+            ),
+            "prompt_trader_action": final_state.get("prompt_trader_action", ""),
+            "m2_rl_action": final_state.get("m2_rl_action", ""),
+            "m2_override": final_state.get("m2_override", False),
+            "m2_trader_handoff_metadata": final_state.get(
+                "m2_trader_handoff_metadata", {}
+            ),
             "risk_debate_state": {
                 "aggressive_history": final_state["risk_debate_state"]["aggressive_history"],
                 "conservative_history": final_state["risk_debate_state"]["conservative_history"],

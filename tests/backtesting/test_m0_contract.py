@@ -207,7 +207,14 @@ def test_finmultitime_input_root_is_propagated_but_not_research_identity(
         "finmultitime_input_root": Path("/machine/b/identical-inputs"),
     }
 
-    assert GRAPH_OPERATIONAL_KEYS == ("finmultitime_input_root",)
+    assert GRAPH_OPERATIONAL_KEYS == (
+        "finmultitime_input_root",
+        "m2_checkpoint_path",
+        "m2_encoder_snapshot_path",
+        "m2_encoder_snapshot_manifest_path",
+        "m2_state_root",
+        "m2_preformal_evidence_root",
+    )
     assert graph["finmultitime_input_root"] == Path("/tmp/example/pilot")
     assert compute_graph_config_sha256(graph) == compute_graph_config_sha256(relocated)
 

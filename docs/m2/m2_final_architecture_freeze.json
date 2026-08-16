@@ -1,0 +1,120 @@
+{
+  "schema_version": "M2-FINAL-ARCHITECTURE-FREEZE-v1",
+  "task_id": "M2-14",
+  "status": "FROZEN_BEFORE_E2E_PILOT",
+  "architecture_id": "M2-FINAL-ARCHITECTURE-v1",
+  "architecture_identity_sha256": "35c5a46616f654ce70b0badc01cd59fb0afd433dcdcd99e5e0b8f2419ec4d153",
+  "identity_payload": {
+    "architecture_id": "M2-FINAL-ARCHITECTURE-v1",
+    "c09": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "integration": "PROMPT_TRADER_THEN_LOCAL_ACTOR_THEN_RISK",
+    "m1_input_bundle": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+    "m2_08": "cc1fea692489a5b5791cae1fd96386bfbcf1f0a07f2ea3e22637dd3c43533a43",
+    "method": "M2-PA-CTPPO-v2",
+    "online": "O08",
+    "representation": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "reward": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+    "schema": "M2-14-PRODUCTION-TRADER-STATE-v1"
+  },
+  "starting_lineage": {
+    "source_sha": "512e3d5657294d3357afcd15c3dba2fee8791de1",
+    "experiments_sha": "902d561d4acf85e62a3b94435c693896c39e3e4c"
+  },
+  "m1_information_layer": {
+    "formal_m1_source_sha": "ac0d1b006d8019748702fda38399a4316befb9b0",
+    "contract_version": "M1-FINMULTITIME-v1.0.2",
+    "contract_sha256": "46f6a05f12a7c402936178748c55dab099c8754d99fa1a0c41faf525cd37ae08",
+    "formal_input_bundle_identity": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+    "changed": false
+  },
+  "semantic_layer": {
+    "m2_08_corpus_identity": "cc1fea692489a5b5791cae1fd96386bfbcf1f0a07f2ea3e22637dd3c43533a43",
+    "encoder_repo": "Qwen/Qwen3-Embedding-0.6B",
+    "encoder_revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "encoder_snapshot_identity": "1d7b1bddebe83694815066f5254c5b0c7a1d05febd4e2b9e2120f2ec3fe3c018",
+    "encoder_environment_identity": "89ef97b30e703f8d67d4510d269083d9aea568e4230040d92a454c6cf40ca892",
+    "representation_identity": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "selected_dimension": 1024,
+    "semantic_base_dimension": 3076,
+    "actor_observation_dimension": 3080,
+    "text_composition": ["verbatim Research Manager investment_plan", "verbatim complete Prompt Trader rendered proposal"],
+    "direct_metadata_features": false,
+    "encoder_trainable": false
+  },
+  "global_rl": {
+    "method_id": "M2-PA-CTPPO-v2",
+    "train_tree_identity": "ff5e1bf21ef90b9eeec96d257c59e83656957f32ec4d2f94396a0a5d4bf1db13",
+    "reward_identity": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+    "selected_candidate": "C09",
+    "parameter_sha256": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "actor_parameter_sha256": "5af9a28baaf2dc25687e65a7bf8bbefb047fa1a9664b05257bfbf78d2ac5b14d",
+    "critic_parameter_sha256": "e55f942699d47eeab16d92b8ad3ff7277306239a8d1ba7d542f14080c86d5416",
+    "model_file_sha256": "56dc52128e1df9c9ddcf79fa6f7b293393bd61306ba4ef032f96cad6bf92126c",
+    "parameter_count": 20197,
+    "actor_architecture": "shared Linear(1024,16,bias=False) semantic adapter; Linear(56,32) actor trunk; Linear(32,3) bounded residual head; Linear(32,1) gate head",
+    "critic_architecture": "shared semantic adapter; independent Linear(56,32) critic trunk; Linear(32,1) value head",
+    "ppo_clip": 0.2,
+    "value_loss_coefficient": 0.5,
+    "prompt_prior": {"selected_action_probability": 0.6666666666666666, "alternative_action_probability": 0.16666666666666666},
+    "prompt_anchoring": true,
+    "counterfactual_local_credit": true,
+    "bellman_bootstrap": false
+  },
+  "online_adaptation": {
+    "selected_candidate": "O08",
+    "learning_rate": 0.001,
+    "update_epochs_per_matured_credit": 2,
+    "optimiser": "AdamW",
+    "weight_decay": 0.0001,
+    "gradient_clip": 0.5,
+    "seed": 20260816,
+    "fast_parameter_count_per_symbol": 165,
+    "fast_parameter_names": ["residual_head.weight", "residual_head.bias", "gate_head.weight", "gate_head.bias", "value_head.weight", "value_head.bias"],
+    "global_backbone_mutation": false,
+    "per_symbol_optimiser_state": "PERSISTENT_AND_ISOLATED"
+  },
+  "portfolio_state": {
+    "features": ["is_cash", "is_long", "entry_log_return", "current_drawdown"],
+    "source": "actual portfolio snapshot at the current PIT-safe decision close",
+    "future_inputs": false
+  },
+  "credit_chronology": {
+    "lifecycle": ["PENDING", "MATURED", "APPLIED"],
+    "terminal_status": "ARCHIVED",
+    "same_close_order": ["issue and persist current action", "mature older credit", "apply only for later decisions"],
+    "duplicate_application": false,
+    "retroactive_action_change": false,
+    "terminal_post_horizon_update": false
+  },
+  "safe_resume": {
+    "schema_version": "M2-14-PRODUCTION-TRADER-STATE-v1",
+    "atomic_replace": true,
+    "state_identity": "SHA256 of canonical JSON payload",
+    "per_symbol_fields": ["fast tensors", "AdamW moments", "pending/matured/applied/archived credits", "applied event IDs", "issued actions", "next expected decision session", "checkpoint identities", "architecture identities"],
+    "valid_same_lineage_checkpoint_reused": true,
+    "automatic_restart_from_c09_when_checkpoint_exists": false
+  },
+  "trader_integration": {
+    "flow": ["Analysts", "Research Debate", "Research Manager", "Prompt Trader", "M2 semantic construction", "C09 Actor plus symbol fast state", "authoritative M2 Trader handoff", "Risk Debate", "Portfolio Manager", "execution/backtester"],
+    "prompt_trader_changed": false,
+    "integration_point": "after complete Prompt Trader proposal and before Aggressive Risk Analyst",
+    "second_llm_rewrite": false,
+    "original_prompt_proposal_preserved": true,
+    "authoritative_action_parser": "M2 AUTHORITATIVE TRADER ACTION only",
+    "rl_is_portfolio_executor": false
+  },
+  "invariance": {
+    "risk_debate": "UNCHANGED",
+    "portfolio_manager": "UNCHANGED",
+    "execution": "UNCHANGED",
+    "backtester": "UNCHANGED",
+    "commission_bps": 5,
+    "slippage_bps": 5,
+    "next_session_open": true,
+    "long_only": true,
+    "leverage": false,
+    "formal_protocol": "UNCHANGED EXCEPT TRADER-ONLY M2 INSERTION"
+  },
+  "change_control": "Architecture changes after this freeze are forbidden except a separately documented demonstrated correctness bug. Pilot performance is not a correctness bug.",
+  "protected_status_at_freeze": {"final_holdout_agent_executions": 0, "final_holdout_outcome_inspected": false, "formal_2024h1_agent_executions": 0, "formal_results_inspected": false}
+}

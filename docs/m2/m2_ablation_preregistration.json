@@ -1,0 +1,46 @@
+{
+  "schema_version": "M2-ABLATION-PREREGISTRATION-v1",
+  "task_id": "M2-14",
+  "status": "PREREGISTERED_BEFORE_E2E_PILOT",
+  "preregistration_identity_sha256": "e7e2cc8520f9033e57c442b04c882baffd7c51b497bbc9495b71098f64a83b0e",
+  "identity_payload": {
+    "A1": "A1_NO_ONLINE_ADAPTATION",
+    "A1_checkpoint": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "A2": "A2_NO_GLOBAL_PRETRAINING",
+    "A2_checkpoint": "60a0fec7b69ef2d0576a9c0894be09c377d573585db827c162279fb27483303e",
+    "architecture_id": "35c5a46616f654ce70b0badc01cd59fb0afd433dcdcd99e5e0b8f2419ec4d153",
+    "o08": [0.001, 2, 0.0001, 0.5],
+    "preregistration_id": "M2-ABLATION-PREREGISTRATION-v1"
+  },
+  "selection_basis": "frozen architecture only",
+  "pilot_performance_used": false,
+  "formal_performance_used": false,
+  "branches_modified": false,
+  "branch_synchronisation_deferred_to": "M2-16",
+  "ablations": {
+    "A1_NO_ONLINE_ADAPTATION": {
+      "removed_mechanism": "delayed per-symbol online fast-parameter adaptation",
+      "global_initialisation": "C09",
+      "global_parameter_sha256": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+      "matured_credit_behavior": "record and score/archive; never update parameters",
+      "online_parameter_updates": false,
+      "preserved": ["complete final M2 architecture", "semantic encoder and state", "Prompt anchoring and prior", "Actor/Critic architecture", "R3", "Risk Debate", "Portfolio Manager", "execution", "M1 information", "Formal settings"],
+      "estimand": "marginal contribution of delayed online adaptation"
+    },
+    "A2_NO_GLOBAL_PRETRAINING": {
+      "removed_mechanism": "global TRAIN-only PA-CTPPO-v2 pretraining",
+      "global_initialisation": "exact frozen M2-11 initial model",
+      "initial_parameter_sha256": "60a0fec7b69ef2d0576a9c0894be09c377d573585db827c162279fb27483303e",
+      "initial_model_file_sha256": "4d65dd2c1563b144aee8e79878171feb1ecd990a8bd8e2c584547eaa3a546c9f",
+      "online_candidate": "O08",
+      "online_learning_rate": 0.001,
+      "online_update_epochs": 2,
+      "optimiser": "AdamW",
+      "weight_decay": 0.0001,
+      "gradient_clip": 0.5,
+      "retuned": false,
+      "preserved": ["architecture", "Prompt anchoring and prior", "semantic representation", "R3", "fast-parameter boundary", "delayed-credit lifecycle", "Risk Debate", "Portfolio Manager", "execution", "information environment"],
+      "estimand": "marginal contribution of global TRAIN-only PA-CTPPO-v2 pretraining"
+    }
+  }
+}

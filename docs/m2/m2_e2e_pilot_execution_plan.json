@@ -1,0 +1,20 @@
+{
+  "schema_version": "M2-E2E-PILOT-EXECUTION-PLAN-v1",
+  "task_id": "M2-14",
+  "status": "FROZEN_BEFORE_PAID_EXECUTION",
+  "purpose": "integration and correctness validation only",
+  "architecture_identity": "35c5a46616f654ce70b0badc01cd59fb0afd433dcdcd99e5e0b8f2419ec4d153",
+  "ablation_preregistration_identity": "e7e2cc8520f9033e57c442b04c882baffd7c51b497bbc9495b71098f64a83b0e",
+  "cases": ["AAPL:2023-10-06", "AMZN:2023-10-06", "JPM:2023-10-06", "JBSS:2023-10-06", "EML:2023-10-06", "AGI:2023-10-06", "ARR:2023-10-06", "AEMD:2023-10-06"],
+  "case_count": 8,
+  "evidence_corpus_identity": "3e9bb6e66fcd998c0b4deff30f7d5728c563126d3a1b976e21bbf034174e4420",
+  "model": {"provider": "deepseek", "quick": "deepseek-v4-flash", "deep": "deepseek-v4-flash", "thinking": "disabled", "temperature": 0.0},
+  "research": {"depth": "medium", "debate_rounds": 3, "risk_rounds": 3, "analysts": ["market", "social", "news", "fundamentals"], "language": "English"},
+  "execution": {"first_complete_correctness_valid_trajectory_is_official": true, "performance_reruns": false, "next_session_open": true, "commission_bps": 5, "slippage_bps": 5, "one_decision_per_symbol": true, "terminal_credit": "score/archive without update"},
+  "audit_replay": {"additional_deepseek_calls": 0, "uses_recorded_llm_outputs": true, "may_replace_official_trajectory": false},
+  "cost_guards": {"deepseek_cny_hard_ceiling": 10, "aws_incremental_usd_hard_ceiling": 3, "conservative_projection_required_before_first_paid_case": true},
+  "aws": {"region": "eu-west-2", "instance_type": "g5.xlarge", "gpu": "NVIDIA A10G", "reuse_existing_instance": true, "exact_detached_source_sha": true, "auto_stop_required": true, "final_state": "STOPPED"},
+  "qwen3_vl_inference_calls": 0,
+  "protected": {"final_holdout_agent_execution": 0, "final_holdout_outcome_inspection": false, "formal_2024h1_agent_execution": 0, "formal_result_inspection": false},
+  "stop_on_correctness_defect": true
+}

@@ -24,6 +24,9 @@ class Propagator:
         past_context: str = "",
         instrument_context: str = "",
         run_context: RunContext | None = None,
+        m2_portfolio_snapshot: dict[str, Any] | None = None,
+        m2_portfolio_reward_state: dict[str, Any] | None = None,
+        m2_next_decision_session: str | None = None,
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -43,6 +46,14 @@ class Propagator:
             "historical_as_of": run_context.historical_as_of if run_context else None,
             "generated_at": run_context.generated_at.isoformat() if run_context else None,
             "past_context": past_context,
+            "prompt_trader_proposal_original": "",
+            "prompt_trader_action": "",
+            "m2_rl_action": "",
+            "m2_override": False,
+            "m2_trader_handoff_metadata": {},
+            "m2_portfolio_snapshot": m2_portfolio_snapshot or {},
+            "m2_portfolio_reward_state": m2_portfolio_reward_state or {},
+            "m2_next_decision_session": m2_next_decision_session,
             "investment_debate_state": InvestDebateState(
                 {
                     "bull_history": "",

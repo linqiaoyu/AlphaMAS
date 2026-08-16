@@ -151,6 +151,27 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "finmultitime_expected_input_bundle_identity": DEFAULT_FINMULTITIME_INPUT_BUNDLE_IDENTITY,
     "finmultitime_archive_commit": DEFAULT_FINMULTITIME_ARCHIVE_COMMIT,
     "finmultitime_verify_full_bundle_on_start": True,
+    # Frozen M2 Trader policy. Disabled preserves the exact M0/M1 graph. Paths
+    # are operational mounts; identities and variant are research-affecting.
+    "m2_trader_enabled": False,
+    "m2_variant": "FULL_M2",
+    "m2_method_id": "M2-PA-CTPPO-v2",
+    "m2_representation_identity": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "m2_checkpoint_parameter_identity": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "m2_checkpoint_file_identity": "56dc52128e1df9c9ddcf79fa6f7b293393bd61306ba4ef032f96cad6bf92126c",
+    "m2_online_candidate_id": "O08",
+    "m2_online_learning_rate": 1e-3,
+    "m2_online_update_epochs": 2,
+    "m2_online_weight_decay": 1e-4,
+    "m2_online_gradient_clip": 0.5,
+    "m2_checkpoint_path": None,
+    "m2_encoder_snapshot_path": None,
+    "m2_encoder_snapshot_manifest_path": None,
+    "m2_state_root": None,
+    "m2_preformal_evidence_enabled": False,
+    "m2_preformal_evidence_identity": "3e9bb6e66fcd998c0b4deff30f7d5728c563126d3a1b976e21bbf034174e4420",
+    "m2_preformal_evidence_role": "E2E_PILOT",
+    "m2_preformal_evidence_root": None,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",

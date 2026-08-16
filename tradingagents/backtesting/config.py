@@ -10,6 +10,23 @@ from typing import Any
 
 RESEARCH_DEPTH_ROUNDS = {"shallow": 1, "medium": 3, "deep": 5}
 
+M2_GRAPH_KEYS = {
+    "m2_trader_enabled",
+    "m2_variant",
+    "m2_method_id",
+    "m2_representation_identity",
+    "m2_checkpoint_parameter_identity",
+    "m2_checkpoint_file_identity",
+    "m2_online_candidate_id",
+    "m2_online_learning_rate",
+    "m2_online_update_epochs",
+    "m2_online_weight_decay",
+    "m2_online_gradient_clip",
+    "m2_preformal_evidence_enabled",
+    "m2_preformal_evidence_identity",
+    "m2_preformal_evidence_role",
+}
+
 # Values supported by the first weekly engine. They remain explicit in the
 # experiment preset, but are validated instead of pretending unsupported
 # shorting, leverage, sizing, or liquidation policies already exist.
@@ -113,6 +130,25 @@ FORMAL_M1_CONTRACT = {
     "finmultitime_verify_full_bundle_on_start": True,
 }
 
+FORMAL_M2_CONTRACT = {
+    **FORMAL_M1_CONTRACT,
+    "experiment_id_template": "M2_agentic_rl_2024H1",
+    "m2_trader_enabled": True,
+    "m2_variant": "FULL_M2",
+    "m2_method_id": "M2-PA-CTPPO-v2",
+    "m2_representation_identity": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "m2_checkpoint_parameter_identity": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "m2_checkpoint_file_identity": "56dc52128e1df9c9ddcf79fa6f7b293393bd61306ba4ef032f96cad6bf92126c",
+    "m2_online_candidate_id": "O08",
+    "m2_online_learning_rate": 1e-3,
+    "m2_online_update_epochs": 2,
+    "m2_online_weight_decay": 1e-4,
+    "m2_online_gradient_clip": 0.5,
+    "m2_preformal_evidence_enabled": False,
+    "m2_preformal_evidence_identity": "3e9bb6e66fcd998c0b4deff30f7d5728c563126d3a1b976e21bbf034174e4420",
+    "m2_preformal_evidence_role": "E2E_PILOT",
+}
+
 # Every mutable default that can affect graph output is copied into the formal
 # preset and overlaid explicitly when constructing the graph. Operational paths
 # are supplied separately and are intentionally excluded from the stable hash.
@@ -156,6 +192,19 @@ GRAPH_RESEARCH_KEYS = (
     "finmultitime_bundle_scope",
     "finmultitime_archive_commit",
     "finmultitime_verify_full_bundle_on_start",
+    # M2 Trader-only intervention. Operational model/state mount paths are
+    # excluded from the stable graph hash below.
+    "m2_trader_enabled",
+    "m2_variant",
+    "m2_method_id",
+    "m2_representation_identity",
+    "m2_checkpoint_parameter_identity",
+    "m2_checkpoint_file_identity",
+    "m2_online_candidate_id",
+    "m2_online_learning_rate",
+    "m2_online_update_epochs",
+    "m2_online_weight_decay",
+    "m2_online_gradient_clip",
 )
 
 # Runtime values that must follow a backtest config into the Graph without
@@ -163,6 +212,11 @@ GRAPH_RESEARCH_KEYS = (
 # mounted at different absolute paths on different machines.
 GRAPH_OPERATIONAL_KEYS = (
     "finmultitime_input_root",
+    "m2_checkpoint_path",
+    "m2_encoder_snapshot_path",
+    "m2_encoder_snapshot_manifest_path",
+    "m2_state_root",
+    "m2_preformal_evidence_root",
 )
 
 GRAPH_HASH_EXCLUDED_KEYS = frozenset({
@@ -176,6 +230,11 @@ GRAPH_HASH_EXCLUDED_KEYS = frozenset({
     "historical_memory_lineage_id",
     "historical_audit_path",
     "finmultitime_input_root",
+    "m2_checkpoint_path",
+    "m2_encoder_snapshot_path",
+    "m2_encoder_snapshot_manifest_path",
+    "m2_state_root",
+    "m2_preformal_evidence_root",
 })
 
 _SECRET_KEYS = frozenset({
@@ -243,6 +302,7 @@ def validate_formal_m0_config(config: dict[str, Any]) -> None:
         "finmultitime_bundle_scope",
         "finmultitime_archive_commit",
         "finmultitime_verify_full_bundle_on_start",
+        *M2_GRAPH_KEYS,
     }
     missing_graph = [
         key for key in GRAPH_RESEARCH_KEYS
@@ -273,6 +333,7 @@ def validate_formal_m1_config(config: dict[str, Any]) -> None:
     derived_graph_keys = {
         "memory_holding_horizon_sessions",
         "execution_data_source",
+        *M2_GRAPH_KEYS,
     }
     missing_graph = [
         key for key in GRAPH_RESEARCH_KEYS
@@ -280,6 +341,35 @@ def validate_formal_m1_config(config: dict[str, Any]) -> None:
     ]
     if missing_graph:
         raise ValueError(f"formal M1 config leaves graph defaults implicit: {missing_graph}")
+    validate_fixed_backtest_contract(config)
+
+
+def validate_formal_m2_config(config: dict[str, Any]) -> None:
+    """Fail if the final frozen Formal M2 protocol is incomplete or changed."""
+
+    missing = [key for key in FORMAL_M2_CONTRACT if key not in config]
+    if missing:
+        raise ValueError(f"formal M2 config is missing required fields: {missing}")
+    unexpected = sorted(set(config) - set(FORMAL_M2_CONTRACT))
+    if unexpected:
+        raise ValueError(f"formal M2 config has unexpected fields: {unexpected}")
+    mismatches = {
+        key: {"expected": expected, "actual": config[key]}
+        for key, expected in FORMAL_M2_CONTRACT.items()
+        if not _contract_equal(config[key], expected)
+    }
+    if mismatches:
+        raise ValueError(f"formal M2 config contract mismatch: {mismatches}")
+    if resolve_research_rounds(config["research_depth"]) != 3:
+        raise ValueError("formal M2 medium research depth must resolve to 3 rounds")
+    missing_graph = [
+        key
+        for key in GRAPH_RESEARCH_KEYS
+        if key not in {"memory_holding_horizon_sessions", "execution_data_source"}
+        and key not in config
+    ]
+    if missing_graph:
+        raise ValueError(f"formal M2 config leaves graph defaults implicit: {missing_graph}")
     validate_fixed_backtest_contract(config)
 
 

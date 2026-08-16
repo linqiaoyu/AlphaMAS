@@ -205,9 +205,8 @@ class TradingAgentsStrategy(BaseStrategy):
         }
         graph_config = getattr(self.graph, "config", {})
         finmultitime_store = getattr(self.graph, "finmultitime_evidence_store", None)
-        finmultitime_enabled = bool(
-            graph_config.get("finmultitime_evidence_enabled", False)
-        )
+        finmultitime_enabled = finmultitime_store is not None
+        m2_runtime = getattr(self.graph, "m2_trader_runtime", None)
         finmultitime_case = None
         if finmultitime_store is not None:
             decision_session = kwargs.get("decision_session")
@@ -278,6 +277,14 @@ class TradingAgentsStrategy(BaseStrategy):
             # the attempt, including prior symbols. A repaired failed point
             # therefore invalidates every obsolete downstream cache entry.
             "decision_prefix_sha256": self.chronology.prefix_sha256,
+            "m2_trader_enabled": bool(graph_config.get("m2_trader_enabled", False)),
+            "m2_variant": graph_config.get("m2_variant"),
+            "m2_runtime_state_identity": (
+                m2_runtime.cache_identity_for_decision(
+                    kwargs["symbol"], kwargs["decision_session"]
+                )
+                if m2_runtime is not None else None
+            ),
         }
 
     def _capture_memory(
@@ -422,7 +429,12 @@ class TradingAgentsStrategy(BaseStrategy):
                 "historical_memory_lineage_id"
             ),
         )
-        if self.cache and not self.force:
+        m2_runtime = getattr(self.graph, "m2_trader_runtime", None)
+        m2_cache_ready = (
+            m2_runtime is None
+            or m2_runtime.decision_is_persisted(symbol, session)
+        )
+        if self.cache and not self.force and m2_cache_ready:
             bundle = self.cache.load_bundle(
                 key,
                 require_artifacts=case_dir is not None,
@@ -487,7 +499,13 @@ class TradingAgentsStrategy(BaseStrategy):
         try:
             memory_snapshot = self._capture_memory(symbol, run_context)
             final_state, processed = self.graph.propagate(
-                symbol, session, mode="historical", run_context=run_context,
+                symbol,
+                session,
+                mode="historical",
+                run_context=run_context,
+                portfolio_snapshot=kwargs["portfolio_snapshot"].to_dict(),
+                portfolio_reward_state=context.get("portfolio_reward_state"),
+                next_decision_session=context.get("next_decision_session"),
             )
             if case_dir is not None:
                 report_dir = case_dir / "reports"
@@ -513,6 +531,23 @@ class TradingAgentsStrategy(BaseStrategy):
                     "decision_prefix_sha256"
                 ],
             }
+            m2_runtime = getattr(self.graph, "m2_trader_runtime", None)
+            if m2_runtime is not None:
+                maturity_events = m2_runtime.mature_visible(
+                    symbol,
+                    visible_market_history=kwargs["market_history"],
+                    cutoff_session=session,
+                    allow_update_for_later_decision=bool(
+                        context.get("next_decision_session")
+                    ),
+                )
+                metadata["m2_trader_handoff"] = final_state.get(
+                    "m2_trader_handoff_metadata", {}
+                )
+                metadata["m2_prompt_trader_proposal_original"] = final_state.get(
+                    "prompt_trader_proposal_original", ""
+                )
+                metadata["m2_maturity_events_after_action"] = maturity_events
             decision = self._decision(
                 action, reason="TradingAgents structured decision", metadata=metadata, **kwargs
             )
@@ -571,3 +606,22 @@ class TradingAgentsStrategy(BaseStrategy):
                 wall_clock_seconds=elapsed, run_context=run_context,
             )
             return decision
+
+    def finalize_symbol(
+        self,
+        *,
+        symbol: str,
+        final_session: str,
+        market_history: pd.DataFrame,
+    ) -> list[dict[str, Any]]:
+        """Score/archive terminal M2 credits without a post-horizon update."""
+
+        runtime = getattr(self.graph, "m2_trader_runtime", None)
+        if runtime is None:
+            return []
+        return runtime.mature_visible(
+            symbol,
+            visible_market_history=market_history,
+            cutoff_session=final_session,
+            allow_update_for_later_decision=False,
+        )
