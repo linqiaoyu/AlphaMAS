@@ -1,0 +1,91 @@
+{
+  "schema_version": "M2-TRADER-PORTFOLIO-AUTHORITY-ERRATUM-v1",
+  "task_id": "M2-14-Resolution",
+  "created_at_utc": "2026-08-16T14:30:17Z",
+  "classification": "AUDIT_SEMANTICS_CORRECTION",
+  "architecture_change": false,
+  "architecture_identity_sha256": "35c5a46616f654ce70b0badc01cd59fb0afd433dcdcd99e5e0b8f2419ec4d153",
+  "historical_audit": {
+    "path": "AlphaMAS-Experiments/experiments/M2/development/e2e_pilot_v1/retry3_blocked_audit.json",
+    "sha256": "72507326754207b95e565e28cd0fb6b1a1adc4beda4c405806b6d502cf3cacb0",
+    "bytes_modified": false,
+    "status": "HISTORICAL_SUPERSEDED_INTERPRETATION"
+  },
+  "superseded_criterion": "m2_override && final_action == prompt_action && final_action != m2_rl_action implies silent Prompt restoration",
+  "authority_contract": {
+    "m2_actor_is_direct_portfolio_executor": false,
+    "portfolio_manager_remains_final_policy_decision": true,
+    "portfolio_manager_may_differ_from_m2_trader_action": true,
+    "m2_actor_authority": "TRADER_SLOT_HANDOFF_ONLY",
+    "execution_authority": "NORMALIZED_PORTFOLIO_MANAGER_FINAL_DECISION"
+  },
+  "corrected_silent_restoration_definition": {
+    "post_m2_handoff_replaced_by_prompt_only_text": "FAIL",
+    "risk_input_differs_from_m2_handoff": "FAIL",
+    "portfolio_manager_input_differs_from_m2_handoff": "FAIL",
+    "m2_authority_or_provenance_metadata_lost": "FAIL",
+    "execution_differs_from_normalized_portfolio_manager_decision": "FAIL",
+    "portfolio_manager_action_differs_from_m2_action": "ALLOWED"
+  },
+  "source_contract_evidence": {
+    "architecture_contract_sha256": "f463cd14089eab4056be700509c0cc0f1db009effb036df939759d880fb98d45",
+    "final_architecture_markdown_sha256": "2aca0ba2af0202975c6b686be1ad8a772e39fdb2635e7c9b575f6093280758d1",
+    "final_architecture_json_sha256": "0061bc9da4edd4a32d76f6bc8e99d2a0ae17879a4dc1062b5c13f676050e1452",
+    "execution_source_sha": "1accde903b81f18edda8afa566382ee2f6979424",
+    "authority_control_flow_changed_since_execution": false,
+    "runtime_m2_node_writes_handoff": "state.trader_investment_plan",
+    "risk_reads": "state.trader_investment_plan",
+    "portfolio_manager_reads": "state.trader_investment_plan",
+    "graph_returns": "final_trade_decision",
+    "execution_mapping": "Buy/Overweight=BUY; Hold=HOLD; Underweight/Sell=SELL"
+  },
+  "retry3_reclassification": {
+    "arr": "CORRECTNESS_VALID",
+    "aemd": "CORRECTNESS_VALID",
+    "performance_used": false,
+    "trajectory_regeneration": false
+  },
+  "evidence_boundary": {
+    "inputs": [
+      "frozen source contracts",
+      "unchanged execution-source control flow",
+      "existing Retry #3 historical audit",
+      "existing Retry #3 publication validation"
+    ],
+    "raw_trajectory_bundle_location": "STOPPED_EBS",
+    "raw_trajectory_bundle_reopened_in_resolution": false,
+    "reason": "AWS starts are forbidden",
+    "missing_usage_values_invented": false
+  },
+  "research_invariance": {
+    "m0": false,
+    "m1": false,
+    "m2_06": false,
+    "m2_08": false,
+    "m2_09": false,
+    "r3": false,
+    "m2_10a": false,
+    "c09": false,
+    "o08": false,
+    "prompt_trader": false,
+    "research_manager": false,
+    "risk_debate": false,
+    "portfolio_manager": false,
+    "execution_mapping": false,
+    "backtester": false,
+    "a1": false,
+    "a2": false,
+    "formal_protocol": false,
+    "e2e_population": false
+  },
+  "resolution_resource_use": {
+    "agent_reruns": 0,
+    "deepseek_calls": 0,
+    "qwen_calls": 0,
+    "aws_starts": 0,
+    "gpu_runtime_seconds": 0,
+    "incremental_aws_usd": 0,
+    "live_market_data_calls": 0,
+    "raw_finmultitime_access": false
+  }
+}
