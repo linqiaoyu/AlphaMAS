@@ -6,6 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
+from tradingagents.agents.utils.memory_namespace import (
+    experiment_memory_namespace_component,
+)
 from tradingagents.backtesting.config import resolve_graph_config
 from tradingagents.evidence.finmultitime import (
     FrozenEvidenceError,
@@ -19,6 +22,7 @@ from tradingagents.evidence.m2_preformal import (
 )
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.m2.runtime import M2ProductionTraderRuntime
+from tradingagents.runtime.run_context import RunContext
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENTS = ROOT.parent / "AlphaMAS-Experiments"
@@ -125,6 +129,39 @@ def test_e2e_store_fails_closed_on_session_symbol_and_identity(tmp_path: Path) -
         M2ProductionTraderRuntime.from_config(resolved)
 
 
+def test_e2e_store_scope_has_an_isolated_fail_closed_memory_namespace(
+    tmp_path: Path,
+) -> None:
+    resolved = _resolve(
+        {
+            **_load(E2E_CONFIG),
+            "m2_preformal_evidence_root": EVIDENCE_ROOT.resolve(),
+        },
+        tmp_path,
+    )
+    graph = object.__new__(TradingAgentsGraph)
+    graph.config = resolved | {"historical_memory_lineage_id": "retry-3-preflight"}
+    graph.finmultitime_evidence_store = FrozenM2E2EEvidenceStore(EVIDENCE_ROOT)
+    path = Path(
+        graph._historical_memory_config(
+            "AAPL",
+            RunContext.historical(
+                DECISION_SESSION,
+                experiment_id="M2_e2e_pilot_2023_10_06",
+                memory_lineage_id="retry-3-preflight",
+            ),
+        )["memory_log_path"]
+    )
+
+    assert "finmultitime-m2_e2e_pilot-3e9bb6e66fcd998c" in path.as_posix()
+    with pytest.raises(ValueError, match="bundle scope"):
+        experiment_memory_namespace_component(
+            finmultitime_evidence_enabled=True,
+            finmultitime_bundle_scope="UNKNOWN",
+            finmultitime_bundle_identity=CORPUS_IDENTITY,
+        )
+
+
 def test_formal_m2_stays_on_frozen_m1_store(tmp_path: Path) -> None:
     resolved = _resolve(_load(FORMAL_M2_CONFIG), tmp_path)
     assert resolved["m2_preformal_evidence_enabled"] is False
@@ -154,4 +191,3 @@ def test_m0_and_m1_evidence_modes_are_unchanged(tmp_path: Path) -> None:
     assert m0["finmultitime_evidence_enabled"] is False
     assert m1["m2_preformal_evidence_enabled"] is False
     assert m1["finmultitime_evidence_enabled"] is True
-

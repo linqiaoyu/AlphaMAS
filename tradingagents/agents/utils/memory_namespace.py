@@ -9,7 +9,8 @@ from typing import Any
 from tradingagents.dataflows.utils import safe_ticker_component
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-_FINMULTITIME_SCOPES = frozenset({"PILOT", "FORMAL"})
+_FINMULTITIME_SCOPES = frozenset({"PILOT", "FORMAL", "M2_E2E_PILOT"})
+_SCOPE_REQUIREMENT = "PILOT, FORMAL, or M2_E2E_PILOT"
 
 
 def _valid_sha256(value: Any) -> bool:
@@ -31,12 +32,12 @@ def experiment_memory_namespace_component(
         return None
     if not isinstance(finmultitime_bundle_scope, str):
         raise ValueError(
-            "FinMultiTime experiment Memory requires bundle scope PILOT or FORMAL"
+            f"FinMultiTime experiment Memory requires bundle scope {_SCOPE_REQUIREMENT}"
         )
     scope = finmultitime_bundle_scope.strip().upper()
     if scope not in _FINMULTITIME_SCOPES:
         raise ValueError(
-            "FinMultiTime experiment Memory requires bundle scope PILOT or FORMAL"
+            f"FinMultiTime experiment Memory requires bundle scope {_SCOPE_REQUIREMENT}"
         )
     if not _valid_sha256(finmultitime_bundle_identity):
         raise ValueError(

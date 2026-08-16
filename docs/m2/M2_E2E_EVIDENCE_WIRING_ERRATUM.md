@@ -11,6 +11,13 @@ pre-Formal corpus. This correctness patch propagates
 `m2_preformal_evidence_role` through the central backtest-to-Graph configuration
 boundary. The operational `m2_preformal_evidence_root` mount remains path-only.
 
+The first post-propagation dry execution then stopped before any LLM request because
+the shared experiment-Memory namespace still admitted only the legacy M1 `PILOT` and
+`FORMAL` scopes. The frozen M2 store deliberately identifies itself as
+`M2_E2E_PILOT`; the namespace allowlist now admits that exact third scope while
+continuing to reject every unknown scope. The store scope and packet bytes were not
+changed.
+
 No Agent trajectory, DeepSeek request, decision artifact, research output, or protected
 evaluation access occurred before this correction. No packet, prompt, research method,
 model parameter, reward, execution rule, E2E population, A1 definition, or A2 definition
