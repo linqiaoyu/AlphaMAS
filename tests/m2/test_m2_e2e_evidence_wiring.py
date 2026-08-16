@@ -8,6 +8,7 @@ import pytest
 
 from tradingagents.agents.utils.memory_namespace import (
     experiment_memory_namespace_component,
+    graph_memory_evidence_identity,
 )
 from tradingagents.backtesting.config import resolve_graph_config
 from tradingagents.evidence.finmultitime import (
@@ -154,6 +155,11 @@ def test_e2e_store_scope_has_an_isolated_fail_closed_memory_namespace(
     )
 
     assert "finmultitime-m2_e2e_pilot-3e9bb6e66fcd998c" in path.as_posix()
+    assert graph_memory_evidence_identity(resolved) == (
+        True,
+        "M2_E2E_PILOT",
+        CORPUS_IDENTITY,
+    )
     with pytest.raises(ValueError, match="bundle scope"):
         experiment_memory_namespace_component(
             finmultitime_evidence_enabled=True,
@@ -166,6 +172,11 @@ def test_formal_m2_stays_on_frozen_m1_store(tmp_path: Path) -> None:
     resolved = _resolve(_load(FORMAL_M2_CONFIG), tmp_path)
     assert resolved["m2_preformal_evidence_enabled"] is False
     assert resolved["finmultitime_evidence_enabled"] is True
+    assert graph_memory_evidence_identity(resolved) == (
+        True,
+        "FORMAL",
+        resolved["finmultitime_expected_input_bundle_identity"],
+    )
 
     with (
         patch.object(

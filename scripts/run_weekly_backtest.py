@@ -23,6 +23,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from tradingagents.agents.utils.memory_namespace import (  # noqa: E402
+    graph_memory_evidence_identity,
+)
 from tradingagents.backtesting.artifacts import (  # noqa: E402
     ARTIFACT_SCHEMA_VERSION,
     aggregate_outputs,
@@ -995,6 +998,9 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
                     "successful TradingAgents artifact publication requires "
                     "at least one completed Agent decision"
                 )
+            memory_enabled, memory_scope, memory_identity = (
+                graph_memory_evidence_identity(graph_config)
+            )
             manifest["memory_archive"] = archive_final_experiment_memory(
                 run_dir=run_dir,
                 runtime_memory_dir=graph_config["historical_memory_dir"],
@@ -1005,13 +1011,9 @@ def execute(args: argparse.Namespace) -> tuple[Path, str]:
                 memory_resumed_from_run_id=memory_lineage.resumed_from_run_id,
                 graph_config_sha256=graph_config_sha256,
                 symbols=archived_symbols,
-                finmultitime_evidence_enabled=bool(
-                    graph_config.get("finmultitime_evidence_enabled", False)
-                ),
-                finmultitime_bundle_scope=graph_config.get("finmultitime_bundle_scope"),
-                finmultitime_bundle_identity=graph_config.get(
-                    "finmultitime_expected_input_bundle_identity"
-                ),
+                finmultitime_evidence_enabled=memory_enabled,
+                finmultitime_bundle_scope=memory_scope,
+                finmultitime_bundle_identity=memory_identity,
             )
         completed = datetime.now(timezone.utc).isoformat()
         manifest["run_completed_at"] = completed

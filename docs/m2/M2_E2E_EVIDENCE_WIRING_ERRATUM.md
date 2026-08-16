@@ -18,10 +18,19 @@ the shared experiment-Memory namespace still admitted only the legacy M1 `PILOT`
 continuing to reject every unknown scope. The store scope and packet bytes were not
 changed.
 
+After the eight official trajectories and ordinary run validation completed, final
+Memory publication exposed the same distinction at a second non-Graph consumer: the
+archiver derived its namespace from the unchanged legacy M1 `FORMAL` config fields
+instead of the evidence store actually selected for M2 E2E. A shared effective-Memory
+identity resolver now binds both final archiving and bundle validation to
+`M2_E2E_PILOT` plus the frozen M2 corpus identity while leaving
+`finmultitime_bundle_scope` and all Formal M2 semantics unchanged. The already-complete
+trajectories were preserved and were not rerun.
+
 No Agent trajectory, DeepSeek request, decision artifact, research output, or protected
 evaluation access occurred before this correction. No packet, prompt, research method,
 model parameter, reward, execution rule, E2E population, A1 definition, or A2 definition
 changed. Formal M2 continues to keep the M2 E2E store disabled and uses the frozen M1
 Formal evidence store.
 
-Classification: **PRE-AGENT RUNTIME EVIDENCE-WIRING CORRECTNESS FIX — NO RESEARCH-SEMANTIC CHANGE**.
+Classification: **RUNTIME/PUBLICATION EVIDENCE-WIRING CORRECTNESS FIX — NO RESEARCH-SEMANTIC CHANGE**.

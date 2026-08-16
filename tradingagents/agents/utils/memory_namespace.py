@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from tradingagents.dataflows.utils import safe_ticker_component
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _FINMULTITIME_SCOPES = frozenset({"PILOT", "FORMAL", "M2_E2E_PILOT"})
 _SCOPE_REQUIREMENT = "PILOT, FORMAL, or M2_E2E_PILOT"
+_M2_E2E_ROLE = "E2E_PILOT"
+_M2_E2E_SCOPE = "M2_E2E_PILOT"
 
 
 def _valid_sha256(value: Any) -> bool:
@@ -45,6 +48,28 @@ def experiment_memory_namespace_component(
         )
     namespace = f"finmultitime-{scope.lower()}-{finmultitime_bundle_identity[:16].lower()}"
     return safe_ticker_component(namespace, max_len=128)
+
+
+def graph_memory_evidence_identity(
+    graph_config: Mapping[str, Any],
+) -> tuple[bool, str | None, str | None]:
+    """Return the evidence identity actually selected for experiment Memory."""
+
+    enabled = bool(graph_config.get("finmultitime_evidence_enabled", False))
+    if graph_config.get("m2_preformal_evidence_enabled", False):
+        if not enabled:
+            raise ValueError("M2 E2E Memory requires FinMultiTime evidence enabled")
+        if graph_config.get("m2_preformal_evidence_role") != _M2_E2E_ROLE:
+            raise ValueError("M2 E2E Memory requires role E2E_PILOT")
+        identity = graph_config.get("m2_preformal_evidence_identity")
+        if not _valid_sha256(identity):
+            raise ValueError("M2 E2E Memory requires a valid corpus identity")
+        return True, _M2_E2E_SCOPE, str(identity).lower()
+    return (
+        enabled,
+        graph_config.get("finmultitime_bundle_scope"),
+        graph_config.get("finmultitime_expected_input_bundle_identity"),
+    )
 
 
 def runtime_experiment_memory_path(

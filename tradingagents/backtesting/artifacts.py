@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from tradingagents.agents.utils.memory_namespace import graph_memory_evidence_identity
 from tradingagents.backtesting.cache import cache_key
 from tradingagents.backtesting.config import compute_graph_config_sha256
 from tradingagents.backtesting.memory_archive import (
@@ -1214,6 +1215,17 @@ def validate_artifact_bundle(
                 if symbol_cases > 0:
                     memory_symbols.append(symbol)
                 remaining_memory_cases -= symbol_cases
+        try:
+            memory_enabled, memory_scope, memory_identity = (
+                graph_memory_evidence_identity(
+                    resolved_graph if isinstance(resolved_graph, Mapping) else {}
+                )
+            )
+        except ValueError as exc:
+            memory_archive_errors.append(
+                f"resolved graph Memory evidence identity is invalid: {exc}"
+            )
+            memory_enabled, memory_scope, memory_identity = False, None, None
         memory_validation = validate_final_memory_archive(
             run_dir=root,
             descriptor=(
@@ -1227,18 +1239,9 @@ def validate_artifact_bundle(
             memory_resumed_from_run_id=expected_resumed_from,
             graph_config_sha256=next(iter(graph_hashes.values()), None),
             symbols=memory_symbols,
-            finmultitime_evidence_enabled=bool(
-                isinstance(resolved_graph, Mapping)
-                and resolved_graph.get("finmultitime_evidence_enabled", False)
-            ),
-            finmultitime_bundle_scope=(
-                resolved_graph.get("finmultitime_bundle_scope")
-                if isinstance(resolved_graph, Mapping) else None
-            ),
-            finmultitime_bundle_identity=(
-                resolved_graph.get("finmultitime_expected_input_bundle_identity")
-                if isinstance(resolved_graph, Mapping) else None
-            ),
+            finmultitime_evidence_enabled=memory_enabled,
+            finmultitime_bundle_scope=memory_scope,
+            finmultitime_bundle_identity=memory_identity,
         )
         memory_archive_errors.extend(memory_validation["errors"])
         memory_archive_checksum_errors.extend(
