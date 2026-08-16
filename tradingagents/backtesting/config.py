@@ -205,6 +205,9 @@ GRAPH_RESEARCH_KEYS = (
     "m2_online_update_epochs",
     "m2_online_weight_decay",
     "m2_online_gradient_clip",
+    "m2_preformal_evidence_enabled",
+    "m2_preformal_evidence_identity",
+    "m2_preformal_evidence_role",
 )
 
 # Runtime values that must follow a backtest config into the Graph without
