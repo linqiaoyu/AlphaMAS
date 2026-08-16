@@ -13,7 +13,7 @@ from torch import Tensor, nn
 
 from scripts.m2.semantic_state_representation import ACTION_ORDER
 
-METHOD_ID = "M2-PA-CTPPO-v1"
+METHOD_ID = "M2-PA-CTPPO-v2"
 OBSERVATION_DIMENSION = 3080
 SEMANTIC_DIMENSION = 1024
 ADAPTER_DIMENSION = 16
@@ -22,7 +22,6 @@ HIDDEN_DIMENSION = 32
 RESIDUAL_BOUND = math.log(4.0)
 PROMPT_SELECTED_PROBABILITY = 2.0 / 3.0
 PROMPT_ALTERNATIVE_PROBABILITY = 1.0 / 6.0
-GAMMA = 1.0
 PPO_CLIP = 0.2
 VALUE_LOSS_COEFFICIENT = 0.5
 SEED = 20260816
@@ -161,21 +160,20 @@ def deterministic_action(probabilities: Tensor, prompt_action_index: int) -> str
 
 
 @dataclass(frozen=True)
-class TreePolicyEvaluation:
-    q_values: Tensor
+class LocalCreditPolicyEvaluation:
     values: Tensor
     advantages: Tensor
     occupancy: Tensor
 
 
-def exact_tree_policy_evaluation(
+def exact_local_credit_policy_evaluation(
     rewards: Tensor,
     child_indices: Tensor,
     old_probabilities: Tensor,
     depths: Tensor,
     root_indices: Tensor,
-) -> TreePolicyEvaluation:
-    """Evaluate a finite forest exactly; -1 child indices are terminal leaves."""
+) -> LocalCreditPolicyEvaluation:
+    """Compute local R3 values/advantages and exact weekly-state occupancy."""
 
     node_count = rewards.shape[0]
     if rewards.shape != (node_count, 3) or old_probabilities.shape != (node_count, 3):
@@ -186,19 +184,9 @@ def exact_tree_policy_evaluation(
         torch.abs(old_probabilities.sum(dim=1) - 1.0) > 1e-12
     ):
         raise ValueError("old policy must have full support and sum to one")
-    values = torch.zeros(node_count, dtype=rewards.dtype, device=rewards.device)
-    q_values = torch.empty_like(rewards)
+    values = torch.sum(old_probabilities * rewards, dim=1)
+    advantages = rewards - values.unsqueeze(1)
     max_depth = int(depths.max())
-    for depth in range(max_depth, -1, -1):
-        for node in torch.nonzero(depths == depth, as_tuple=False).flatten().tolist():
-            future = torch.zeros(3, dtype=rewards.dtype, device=rewards.device)
-            for action in range(3):
-                child = int(child_indices[node, action])
-                if child >= 0:
-                    future[action] = values[child]
-            q_values[node] = rewards[node] + GAMMA * future
-            values[node] = torch.sum(old_probabilities[node] * q_values[node])
-    advantages = q_values - values.unsqueeze(1)
     occupancy = torch.zeros(node_count, dtype=rewards.dtype, device=rewards.device)
     root_weight = 1.0 / int(root_indices.numel())
     occupancy[root_indices] = root_weight
@@ -210,7 +198,7 @@ def exact_tree_policy_evaluation(
                     occupancy[child] = occupancy[child] + (
                         occupancy[node] * old_probabilities[node, action]
                     )
-    return TreePolicyEvaluation(q_values, values, advantages, occupancy)
+    return LocalCreditPolicyEvaluation(values, advantages, occupancy)
 
 
 def exact_ppo_loss(

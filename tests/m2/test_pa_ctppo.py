@@ -9,6 +9,7 @@ torch = pytest.importorskip("torch")
 from scripts.m2.pa_ctppo import (  # noqa: E402
     EXPECTED_FAST_PARAMETERS,
     EXPECTED_PARAMETERS,
+    METHOD_ID,
     RESIDUAL_BOUND,
     ExperienceStatus,
     OnlineExperience,
@@ -16,8 +17,8 @@ from scripts.m2.pa_ctppo import (  # noqa: E402
     build_adapted_proposal,
     configure_determinism,
     deterministic_action,
+    exact_local_credit_policy_evaluation,
     exact_ppo_loss,
-    exact_tree_policy_evaluation,
     fast_checkpoint_sha,
     online_fast_update,
     per_symbol_fast_adapters,
@@ -46,6 +47,7 @@ def test_exact_architecture_slicing_sharing_and_parameter_counts() -> None:
     assert model.semantic_adapter is model.semantic_adapter
     assert model.parameter_count() == EXPECTED_PARAMETERS == 20_197
     assert model.fast_parameter_count() == EXPECTED_FAST_PARAMETERS == 165
+    assert METHOD_ID == "M2-PA-CTPPO-v2"
 
 
 @pytest.mark.parametrize("prompt_index", [0, 1, 2])
@@ -80,42 +82,77 @@ def test_deterministic_argmax_and_prompt_first_tie_break() -> None:
 
 def _synthetic_tree():
     rewards = torch.tensor(
-        [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 1.0, 1.0], [-1.0, 0.0, 1.0]],
+        [[1.0, 0.0, -1.0], [2.0, 1.0, -2.0]],
         dtype=torch.float64,
     )
-    children = torch.tensor([[1, 2, 3], [-1, -1, -1], [-1, -1, -1], [-1, -1, -1]])
-    old = torch.tensor([[0.5, 0.25, 0.25]] * 4, dtype=torch.float64)
-    depths = torch.tensor([0, 1, 1, 1])
-    roots = torch.tensor([0])
+    children = torch.full((2, 3), -1)
+    old = torch.tensor(
+        [[0.5, 0.25, 0.25], [0.2, 0.3, 0.5]], dtype=torch.float64
+    )
+    depths = torch.tensor([0, 0])
+    roots = torch.tensor([0, 1])
     return rewards, children, old, depths, roots
 
 
-def test_exact_tree_dp_occupancy_advantage_and_terminal_value() -> None:
-    evaluation = exact_tree_policy_evaluation(*_synthetic_tree())
-    assert torch.equal(evaluation.q_values[1:], _synthetic_tree()[0][1:])
-    assert evaluation.occupancy[0] == 1
-    assert evaluation.occupancy[1:].sum() == pytest.approx(1.0)
+def test_exact_local_value_advantage_and_occupancy() -> None:
+    evaluation = exact_local_credit_policy_evaluation(*_synthetic_tree())
+    rewards, _, old, _, _ = _synthetic_tree()
+    expected_values = torch.tensor([0.25, -0.3], dtype=torch.float64)
+    assert torch.allclose(evaluation.values, expected_values)
+    assert torch.allclose(evaluation.advantages, rewards - expected_values[:, None])
+    assert torch.allclose(evaluation.occupancy, torch.tensor([0.5, 0.5], dtype=torch.float64))
     old = _synthetic_tree()[2]
     assert torch.allclose(
         torch.sum(old * evaluation.advantages, dim=1),
-        torch.zeros(4, dtype=torch.float64),
+        torch.zeros(2, dtype=torch.float64),
         atol=1e-10,
         rtol=0,
     )
-    expected_children = torch.sum(old[1:] * _synthetic_tree()[0][1:], dim=1)
-    assert torch.allclose(
-        evaluation.q_values[0],
-        _synthetic_tree()[0][0] + expected_children,
-    )
 
 
-def test_exact_three_action_ppo_loss_and_synthetic_backward() -> None:
-    evaluation = exact_tree_policy_evaluation(*_synthetic_tree())
+def test_hand_computable_clipped_objective_and_synthetic_backward() -> None:
+    evaluation = exact_local_credit_policy_evaluation(*_synthetic_tree())
     model = PromptAnchoredActorCritic()
-    observations = torch.stack([_observation(index % 3) for index in range(4)])
+    observations = torch.stack([_observation(0), _observation(1)])
     output = model(observations)
     old = _synthetic_tree()[2].float()
+    new = torch.tensor([[0.7, 0.15, 0.15], [0.1, 0.4, 0.5]])
+    predicted = torch.tensor([0.5, -0.1], requires_grad=True)
     losses = exact_ppo_loss(
+        new,
+        old,
+        evaluation.advantages.float(),
+        predicted,
+        evaluation.values.float(),
+        evaluation.occupancy.float(),
+    )
+    ratio = new / old
+    expected_surrogate = (
+        evaluation.occupancy.float()
+        * torch.sum(
+            old
+            * torch.minimum(
+                ratio * evaluation.advantages.float(),
+                torch.clamp(ratio, 0.8, 1.2) * evaluation.advantages.float(),
+            ),
+            dim=1,
+        )
+    ).sum() / evaluation.occupancy.sum()
+    expected_value_loss = (
+        evaluation.occupancy.float()
+        * (predicted - evaluation.values.float()).square()
+    ).sum() / evaluation.occupancy.sum()
+    assert float(losses["policy_surrogate"].detach()) == pytest.approx(
+        float(expected_surrogate.detach())
+    )
+    assert float(losses["value_loss"].detach()) == pytest.approx(
+        float(expected_value_loss.detach())
+    )
+    assert float(losses["loss"].detach()) == pytest.approx(
+        float((-expected_surrogate + 0.5 * expected_value_loss).detach())
+    )
+
+    backward_losses = exact_ppo_loss(
         output["probabilities"],
         old,
         evaluation.advantages.float(),
@@ -123,9 +160,9 @@ def test_exact_three_action_ppo_loss_and_synthetic_backward() -> None:
         evaluation.values.float(),
         evaluation.occupancy.float(),
     )
-    losses["loss"].backward()
+    backward_losses["loss"].backward()
     assert torch.isfinite(losses["loss"])
-    assert losses["ratio"].shape == (4, 3)
+    assert losses["ratio"].shape == (2, 3)
     assert model.residual_head.weight.grad is not None
     assert model.value_head.weight.grad is not None
 

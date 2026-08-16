@@ -1,4 +1,4 @@
-"""Sequential M2 TRAIN environment built on the frozen execution primitives."""
+"""PIT-safe weekly M2 state transitions and independent delayed R3 credit."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from tradingagents.backtesting.execution import Broker
 from tradingagents.backtesting.models import Action, Order, PortfolioSnapshot
 from tradingagents.backtesting.portfolio import Portfolio
 
-TREE_CONTRACT = "M2_TRAIN_COUNTERFACTUAL_TREE_v1"
+TREE_CONTRACT = "M2_TRAIN_COUNTERFACTUAL_TREE-v2"
 TRAIN_SYMBOLS = ("AAPL", "AMZN", "JPM", "JBSS", "EML", "AGI", "ARR", "AEMD")
 TRAIN_SESSIONS = (
     "2023-05-05",
@@ -40,8 +40,6 @@ TRAIN_SESSIONS = (
 )
 ACTIONS = tuple(action.value for action in Action)
 INITIAL_CASH = 100_000.0
-ECONOMIC_RTOL = 1e-12
-ECONOMIC_ATOL = 1e-10
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -49,12 +47,14 @@ def sha256_bytes(value: bytes) -> str:
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    return (json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+    return (
+        json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+    ).encode()
 
 
 @dataclass(frozen=True)
 class SequentialPortfolioState:
-    """All path-dependent Portfolio fields needed to continue an episode exactly."""
+    """All path-dependent fields required to continue a weekly episode exactly."""
 
     cash: float = INITIAL_CASH
     quantity: float = 0.0
@@ -68,8 +68,7 @@ class SequentialPortfolioState:
     cumulative_dividends: float = 0.0
 
     def __post_init__(self) -> None:
-        values = asdict(self)
-        if not all(math.isfinite(float(value)) for value in values.values()):
+        if not all(math.isfinite(float(value)) for value in asdict(self).values()):
             raise ValueError("sequential portfolio state must be finite")
         if self.cash < -Portfolio.tolerance or self.quantity < -Portfolio.tolerance:
             raise ValueError("sequential portfolio state must remain long-only")
@@ -90,20 +89,39 @@ class SequentialPortfolioState:
 
 
 @dataclass(frozen=True)
-class TransitionResult:
+class WeeklyTransitionWindow:
+    """Bars permitted to construct one next-week decision state."""
+
+    symbol: str
+    decision_session: str
+    child_decision_session: str
+    bars: tuple[MarketBar, ...]
+
+
+@dataclass(frozen=True)
+class WeeklyTransitionResult:
     action: str
-    reward_r3: float
     next_state: SequentialPortfolioState
     next_snapshot: PortfolioSnapshot
-    terminal_equity: float
-    terminal_cash: float
-    terminal_quantity: float
+    next_decision_session: str
+    next_decision_equity: float
     transaction_cost: float
     commission_cost: float
     slippage_cost: float
     action_was_noop: bool
     execution_session: str
-    maturity_session: str
+    state_transition_input_sha256: str
+    state_transition_sha256: str
+
+
+@dataclass(frozen=True)
+class LocalCreditResult:
+    decision_session: str
+    execution_session: str
+    reward_maturity_session: str
+    rewards_r3: dict[str, float]
+    input_sha256_by_action: dict[str, str]
+    terminal_by_action: dict[str, dict[str, float | bool]]
 
 
 def _seed_portfolio(symbol: str, state: SequentialPortfolioState) -> Portfolio:
@@ -143,6 +161,16 @@ def _apply_corporate_actions(portfolio: Portfolio, bar: MarketBar) -> None:
         portfolio.apply_split(bar.split_ratio)
 
 
+def _bar_payload(bar: MarketBar) -> dict[str, float | str]:
+    return {
+        "session": bar.session,
+        "open_price": bar.open_price,
+        "close_price": bar.close_price,
+        "dividend_per_share": bar.dividend_per_share,
+        "split_ratio": bar.split_ratio,
+    }
+
+
 def initial_snapshot(
     symbol: str,
     decision_session: str,
@@ -159,29 +187,37 @@ def initial_snapshot(
     )
 
 
-def simulate_transition(
-    window: RewardWindow,
+def simulate_weekly_transition(
+    window: WeeklyTransitionWindow,
     state: SequentialPortfolioState,
     action: Action | str,
     *,
     schedule: ExchangeSchedule | None = None,
-) -> TransitionResult:
-    """Advance one five-session window and prove equivalence to frozen R3 simulation."""
+) -> WeeklyTransitionResult:
+    """Execute next open and stop exactly at the next weekly decision close."""
 
     selected = validate_action(action)
     calendar = schedule or ExchangeSchedule()
-    reward_simulation = simulate_counterfactuals(window, state.reward_state(), schedule=calendar)
-    if reward_simulation.status is not RewardStatus.MATURED or reward_simulation.outcomes is None:
-        raise ValueError("transition requires a fully matured five-session reward window")
-    outcome = reward_simulation.outcomes[selected.value]
-    required = calendar.calendar.sessions_window(window.decision_session, 6)[1:].tz_localize(None)
-    labels = tuple(item.date().isoformat() for item in required)
-    bars_by_session = {bar.session: bar for bar in window.bars if bar.session in labels}
-    if tuple(bars_by_session) != labels:
-        bars_by_session = {label: bars_by_session[label] for label in labels}
+    expected_sessions = calendar.sessions(
+        calendar.next_session(window.decision_session), window.child_decision_session
+    ).tz_localize(None)
+    labels = tuple(item.date().isoformat() for item in expected_sessions)
+    if not labels or labels[-1] != window.child_decision_session:
+        raise ValueError("child decision must be a later valid XNYS session")
+    if tuple(bar.session for bar in window.bars) != labels:
+        raise ValueError("weekly transition window must contain only execution-through-child bars")
+    input_payload = {
+        "symbol": window.symbol,
+        "decision_session": window.decision_session,
+        "child_decision_session": window.child_decision_session,
+        "action": selected.value,
+        "state": asdict(state),
+        "bars": [_bar_payload(bar) for bar in window.bars],
+    }
+    input_sha = sha256_bytes(canonical_json_bytes(input_payload))
 
     portfolio = _seed_portfolio(window.symbol, state)
-    execution_bar = bars_by_session[labels[0]]
+    execution_bar = window.bars[0]
     _apply_corporate_actions(portfolio, execution_bar)
     fill = None
     action_was_noop = selected is Action.HOLD
@@ -192,7 +228,7 @@ def simulate_transition(
             fractional_shares=True,
         )
         order = Order(
-            order_id=f"m2-rl:{window.symbol}:{window.decision_session}:{selected.value}",
+            order_id=f"m2-rl-v2:{window.symbol}:{window.decision_session}:{selected.value}",
             symbol=window.symbol,
             created_at=calendar.session_close(window.decision_session).to_pydatetime(),
             intended_execution_session=execution_bar.session,
@@ -209,52 +245,95 @@ def simulate_transition(
         action_was_noop = fill is None and order.status == "noop"
 
     snapshot: PortfolioSnapshot | None = None
-    for index, label in enumerate(labels):
-        bar = bars_by_session[label]
+    for index, bar in enumerate(window.bars):
         if index:
             _apply_corporate_actions(portfolio, bar)
         snapshot = portfolio.snapshot(
-            label,
-            calendar.session_close(label).to_pydatetime(),
+            bar.session,
+            calendar.session_close(bar.session).to_pydatetime(),
             bar.close_price,
         )
     assert snapshot is not None
+    if snapshot.session != window.child_decision_session:
+        raise AssertionError("weekly transition consumed information after child close")
+    next_state = _state_from_portfolio(portfolio)
     transaction_cost = 0.0 if fill is None else fill.total_transaction_cost
     commission = 0.0 if fill is None else fill.commission
     slippage = 0.0 if fill is None else fill.slippage_cost
-    comparisons = (
-        (snapshot.equity, outcome.terminal_equity, "terminal equity"),
-        (portfolio.cash, outcome.terminal_cash, "terminal cash"),
-        (portfolio.quantity, outcome.terminal_shares, "terminal quantity"),
-        (transaction_cost, outcome.total_cost, "transaction cost"),
-    )
-    for actual, expected, name in comparisons:
-        if not math.isclose(actual, expected, rel_tol=ECONOMIC_RTOL, abs_tol=ECONOMIC_ATOL):
-            raise AssertionError(f"transition/reward {name} mismatch: {actual} != {expected}")
-    if action_was_noop != outcome.action_was_noop:
-        raise AssertionError("transition/reward no-op status mismatch")
-    reward = candidate_rewards(outcome)[REWARD_IDS[2]]
-    if not math.isfinite(reward):
-        raise AssertionError("R3 must be finite")
-    return TransitionResult(
+    output_payload = {
+        "input_sha256": input_sha,
+        "next_state": asdict(next_state),
+        "next_snapshot": snapshot.to_dict(),
+        "transaction_cost": transaction_cost,
+        "action_was_noop": action_was_noop,
+    }
+    return WeeklyTransitionResult(
         action=selected.value,
-        reward_r3=reward,
-        next_state=_state_from_portfolio(portfolio),
+        next_state=next_state,
         next_snapshot=snapshot,
-        terminal_equity=snapshot.equity,
-        terminal_cash=portfolio.cash,
-        terminal_quantity=portfolio.quantity,
+        next_decision_session=window.child_decision_session,
+        next_decision_equity=snapshot.equity,
         transaction_cost=transaction_cost,
         commission_cost=commission,
         slippage_cost=slippage,
         action_was_noop=action_was_noop,
-        execution_session=labels[0],
-        maturity_session=labels[-1],
+        execution_session=execution_bar.session,
+        state_transition_input_sha256=input_sha,
+        state_transition_sha256=sha256_bytes(canonical_json_bytes(output_payload)),
+    )
+
+
+def simulate_local_credit(
+    window: RewardWindow,
+    state: SequentialPortfolioState,
+    *,
+    schedule: ExchangeSchedule | None = None,
+) -> LocalCreditResult:
+    """Evaluate all three local R3 probes without advancing the weekly portfolio."""
+
+    calendar = schedule or ExchangeSchedule()
+    simulation = simulate_counterfactuals(window, state.reward_state(), schedule=calendar)
+    if simulation.status is not RewardStatus.MATURED or simulation.outcomes is None:
+        raise ValueError("local credit requires a fully matured five-session window")
+    window_payload = {
+        "symbol": window.symbol,
+        "decision_session": window.decision_session,
+        "decision_close_price": window.decision_close_price,
+        "state": asdict(state.reward_state()),
+        "bars": [_bar_payload(bar) for bar in window.bars],
+        "reward_id": REWARD_IDS[2],
+    }
+    rewards: dict[str, float] = {}
+    input_hashes: dict[str, str] = {}
+    terminals: dict[str, dict[str, float | bool]] = {}
+    for action in ACTIONS:
+        outcome = simulation.outcomes[action]
+        reward = candidate_rewards(outcome)[REWARD_IDS[2]]
+        if not math.isfinite(reward):
+            raise AssertionError("local R3 must be finite")
+        rewards[action] = reward
+        input_hashes[action] = sha256_bytes(
+            canonical_json_bytes({**window_payload, "action": action})
+        )
+        terminals[action] = {
+            "terminal_equity": outcome.terminal_equity,
+            "terminal_cash": outcome.terminal_cash,
+            "terminal_quantity": outcome.terminal_shares,
+            "transaction_cost": outcome.total_cost,
+            "action_was_noop": outcome.action_was_noop,
+        }
+    return LocalCreditResult(
+        decision_session=window.decision_session,
+        execution_session=simulation.execution_session,
+        reward_maturity_session=simulation.maturity_session,
+        rewards_r3=rewards,
+        input_sha256_by_action=input_hashes,
+        terminal_by_action=terminals,
     )
 
 
 def load_market_snapshot(path: Path, symbol: str) -> dict[str, MarketBar]:
-    """Read a frozen per-symbol snapshot without consulting any external data."""
+    """Read a frozen per-symbol snapshot without consulting external data."""
 
     rows: dict[str, MarketBar] = {}
     with path.open(newline="", encoding="utf-8") as handle:
@@ -274,6 +353,30 @@ def load_market_snapshot(path: Path, symbol: str) -> dict[str, MarketBar]:
     return rows
 
 
+def weekly_transition_window(
+    symbol: str,
+    decision_session: str,
+    child_decision_session: str,
+    market: dict[str, MarketBar],
+    *,
+    schedule: ExchangeSchedule | None = None,
+) -> WeeklyTransitionWindow:
+    calendar = schedule or ExchangeSchedule()
+    sessions = calendar.sessions(
+        calendar.next_session(decision_session), child_decision_session
+    ).tz_localize(None)
+    labels = tuple(item.date().isoformat() for item in sessions)
+    missing = [label for label in labels if label not in market]
+    if missing:
+        raise ValueError(f"frozen market snapshot lacks transition sessions: {missing}")
+    return WeeklyTransitionWindow(
+        symbol=symbol,
+        decision_session=decision_session,
+        child_decision_session=child_decision_session,
+        bars=tuple(market[label] for label in labels),
+    )
+
+
 def reward_window(
     symbol: str,
     decision_session: str,
@@ -286,7 +389,7 @@ def reward_window(
     labels = tuple(item.date().isoformat() for item in required)
     missing = [label for label in labels if label not in market]
     if missing:
-        raise ValueError(f"frozen market snapshot lacks required sessions: {missing}")
+        raise ValueError(f"frozen market snapshot lacks credit sessions: {missing}")
     return RewardWindow(
         symbol=symbol,
         decision_session=decision_session,
