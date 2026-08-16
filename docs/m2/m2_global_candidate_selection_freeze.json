@@ -1,0 +1,23 @@
+{
+  "actor_parameter_sha": "5af9a28baaf2dc25687e65a7bf8bbefb047fa1a9664b05257bfbf78d2ac5b14d",
+  "audit_action_mismatches": 0,
+  "audit_primary_score_mismatches": 0,
+  "audit_reward_mismatches": 0,
+  "audit_same_selected_candidate": true,
+  "checkpoint_iteration": 100,
+  "critic_parameter_sha": "e55f942699d47eeab16d92b8ad3ff7277306239a8d1ba7d542f14080c86d5416",
+  "experiments_selection_archive_sha": "49eb1d227c45d0efd045ad1a388b608075266494",
+  "human_override": false,
+  "learning_rate": 0.001,
+  "mean_sequential_local_r3": 0.0011119952063548388,
+  "prompt_override_rate": 0.125,
+  "schema_version": "M2-12-GLOBAL-CANDIDATE-SELECTION-FREEZE-v1",
+  "selected_candidate_id": "C09",
+  "selected_candidate_parameter_sha": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+  "selection_plan_sha": "30847a5c1252bb0dfe33246e4fb567e4ca1e35ca",
+  "selector_source_sha": "e17fcd45a66cd46dc1904839039622bce333e37b",
+  "tie_break_invoked": false,
+  "validation_decisions": 16,
+  "validation_parameter_optimisation": false,
+  "worst_symbol_cumulative_r3": -0.05822419930530598
+}
