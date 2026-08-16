@@ -1,0 +1,16 @@
+{
+  "action_rule": "argmax; Prompt-first within frozen 1e-12 Actor tolerance; otherwise BUY/HOLD/SELL",
+  "candidate_count": 9,
+  "candidate_ids": ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09"],
+  "human_override": false,
+  "method": "M2-PA-CTPPO-v2",
+  "online_adaptation": false,
+  "primary_metric": "equal-weight mean sequential local R3 across all 16 VALIDATION decisions",
+  "protected_roles": ["FINAL_HOLDOUT", "E2E_PILOT", "Formal 2024H1"],
+  "reward_identity": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+  "schema_version": "M2-12-GLOBAL-VALIDATION-SELECTION-CONTRACT-v1",
+  "selection_tie_tolerance": 1e-8,
+  "status": "PREREGISTERED — VALIDATION PERFORMANCE NOT YET INSPECTED",
+  "tie_breaks": ["higher worst-symbol cumulative R3", "lower Prompt override rate", "smaller learning rate", "earlier checkpoint"],
+  "validation_case_count": 16
+}
