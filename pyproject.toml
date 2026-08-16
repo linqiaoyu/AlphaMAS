@@ -46,6 +46,9 @@ dev = [
 bedrock = [
     "langchain-aws>=1.5.0",
 ]
+rl = [
+    "torch>=2.8,<3",
+]
 
 [project.scripts]
 tradingagents = "cli.main:app"
