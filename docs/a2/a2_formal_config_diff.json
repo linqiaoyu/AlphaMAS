@@ -1,0 +1,33 @@
+{
+  "schema_version": "A2-FORMAL-CONFIG-DIFF-v1",
+  "base_config": "configs/backtest_m2_2024h1.json",
+  "treatment_config": "configs/backtest_a2_no_global_pretraining_2024h1.json",
+  "differences": [
+    {
+      "field": "experiment_id_template",
+      "base": "M2_agentic_rl_2024H1",
+      "a2": "A2_no_global_pretraining_2024H1",
+      "classification": "ADMINISTRATIVE_IDENTITY"
+    },
+    {
+      "field": "m2_variant",
+      "base": "FULL_M2",
+      "a2": "A2_NO_GLOBAL_PRETRAINING",
+      "classification": "PREREGISTERED_A2_TREATMENT"
+    },
+    {
+      "field": "m2_checkpoint_parameter_identity",
+      "base": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+      "a2": "60a0fec7b69ef2d0576a9c0894be09c377d573585db827c162279fb27483303e",
+      "classification": "A2_TREATMENT_ARTIFACT_BINDING"
+    },
+    {
+      "field": "m2_checkpoint_file_identity",
+      "base": "56dc52128e1df9c9ddcf79fa6f7b293393bd61306ba4ef032f96cad6bf92126c",
+      "a2": "4d65dd2c1563b144aee8e79878171feb1ecd990a8bd8e2c584547eaa3a546c9f",
+      "classification": "A2_TREATMENT_ARTIFACT_BINDING"
+    }
+  ],
+  "unapproved_differences": [],
+  "result": "PASS"
+}

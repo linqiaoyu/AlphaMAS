@@ -149,6 +149,18 @@ FORMAL_M2_CONTRACT = {
     "m2_preformal_evidence_role": "E2E_PILOT",
 }
 
+FORMAL_A2_CONTRACT = {
+    **FORMAL_M2_CONTRACT,
+    "experiment_id_template": "A2_no_global_pretraining_2024H1",
+    "m2_variant": "A2_NO_GLOBAL_PRETRAINING",
+    "m2_checkpoint_parameter_identity": (
+        "60a0fec7b69ef2d0576a9c0894be09c377d573585db827c162279fb27483303e"
+    ),
+    "m2_checkpoint_file_identity": (
+        "4d65dd2c1563b144aee8e79878171feb1ecd990a8bd8e2c584547eaa3a546c9f"
+    ),
+}
+
 # Every mutable default that can affect graph output is copied into the formal
 # preset and overlaid explicitly when constructing the graph. Operational paths
 # are supplied separately and are intentionally excluded from the stable hash.
@@ -373,6 +385,35 @@ def validate_formal_m2_config(config: dict[str, Any]) -> None:
     ]
     if missing_graph:
         raise ValueError(f"formal M2 config leaves graph defaults implicit: {missing_graph}")
+    validate_fixed_backtest_contract(config)
+
+
+def validate_formal_a2_config(config: dict[str, Any]) -> None:
+    """Fail if the preregistered Formal A2 protocol is incomplete or changed."""
+
+    missing = [key for key in FORMAL_A2_CONTRACT if key not in config]
+    if missing:
+        raise ValueError(f"formal A2 config is missing required fields: {missing}")
+    unexpected = sorted(set(config) - set(FORMAL_A2_CONTRACT))
+    if unexpected:
+        raise ValueError(f"formal A2 config has unexpected fields: {unexpected}")
+    mismatches = {
+        key: {"expected": expected, "actual": config[key]}
+        for key, expected in FORMAL_A2_CONTRACT.items()
+        if not _contract_equal(config[key], expected)
+    }
+    if mismatches:
+        raise ValueError(f"formal A2 config contract mismatch: {mismatches}")
+    if resolve_research_rounds(config["research_depth"]) != 3:
+        raise ValueError("formal A2 medium research depth must resolve to 3 rounds")
+    missing_graph = [
+        key
+        for key in GRAPH_RESEARCH_KEYS
+        if key not in {"memory_holding_horizon_sessions", "execution_data_source"}
+        and key not in config
+    ]
+    if missing_graph:
+        raise ValueError(f"formal A2 config leaves graph defaults implicit: {missing_graph}")
     validate_fixed_backtest_contract(config)
 
 

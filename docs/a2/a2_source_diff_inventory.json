@@ -1,0 +1,42 @@
+{
+  "schema_version": "A2-SOURCE-DIFF-INVENTORY-v1",
+  "base_sha": "6306ea4ea20cda501c6238db80c34d27bbc16bea",
+  "changed_files": [
+    {
+      "path": "configs/backtest_a2_no_global_pretraining_2024h1.json",
+      "classification": "A2_FORMAL_CONFIG"
+    },
+    {
+      "path": "tradingagents/backtesting/config.py",
+      "classification": "A2_FORMAL_CONTRACT_VALIDATION"
+    },
+    {
+      "path": "scripts/run_weekly_backtest.py",
+      "classification": "A2_FORMAL_ENTRYPOINT_GUARDS"
+    },
+    {
+      "path": "tests/m2/test_a2_no_global_pretraining.py",
+      "classification": "A2_PREFORMAL_CORRECTNESS_PROOFS"
+    },
+    {
+      "path": "docs/a2/A2_PREFORMAL_FREEZE.md",
+      "classification": "A2_FREEZE_DOCUMENTATION"
+    },
+    {
+      "path": "docs/a2/a2_formal_config_diff.json",
+      "classification": "A2_MACHINE_CONFIG_DIFF"
+    },
+    {
+      "path": "docs/a2/a2_preformal_freeze.json",
+      "classification": "A2_MACHINE_FREEZE_RECORD"
+    },
+    {
+      "path": "docs/a2/a2_source_diff_inventory.json",
+      "classification": "A2_SOURCE_DIFF_INVENTORY"
+    }
+  ],
+  "runtime_implementation_changed": false,
+  "a1_source_reused": false,
+  "unrelated_refactors": false,
+  "unapproved_differences": []
+}

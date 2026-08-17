@@ -1,0 +1,97 @@
+{
+  "schema_version": "A2-PREFORMAL-FREEZE-v1",
+  "status": "FROZEN_READY_FOR_A2_02",
+  "scientific_purpose": "Estimate the marginal contribution of global TRAIN-only PA-CTPPO-v2 pretraining while retaining frozen O08 online adaptation.",
+  "preregistration_identity_sha256": "e7e2cc8520f9033e57c442b04c882baffd7c51b497bbc9495b71098f64a83b0e",
+  "variant": "A2_NO_GLOBAL_PRETRAINING",
+  "full_m2_base_source_sha": "6306ea4ea20cda501c6238db80c34d27bbc16bea",
+  "checkpoint": {
+    "archive_reference": "experiments/M2/development/global_training_v1/initial_checkpoint/model.pt",
+    "file_sha256": "4d65dd2c1563b144aee8e79878171feb1ecd990a8bd8e2c584547eaa3a546c9f",
+    "canonical_parameter_sha256": "60a0fec7b69ef2d0576a9c0894be09c377d573585db827c162279fb27483303e",
+    "initial_fast_sha256": "49380bb69ea6fb7682fe97a3ef5e1ccf2b2429b749d6f9f9971e40725271fcf9",
+    "initial_fast_canonical_sha256": "859d91374903768e82c8d3621ca18ea6e8ba3b0002e9e915a579df13664e27d2",
+    "initial_global_non_fast_canonical_sha256": "9b83aa1382d6b41c55981f2475eb0e236248affc5b5004a151a4b01651fa646e",
+    "initial_optimizer_state_sha256": "087df628de120d7e2271432fe99d2888097983c25a3cfc880ec60a51d3b4d623",
+    "c09_loaded": false
+  },
+  "o08": {
+    "enabled": true,
+    "candidate_id": "O08",
+    "learning_rate": 0.001,
+    "update_epochs": 2,
+    "optimizer": "AdamW",
+    "weight_decay": 0.0001,
+    "gradient_clip": 0.5,
+    "deterministic_seed": 20260816,
+    "fast_parameter_count": 165,
+    "retuned": false
+  },
+  "online_update_audit": {
+    "fixture_period": "2023-10-06 through 2023-10-27",
+    "matured_credits_tested": 3,
+    "applied_updates": 3,
+    "parameter_mutating_updates": 3,
+    "fast_sha_sequence": [
+      "49380bb69ea6fb7682fe97a3ef5e1ccf2b2429b749d6f9f9971e40725271fcf9",
+      "25e6bd6a6317ceb04816f7e43d671c116668c6c2d6329ea82d80a6ad75d3659a",
+      "b42fc8169e119302798bf7f7dd6fa25a91d1910483ec0dd78737c6eba8c6fcfd",
+      "ae204d1c1f43d59fb1b83c0a3721d207da073864592e5a5ffa7ac90b1ce68b4b"
+    ],
+    "optimizer_sha_after_three_updates": "965d0c43d35acbbceeb4fbf0d409898dfdf124cd5c2e179262713ebc78b4de49",
+    "global_sha_after_three_updates": "9b83aa1382d6b41c55981f2475eb0e236248affc5b5004a151a4b01651fa646e",
+    "non_fast_global_mutation_count": 0,
+    "cross_symbol_mutation_count": 0,
+    "exactly_once": true,
+    "safe_resume_before_maturity": true,
+    "safe_resume_at_maturity": true,
+    "safe_resume_after_update": true,
+    "changed_input_torn_state_guard": true
+  },
+  "frozen_controls": {
+    "m1_bundle_identity": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+    "representation_identity": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "encoder": "Qwen/Qwen3-Embedding-0.6B",
+    "encoder_revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "observation_dimension": 3080,
+    "reward_identity": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+    "method_identity": "M2-PA-CTPPO-v2",
+    "prompt_prior": [0.6666666666666666, 0.16666666666666666, 0.16666666666666666]
+  },
+  "formal_config": {
+    "path": "configs/backtest_a2_no_global_pretraining_2024h1.json",
+    "sha256": "d8982296be9d632be996d23836cfebb7fb2fb363b6fd496590056025251a07da",
+    "unapproved_differences": []
+  },
+  "isolation": {
+    "cache_distinct_from_full_m2": true,
+    "cache_distinct_from_a1": true,
+    "fresh_memory_namespace": true,
+    "fresh_runtime_state_required": true,
+    "m2_dynamic_state_reused": false,
+    "a1_dynamic_state_reused": false
+  },
+  "tests": {
+    "focused": "10 passed",
+    "m2_and_backtesting": "462 passed",
+    "complete_repository": "1129 passed, 6 skipped, 19 warnings, 69 subtests passed",
+    "failures": 0,
+    "skip_justification": "One optional langchain_aws dependency, one opt-in live LLM test, and four unavailable M1 pilot-input archive cases; none are A2 gates."
+  },
+  "resource_usage": {
+    "deepseek_calls": 0,
+    "qwen_calls": 0,
+    "new_embeddings": 0,
+    "aws_ec2_starts": 0,
+    "gpu_hours": 0,
+    "formal_a2_decisions": 0,
+    "paid_cost": 0
+  },
+  "design_boundaries": {
+    "formal_m2_performance_used": false,
+    "formal_a1_performance_used": false,
+    "post_hoc_tuning": false,
+    "global_training_work": 0
+  },
+  "a2_02_contract": "A2-02 must use the first complete correctness-valid Formal trajectory as the sole official A2 result."
+}
