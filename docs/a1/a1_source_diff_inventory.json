@@ -1,0 +1,57 @@
+{
+  "schema_version": "A1-SOURCE-DIFF-INVENTORY-v1",
+  "base_commit": "6306ea4ea20cda501c6238db80c34d27bbc16bea",
+  "allowed_categories": [
+    "A1_VARIANT_CONFIG_WIRING",
+    "ONLINE_UPDATE_DISABLE_PATH",
+    "A1_CREDIT_AUDIT_SEMANTICS",
+    "A1_TESTS",
+    "A1_DOCUMENTATION_CONFIG"
+  ],
+  "files": [
+    {
+      "path": "tradingagents/m2/runtime.py",
+      "categories": [
+        "A1_VARIANT_CONFIG_WIRING",
+        "ONLINE_UPDATE_DISABLE_PATH",
+        "A1_CREDIT_AUDIT_SEMANTICS"
+      ]
+    },
+    {
+      "path": "tradingagents/backtesting/config.py",
+      "categories": ["A1_VARIANT_CONFIG_WIRING"]
+    },
+    {
+      "path": "scripts/run_weekly_backtest.py",
+      "categories": ["A1_VARIANT_CONFIG_WIRING"]
+    },
+    {
+      "path": "configs/backtest_a1_no_online_adaptation_2024h1.json",
+      "categories": ["A1_DOCUMENTATION_CONFIG"]
+    },
+    {
+      "path": "tests/m2/test_a1_no_online_adaptation.py",
+      "categories": ["A1_TESTS"]
+    },
+    {
+      "path": "docs/a1/A1_PREFORMAL_FREEZE.md",
+      "categories": ["A1_DOCUMENTATION_CONFIG"]
+    },
+    {
+      "path": "docs/a1/a1_formal_config_diff.json",
+      "categories": ["A1_DOCUMENTATION_CONFIG"]
+    },
+    {
+      "path": "docs/a1/a1_preformal_freeze.json",
+      "categories": ["A1_DOCUMENTATION_CONFIG"]
+    },
+    {
+      "path": "docs/a1/a1_source_diff_inventory.json",
+      "categories": ["A1_DOCUMENTATION_CONFIG"]
+    }
+  ],
+  "protected_implementation_paths_changed": [],
+  "unclassified_files": [],
+  "unrelated_refactoring": false,
+  "verdict": "PASS"
+}

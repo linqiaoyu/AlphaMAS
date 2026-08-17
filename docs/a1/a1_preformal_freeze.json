@@ -1,0 +1,92 @@
+{
+  "schema_version": "A1-PREFORMAL-FREEZE-v1",
+  "status": "FROZEN_FOR_A1_02_AFTER_SOURCE_COMMIT",
+  "treatment": "A1_NO_ONLINE_ADAPTATION",
+  "scientific_definition": "Full frozen M2 with only delayed per-symbol online fast-parameter adaptation removed.",
+  "preregistration_identity": "e7e2cc8520f9033e57c442b04c882baffd7c51b497bbc9495b71098f64a83b0e",
+  "full_m2_base_commit": "6306ea4ea20cda501c6238db80c34d27bbc16bea",
+  "formal_config": {
+    "path": "configs/backtest_a1_no_online_adaptation_2024h1.json",
+    "sha256": "503fb7c3294f2a1e25154d30e249f3d58241d2b29967cce09275c3b89d5b5498",
+    "diff_audit": "docs/a1/a1_formal_config_diff.json",
+    "unapproved_differences": 0
+  },
+  "frozen_research_identities": {
+    "m1_evidence_bundle": "30596a54788101873f1c88bdf653df7f12ac3b4861a7058b6a36df0861274121",
+    "representation": "6e3b11863bc3ec214444326a269477e465101afb866f30e80698f37c7148d2fe",
+    "encoder": "Qwen/Qwen3-Embedding-0.6B",
+    "encoder_revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+    "observation_dimension": 3080,
+    "method": "M2-PA-CTPPO-v2",
+    "reward": "R3_HOLD_RELATIVE_DRAWDOWN_UTILITY",
+    "c09_parameter_sha256": "6baafc03b0b63512b3a66a1ae8f1ce1ce7e774395787626b49905e7b72cd1841",
+    "c09_model_file_sha256": "56dc52128e1df9c9ddcf79fa6f7b293393bd61306ba4ef032f96cad6bf92126c",
+    "c09_fast_parameter_sha256": "365d06abf2d30f9ef3c283fb383712b3bc1b7439851e3c828f25e9dd676df2ec",
+    "c09_nonfast_global_parameter_sha256": "35dd8185eb04d9662531b81c571ba6df964805b8fa4af9281e414b0c1a3429bc"
+  },
+  "parameter_immutability": {
+    "fixtures": "pre-2024 deterministic local CPU fixtures",
+    "matured_credits_tested": 4,
+    "fast_sha_equal_before_after_each_a1_maturity": true,
+    "complete_policy_sha_initial_and_final_equals_c09": true,
+    "nonfast_global_sha_equal_before_after": true,
+    "optimiser_state_identity_equal_before_after": true,
+    "optimizer_step_calls": 0,
+    "parameter_mutating_online_updates": 0,
+    "global_parameter_mutations": 0
+  },
+  "chronology": {
+    "outcome_horizon_valid_xnys_sessions": 5,
+    "before_maturity_observable": false,
+    "same_close_order": "action permanently issued before maturity processing",
+    "lifecycle": "PENDING -> MATURED -> ARCHIVED",
+    "archive_reason": "ONLINE_UPDATE_DISABLED_BY_ABLATION",
+    "exactly_once": true,
+    "terminal_boundary_preserved": true,
+    "verdict": "PASS"
+  },
+  "resume": {
+    "before_maturity": "PASS",
+    "at_maturity_exactly_once": "PASS",
+    "after_maturity_no_reprocessing": "PASS",
+    "changed_input_guard": "PASS",
+    "deterministic_next_decision": "PASS"
+  },
+  "isolation": {
+    "a1_vs_full_m2_cache_identity_distinct": true,
+    "m2_decision_cache_reused": false,
+    "a1_memory_namespace_fresh": true,
+    "m2_memory_inherited": false,
+    "m2_runtime_state_reused": false,
+    "cross_symbol_mutation": false
+  },
+  "formal_market_snapshot_sha256": {
+    "AAPL": "5428fc2c672f3b68c7c3e83b4a22bd5b7330c95a8b4194695762539d9d8a5af3",
+    "AMZN": "c4b5c747d75ba658c6f6833348783e3f8a8c571380c930de20cf9fb7dd6b1444",
+    "JPM": "74cf77b77b0a83ce8e6246578d4da30bf7622558e8973bda71344b99b9dfd6fc",
+    "SPY": "22e6996ebf963787f40d54bfc59e1ca088fa698cb82b639768504dbdbb2d25ac"
+  },
+  "testing": {
+    "focused": "34 passed",
+    "full_regression": "1112 passed, 22 skipped, 69 subtests passed",
+    "failures": 0,
+    "skip_justification": "Optional langchain_aws absent; live DeepSeek test deliberately disabled; documented legacy M1/pilot archives unavailable at their expected paths. No replacement fixtures were fabricated."
+  },
+  "resources": {
+    "deepseek_calls": 0,
+    "qwen_vl_calls": 0,
+    "qwen_embedding_generation_calls": 0,
+    "formal_agent_decisions": 0,
+    "aws_ec2_starts": 0,
+    "gpu_hours": 0,
+    "paid_cost": 0
+  },
+  "research_guard": {
+    "formal_2024h1_performance_used": false,
+    "formal_a1_executed": false,
+    "parameter_selection": false,
+    "new_hyperparameters": false,
+    "a1_02_first_complete_correctness_valid_formal_run_is_official": true
+  },
+  "verdict": "PASS"
+}

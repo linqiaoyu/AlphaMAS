@@ -1,0 +1,24 @@
+{
+  "schema_version": "A1-FORMAL-CONFIG-DIFF-v1",
+  "base_config": "configs/backtest_m2_2024h1.json",
+  "base_config_sha256": "b380b4b1be40c0e714aa6583d5cebed6071d4f40b1150afd57e1533e1472ecc1",
+  "a1_config": "configs/backtest_a1_no_online_adaptation_2024h1.json",
+  "a1_config_sha256": "503fb7c3294f2a1e25154d30e249f3d58241d2b29967cce09275c3b89d5b5498",
+  "changed_fields": [
+    {
+      "field": "experiment_id_template",
+      "base": "M2_agentic_rl_2024H1",
+      "a1": "A1_no_online_adaptation_2024H1",
+      "classification": "ADMINISTRATIVE_IDENTITY"
+    },
+    {
+      "field": "m2_variant",
+      "base": "FULL_M2",
+      "a1": "A1_NO_ONLINE_ADAPTATION",
+      "classification": "PREREGISTERED_A1_TREATMENT"
+    }
+  ],
+  "changed_field_count": 2,
+  "unapproved_differences": [],
+  "verdict": "PASS"
+}

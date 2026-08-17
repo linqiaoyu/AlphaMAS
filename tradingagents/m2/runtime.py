@@ -79,6 +79,9 @@ from tradingagents.backtesting.models import PortfolioSnapshot
 
 SCHEMA_VERSION = "M2-14-PRODUCTION-TRADER-STATE-v1"
 ARCHITECTURE_ID = "M2-FINAL-ARCHITECTURE-v1"
+FULL_M2_VARIANT = "FULL_M2"
+A1_VARIANT = "A1_NO_ONLINE_ADAPTATION"
+A1_ARCHIVE_REASON = "ONLINE_UPDATE_DISABLED_BY_ABLATION"
 ONLINE_CANDIDATE_ID = "O08"
 ONLINE_LEARNING_RATE = 1e-3
 ONLINE_UPDATE_EPOCHS = 2
@@ -268,6 +271,13 @@ class ProductionCredit:
     pre_fast_sha: str | None = None
     post_fast_sha: str | None = None
     maturity_input_identity: str | None = None
+    archive_reason: str | None = None
+    pre_global_sha: str | None = None
+    post_global_sha: str | None = None
+    pre_policy_parameter_sha: str | None = None
+    post_policy_parameter_sha: str | None = None
+    pre_optimiser_state_identity: str | None = None
+    post_optimiser_state_identity: str | None = None
 
 
 @dataclass
@@ -294,6 +304,7 @@ class M2ProductionTraderRuntime:
         checkpoint_path: Path,
         state_root: Path,
         encoder: Callable[[list[str]], np.ndarray],
+        variant: str = FULL_M2_VARIANT,
         checkpoint_parameter_identity: str = C09_PARAMETER_SHA,
         checkpoint_file_identity: str = C09_FILE_SHA,
         online_adaptation_enabled: bool = True,
@@ -306,6 +317,11 @@ class M2ProductionTraderRuntime:
             raise ValueError("unregistered M2 initial checkpoint")
         if checkpoint_file_identity not in {C09_FILE_SHA, A2_FILE_SHA}:
             raise ValueError("unregistered M2 checkpoint file identity")
+        if variant not in {FULL_M2_VARIANT, A1_VARIANT, "A2_NO_GLOBAL_PRETRAINING"}:
+            raise ValueError("unknown M2 variant")
+        if (variant == A1_VARIANT) != (not online_adaptation_enabled):
+            raise ValueError("M2 variant and online-adaptation treatment disagree")
+        self.variant = variant
         self.checkpoint_path = checkpoint_path.resolve()
         self.state_root = state_root.resolve()
         self.encoder = encoder
@@ -336,10 +352,10 @@ class M2ProductionTraderRuntime:
         missing = [name for name in required if not config.get(name)]
         if missing:
             raise ValueError(f"M2 runtime configuration is missing: {missing}")
-        variant = str(config.get("m2_variant", "FULL_M2"))
-        if variant == "FULL_M2":
+        variant = str(config.get("m2_variant", FULL_M2_VARIANT))
+        if variant == FULL_M2_VARIANT:
             parameter_sha, file_sha, online = C09_PARAMETER_SHA, C09_FILE_SHA, True
-        elif variant == "A1_NO_ONLINE_ADAPTATION":
+        elif variant == A1_VARIANT:
             parameter_sha, file_sha, online = C09_PARAMETER_SHA, C09_FILE_SHA, False
         elif variant == "A2_NO_GLOBAL_PRETRAINING":
             parameter_sha, file_sha, online = A2_PARAMETER_SHA, A2_FILE_SHA, True
@@ -359,6 +375,9 @@ class M2ProductionTraderRuntime:
         for name, expected in expected_research.items():
             if config.get(name) != expected:
                 raise ValueError(f"M2 frozen runtime contract mismatch: {name}")
+        configured_online = config.get("m2_online_adaptation_enabled", online)
+        if configured_online is not online:
+            raise ValueError("M2 variant and configured online-adaptation treatment disagree")
         if config.get("m2_preformal_evidence_enabled", False) and (
             config.get("m2_preformal_evidence_identity")
             != "3e9bb6e66fcd998c0b4deff30f7d5728c563126d3a1b976e21bbf034174e4420"
@@ -372,6 +391,7 @@ class M2ProductionTraderRuntime:
                 Path(str(config["m2_encoder_snapshot_path"])),
                 Path(str(config["m2_encoder_snapshot_manifest_path"])),
             ),
+            variant=variant,
             checkpoint_parameter_identity=parameter_sha,
             checkpoint_file_identity=file_sha,
             online_adaptation_enabled=online,
@@ -403,6 +423,17 @@ class M2ProductionTraderRuntime:
         )
 
     def _payload(self, state: ProductionSymbolState) -> dict[str, Any]:
+        credit_payloads = []
+        for credit in state.credits:
+            item = asdict(credit)
+            if self.variant != A1_VARIANT:
+                for name in (
+                    "archive_reason", "pre_global_sha", "post_global_sha",
+                    "pre_policy_parameter_sha", "post_policy_parameter_sha",
+                    "pre_optimiser_state_identity", "post_optimiser_state_identity",
+                ):
+                    item.pop(name)
+            credit_payloads.append(item)
         payload = {
             "schema_version": SCHEMA_VERSION,
             "architecture_id": ARCHITECTURE_ID,
@@ -425,11 +456,13 @@ class M2ProductionTraderRuntime:
                 for name, parameter in state.model.fast_named_parameters()
             },
             "optimiser_state": _encode_optimizer_state(state.optimiser),
-            "credits": [asdict(credit) for credit in state.credits],
+            "credits": credit_payloads,
             "applied_event_ids": sorted(state.applied_event_ids),
             "issued_actions": state.issued_actions,
             "update_records": state.update_records,
         }
+        if self.variant == A1_VARIANT:
+            payload["m2_variant"] = self.variant
         payload["state_identity"] = payload_sha(payload)
         return payload
 
@@ -467,6 +500,8 @@ class M2ProductionTraderRuntime:
             "checkpoint_file_identity": self.checkpoint_file_identity,
             "online_adaptation_enabled": self.online_adaptation_enabled,
         }
+        if self.variant == A1_VARIANT:
+            expected["m2_variant"] = self.variant
         for name, value in expected.items():
             if payload.get(name) != value:
                 raise RuntimeError(f"M2 runtime lineage mismatch: {name}")
@@ -500,6 +535,22 @@ class M2ProductionTraderRuntime:
     def state_identity(self, symbol: str) -> str:
         return str(self._payload(self._load(symbol))["state_identity"])
 
+    def fast_parameter_identity(self, symbol: str) -> str:
+        return fast_checkpoint_sha(self._load(symbol).model)
+
+    def global_parameter_identity(self, symbol: str) -> str:
+        state = self._load(symbol)
+        return canonical_parameter_sha(self._global_state(state.model).items())
+
+    def policy_parameter_identity(self, symbol: str) -> str:
+        return canonical_parameter_sha(self._load(symbol).model)
+
+    def optimiser_state_identity(self, symbol: str) -> str:
+        return payload_sha(_encode_optimizer_state(self._load(symbol).optimiser))
+
+    def parameter_mutating_update_count(self, symbol: str) -> int:
+        return len(self._load(symbol).update_records)
+
     def cache_identity_for_decision(self, symbol: str, session: str) -> str:
         """Bind retries to the state that existed before this action was issued."""
 
@@ -527,6 +578,8 @@ class M2ProductionTraderRuntime:
         }
 
     def _apply(self, state: ProductionSymbolState, credit: ProductionCredit) -> None:
+        if not self.online_adaptation_enabled or self.variant == A1_VARIANT:
+            raise RuntimeError("online update disabled by A1 ablation")
         if credit.status != "MATURED" or credit.counterfactual_r3 is None:
             raise RuntimeError("only MATURED M2 credit may be applied")
         if credit.event_id in state.applied_event_ids:
@@ -700,6 +753,13 @@ class M2ProductionTraderRuntime:
                 "no_second_llm_call": True,
             },
         }
+        if self.variant == A1_VARIANT:
+            node_output["m2_trader_handoff_metadata"].update(
+                {
+                    "m2_variant": self.variant,
+                    "online_adaptation_enabled": False,
+                }
+            )
         next_session = graph_state.get("m2_next_decision_session")
         state.next_expected_decision_session = (
             str(next_session) if isinstance(next_session, str) and next_session else None
@@ -791,15 +851,70 @@ class M2ProductionTraderRuntime:
             credit.status = "MATURED"
             if self.online_adaptation_enabled and allow_update_for_later_decision:
                 self._apply(state, credit)
+            elif self.variant == A1_VARIANT:
+                pre_fast_sha = fast_checkpoint_sha(state.model)
+                pre_global_sha = canonical_parameter_sha(
+                    self._global_state(state.model).items()
+                )
+                pre_policy_sha = canonical_parameter_sha(state.model)
+                pre_optimiser_identity = payload_sha(
+                    _encode_optimizer_state(state.optimiser)
+                )
+                credit.status = "ARCHIVED"
+                credit.archive_reason = (
+                    A1_ARCHIVE_REASON
+                    if self.variant == A1_VARIANT
+                    else "NO_LATER_DECISION_WITHIN_HORIZON"
+                )
+                credit.pre_fast_sha = pre_fast_sha
+                credit.post_fast_sha = fast_checkpoint_sha(state.model)
+                credit.pre_global_sha = pre_global_sha
+                credit.post_global_sha = canonical_parameter_sha(
+                    self._global_state(state.model).items()
+                )
+                credit.pre_policy_parameter_sha = pre_policy_sha
+                credit.post_policy_parameter_sha = canonical_parameter_sha(state.model)
+                credit.pre_optimiser_state_identity = pre_optimiser_identity
+                credit.post_optimiser_state_identity = payload_sha(
+                    _encode_optimizer_state(state.optimiser)
+                )
+                if not (
+                    credit.pre_fast_sha == credit.post_fast_sha
+                    and credit.pre_global_sha == credit.post_global_sha
+                    and credit.pre_policy_parameter_sha
+                    == credit.post_policy_parameter_sha
+                    and credit.pre_optimiser_state_identity
+                    == credit.post_optimiser_state_identity
+                ):
+                    raise RuntimeError("archived M2 credit mutated policy or optimiser state")
             else:
                 credit.status = "ARCHIVED"
+            event = {
+                "event_id": credit.event_id,
+                "status": credit.status,
+                "maturity_input_identity": credit.maturity_input_identity,
+                "counterfactual_r3": list(rewards),
+            }
+            if self.variant == A1_VARIANT:
+                event.update(
+                    {
+                        "archive_reason": credit.archive_reason,
+                        "pre_fast_sha": credit.pre_fast_sha,
+                        "post_fast_sha": credit.post_fast_sha,
+                        "pre_global_sha": credit.pre_global_sha,
+                        "post_global_sha": credit.post_global_sha,
+                        "pre_policy_parameter_sha": credit.pre_policy_parameter_sha,
+                        "post_policy_parameter_sha": credit.post_policy_parameter_sha,
+                        "pre_optimiser_state_identity": (
+                            credit.pre_optimiser_state_identity
+                        ),
+                        "post_optimiser_state_identity": (
+                            credit.post_optimiser_state_identity
+                        ),
+                    }
+                )
             events.append(
-                {
-                    "event_id": credit.event_id,
-                    "status": credit.status,
-                    "maturity_input_identity": credit.maturity_input_identity,
-                    "counterfactual_r3": list(rewards),
-                }
+                event
             )
         if events:
             self._save(state)

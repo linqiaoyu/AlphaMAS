@@ -149,6 +149,12 @@ FORMAL_M2_CONTRACT = {
     "m2_preformal_evidence_role": "E2E_PILOT",
 }
 
+FORMAL_A1_CONTRACT = {
+    **FORMAL_M2_CONTRACT,
+    "experiment_id_template": "A1_no_online_adaptation_2024H1",
+    "m2_variant": "A1_NO_ONLINE_ADAPTATION",
+}
+
 # Every mutable default that can affect graph output is copied into the formal
 # preset and overlaid explicitly when constructing the graph. Operational paths
 # are supplied separately and are intentionally excluded from the stable hash.
@@ -373,6 +379,35 @@ def validate_formal_m2_config(config: dict[str, Any]) -> None:
     ]
     if missing_graph:
         raise ValueError(f"formal M2 config leaves graph defaults implicit: {missing_graph}")
+    validate_fixed_backtest_contract(config)
+
+
+def validate_formal_a1_config(config: dict[str, Any]) -> None:
+    """Fail if Formal A1 differs from frozen M2 beyond its registered treatment."""
+
+    missing = [key for key in FORMAL_A1_CONTRACT if key not in config]
+    if missing:
+        raise ValueError(f"formal A1 config is missing required fields: {missing}")
+    unexpected = sorted(set(config) - set(FORMAL_A1_CONTRACT))
+    if unexpected:
+        raise ValueError(f"formal A1 config has unexpected fields: {unexpected}")
+    mismatches = {
+        key: {"expected": expected, "actual": config[key]}
+        for key, expected in FORMAL_A1_CONTRACT.items()
+        if not _contract_equal(config[key], expected)
+    }
+    if mismatches:
+        raise ValueError(f"formal A1 config contract mismatch: {mismatches}")
+    if resolve_research_rounds(config["research_depth"]) != 3:
+        raise ValueError("formal A1 medium research depth must resolve to 3 rounds")
+    missing_graph = [
+        key
+        for key in GRAPH_RESEARCH_KEYS
+        if key not in {"memory_holding_horizon_sessions", "execution_data_source"}
+        and key not in config
+    ]
+    if missing_graph:
+        raise ValueError(f"formal A1 config leaves graph defaults implicit: {missing_graph}")
     validate_fixed_backtest_contract(config)
 
 
