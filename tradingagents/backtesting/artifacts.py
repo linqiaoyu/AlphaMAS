@@ -489,14 +489,19 @@ def aggregate_outputs(results: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, 
         "trade_count", "decision_count", "decision_failure_count", "cumulative_dividends",
         "buy_decision_count", "hold_decision_count", "sell_decision_count",
         "noop_rebalance_count", "filled_order_count", "rejected_order_count",
+        "model_failure_count",
     )
-    metrics.update({key: sum(float(result.metrics[key]) for result in results.values())
+    metrics.update({key: sum(float(result.metrics.get(key, 0)) for result in results.values())
                     for key in sum_keys})
     for integer_key in set(sum_keys) - {"cumulative_dividends"}:
         metrics[integer_key] = int(metrics[integer_key])
     metrics.update({
         "decision_failure_rate": (
             metrics["decision_failure_count"] / metrics["decision_count"]
+            if metrics["decision_count"] else 0.0
+        ),
+        "model_failure_rate": (
+            metrics["model_failure_count"] / metrics["decision_count"]
             if metrics["decision_count"] else 0.0
         ),
         "total_commission_cost": commission_cost,

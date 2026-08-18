@@ -239,6 +239,7 @@ class WeeklyBacktestEngine:
                     context={
                         "experiment_id": experiment_id,
                         "point_in_time": True,
+                        "execution_session": event.execution_session,
                         "market_history_visibility": dict(visibility),
                         "portfolio_reward_state": {
                             "cash": portfolio.cash,
@@ -314,4 +315,13 @@ class WeeklyBacktestEngine:
             cumulative_dividends=portfolio.cumulative_dividends,
             risk_free_rate=self.risk_free_rate, annualization=self.annualization,
         )
+        model_failure_count = int(sum(
+            bool(metadata.get("model_failure"))
+            for metadata in decisions.get("metadata", pd.Series(dtype=object))
+            if isinstance(metadata, Mapping)
+        ))
+        metrics.update({
+            "model_failure_count": model_failure_count,
+            "model_failure_rate": model_failure_count / len(decisions) if len(decisions) else 0.0,
+        })
         return BacktestResult(symbol, decisions, orders, fills, daily, actions, metrics)

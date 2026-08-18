@@ -1,0 +1,72 @@
+{
+  "benchmark_identity": "ARMA11_FIXED_V1",
+  "experiment_id": "ARMA11_2024H1",
+  "strategy": "arma11_fixed_v1",
+  "symbols": ["AAPL", "AMZN", "JPM"],
+  "calendar": "XNYS",
+  "first_calendar_week": "2024-01-01",
+  "final_calendar_week": "2024-06-24",
+  "decision_weeks": 26,
+  "final_valuation_session": "2024-07-05",
+  "warmup_sessions": 252,
+  "initial_cash": 100000,
+  "commission_bps": 5,
+  "slippage_bps": 5,
+  "fractional_shares": true,
+  "long_only": true,
+  "short_selling": false,
+  "leverage": false,
+  "buy_target_weight": 1.0,
+  "sell_target_weight": 0.0,
+  "hold": "preserve",
+  "force_liquidate_at_end": false,
+  "daily_mark_to_market": true,
+  "point_in_time": true,
+  "risk_free_rate": 0.0,
+  "annualization": 252,
+  "model": {
+    "library": "statsmodels",
+    "class": "statsmodels.tsa.arima.model.ARIMA",
+    "order": [1, 0, 1],
+    "trend": "c",
+    "enforce_stationarity": true,
+    "enforce_invertibility": true,
+    "fit_method": "statespace",
+    "maxiter": 200
+  },
+  "input": {
+    "return_convention": "daily_simple_pit_total_return",
+    "return_formula": "(Close_t * split_factor_t + Dividend_t) / Close_(t-1) - 1",
+    "return_observations": 252,
+    "price_observations": 253,
+    "source": "frozen raw OHLCV plus session-local corporate actions",
+    "vendor_adjusted_close_used": false
+  },
+  "forecast": {
+    "daily_steps": 5,
+    "cumulative_formula": "prod(1 + forecast_r_h, h=1..5) - 1"
+  },
+  "signal": {
+    "positive": 1.0,
+    "zero_or_negative": 0.0
+  },
+  "hard_failure": {
+    "action": "HOLD",
+    "target": "preserve current discrete position",
+    "status": "MODEL_FAILURE_HOLD_FALLBACK",
+    "retry": false
+  },
+  "market_snapshot_sha256": {
+    "AAPL": "5428fc2c672f3b68c7c3e83b4a22bd5b7330c95a8b4194695762539d9d8a5af3",
+    "AMZN": "c4b5c747d75ba658c6f6833348783e3f8a8c571380c930de20cf9fb7dd6b1444",
+    "JPM": "74cf77b77b0a83ce8e6246578d4da30bf7622558e8973bda71344b99b9dfd6fc",
+    "SPY": "22e6996ebf963787f40d54bfc59e1ca088fa698cb82b639768504dbdbb2d25ac"
+  },
+  "snapshot_path_relative_to_experiments": "experiments/M0/inputs/market_data",
+  "benchmark_path_relative_to_experiments": "experiments/M0/benchmarks",
+  "llm_memory": "NONE",
+  "rl_state": "NONE",
+  "agent_decision_cache": "NONE",
+  "finmultitime": false,
+  "paid_compute": false
+}
