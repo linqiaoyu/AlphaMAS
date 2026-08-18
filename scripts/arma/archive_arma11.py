@@ -16,6 +16,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASE_SOURCE_SHA = "6306ea4ea20cda501c6238db80c34d27bbc16bea"
+ARMA_PREFORMAL_SOURCE_SHA = "d33bf08a90f9cb5bb6f4511e66fda8babd9d65e0"
 BASE_EXPERIMENTS_SHA = "0313ac4024655527b1b6936de14c5e11c03e0c64"
 
 
@@ -104,7 +105,8 @@ def preformal(args: argparse.Namespace) -> Path:
     contract = {
         "benchmark_identity": "ARMA11_FIXED_V1",
         "experiment_id": "ARMA11_2024H1",
-        "source_sha": source_sha,
+        "arma_preformal_source_sha": ARMA_PREFORMAL_SOURCE_SHA,
+        "freeze_record_source_sha": source_sha,
         "parent_frozen_m2_sha": BASE_SOURCE_SHA,
         "config_sha256": sha256(config),
         "model": config_value["model"],
@@ -142,7 +144,7 @@ def preformal(args: argparse.Namespace) -> Path:
         "no_mas_finmultitime_memory_or_rl": True,
     }
     write_json(root / "benchmark_contract.json", contract)
-    markdown = f"""# ARMA11 pre-Formal benchmark contract\n\n+The fixed `ARMA11_FIXED_V1` method was frozen before any 2024H1 ARMA trading\n+performance was computed or inspected.\n+\n+- Source SHA: `{source_sha}`\n+- Frozen Full-M2 parent: `{BASE_SOURCE_SHA}`\n+- Config SHA256: `{sha256(config)}`\n+- Model: `statsmodels.tsa.arima.model.ARIMA(order=(1,0,1), trend=\"c\", enforce_stationarity=True, enforce_invertibility=True)`\n+- Fit: `method=\"statespace\"`, `maxiter=200`\n+- Input: exactly 252 daily simple PIT total returns from 253 consecutive raw-price/action observations\n+- Horizon: exactly five daily forecasts, compounded as `prod(1+r_hat)-1`\n+- Signal: positive to 100% long; zero or negative to cash\n+- Hard failure: HOLD and preserve the current discrete position; no retry\n+- PIT structural audit: 78/78 exact windows, zero future violations, zero insufficient windows\n+- Performance-based tuning: none\n+- Paid/agent compute: none\n+"""
+    markdown = f"""# ARMA11 pre-Formal benchmark contract\n\nThe fixed `ARMA11_FIXED_V1` method was frozen before any 2024H1 ARMA trading\nperformance was computed or inspected.\n\n- Methodology source SHA (`ARMA_PREFORMAL_SOURCE_SHA`): `{ARMA_PREFORMAL_SOURCE_SHA}`\n- Freeze-record source SHA: `{source_sha}`\n- Frozen Full-M2 parent: `{BASE_SOURCE_SHA}`\n- Config SHA256: `{sha256(config)}`\n- Model: `statsmodels.tsa.arima.model.ARIMA(order=(1,0,1), trend=\"c\", enforce_stationarity=True, enforce_invertibility=True)`\n- Fit: `method=\"statespace\"`, `maxiter=200`\n- Input: exactly 252 daily simple PIT total returns from 253 consecutive raw-price/action observations\n- Horizon: exactly five daily forecasts, compounded as `prod(1+r_hat)-1`\n- Signal: positive to 100% long; zero or negative to cash\n- Hard failure: HOLD and preserve the current discrete position; no retry\n- PIT structural audit: 78/78 exact windows, zero future violations, zero insufficient windows\n- Performance-based tuning: none\n- Paid/agent compute: none\n"""
     (root / "benchmark_contract.md").write_text(markdown, encoding="utf-8")
     write_json(root / "regression_summary.json", {
         "command": args.test_command,
@@ -154,7 +156,8 @@ def preformal(args: argparse.Namespace) -> Path:
     (root / "source_diff_inventory.txt").write_text(diff + "\n", encoding="utf-8")
     write_json(root / "source_identity.json", {
         "branch": "compare-with-adft",
-        "source_sha": source_sha,
+        "arma_preformal_source_sha": ARMA_PREFORMAL_SOURCE_SHA,
+        "freeze_record_source_sha": source_sha,
         "parent_frozen_m2_sha": BASE_SOURCE_SHA,
         "baseline_m2_ahead": 0,
         "baseline_m2_behind": 0,
