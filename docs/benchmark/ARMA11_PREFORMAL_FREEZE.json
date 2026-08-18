@@ -1,0 +1,50 @@
+{
+  "freeze_identity": "ARMA11_PREFORMAL_SOURCE_FREEZE_V1",
+  "branch": "compare-with-adft",
+  "arma_preformal_source_sha": "d33bf08a90f9cb5bb6f4511e66fda8babd9d65e0",
+  "parent_frozen_m2_sha": "6306ea4ea20cda501c6238db80c34d27bbc16bea",
+  "benchmark_identity": "ARMA11_FIXED_V1",
+  "experiment_id": "ARMA11_2024H1",
+  "config_sha256": "fa193e253716faeb4a3235c0a1ff51dc9f75f95bf01564153ccec7a3e5eb1fc5",
+  "model": {
+    "class": "statsmodels.tsa.arima.model.ARIMA",
+    "order": [1, 0, 1],
+    "trend": "c",
+    "enforce_stationarity": true,
+    "enforce_invertibility": true,
+    "fit_method": "statespace",
+    "maxiter": 200
+  },
+  "input": {
+    "return_convention": "daily_simple_pit_total_return",
+    "return_observations": 252,
+    "price_observations": 253,
+    "forecast_steps": 5,
+    "vendor_adjusted_close_used": false
+  },
+  "hard_failure_status": "MODEL_FAILURE_HOLD_FALLBACK",
+  "versions": {
+    "python": "3.12.10",
+    "statsmodels": "0.14.5",
+    "numpy": "2.5.2",
+    "scipy": "1.18.0",
+    "pandas": "2.3.3",
+    "exchange_calendars": "4.13.2"
+  },
+  "tests": {
+    "passed": 109,
+    "status": "passed"
+  },
+  "pit_window_audit": {
+    "sha256": "6967098e5ab8633e683e0d89fa81cabe43e70d7c459ad4a08ab9e022d546ce84",
+    "case_count": 78,
+    "exact_252_windows": 78,
+    "future_input_violations": 0,
+    "insufficient_windows": 0,
+    "duplicate_cases": 0,
+    "model_fits_executed": 0,
+    "performance_computed": false
+  },
+  "zero_performance_based_tuning": true,
+  "design_frozen_before_results": true
+}
